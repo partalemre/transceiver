@@ -35,11 +35,13 @@ async function saveDrafts(host: Pick<Host, 'storeSet'>, drafts: Draft[]): Promis
 }
 
 // At most MAX_DRAFTS_PER_ROOM wait per room; past that a question is dropped, and its asker's wait ends as pending.
-export async function addDraft(host: Pick<Host, 'storeGet' | 'storeSet'>, draft: Draft): Promise<void> {
+// True only when the draft was stored now (not a qid already waiting, not past the cap).
+export async function addDraft(host: Pick<Host, 'storeGet' | 'storeSet'>, draft: Draft): Promise<boolean> {
   const drafts = await loadDrafts(host)
   const isFull = drafts.filter(d => d.roomId === draft.roomId).length >= MAX_DRAFTS_PER_ROOM
-  if (isFull || drafts.some(d => d.qid === draft.qid)) return
+  if (isFull || drafts.some(d => d.qid === draft.qid)) return false
   await saveDrafts(host, [...drafts, draft])
+  return true
 }
 
 async function takeDraft(host: Pick<Host, 'storeGet' | 'storeSet'>, qid: string): Promise<Draft | undefined> {

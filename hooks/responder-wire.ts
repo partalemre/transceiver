@@ -1,17 +1,21 @@
 import { askModel, newNonce } from './ask'
 import { spendAsk } from './budget'
-import { addDraft } from './drafts'
+import { addDraft, loadDrafts } from './drafts'
 import { makeGate, type GateInput } from './gate'
 import { ghCheck, mcpCheck } from './github'
 import { repoHere } from './here'
 import type { AgentHost } from './host'
+import { DRAFT_TOAST_MS } from './limits'
+import { namesNow } from './names'
 import { isUnreadable } from './protocol'
 import { answerTyped } from './queries'
 import { callerOf, relayOf } from './relay'
 import { respond, type Deps } from './responder'
 import { enqueueMessage, onTick, type TickEvent } from './room-loop'
 import { loadRooms, type RoomRecord } from './rooms'
+import type { Draft } from './state-types'
 import type { Entry } from './timeline'
+import { firstName, genitive } from './tr'
 
 type Gate = (input: GateInput) => Promise<boolean>
 type Ctx = { host: AgentHost; gate: Gate }
@@ -20,6 +24,42 @@ type Turn = { room: RoomRecord; ev: TickEvent; repo: string | null; root: string
 // Per room, across ticks: the rate window and the queries this session has decided on.
 const rate = new Map<string, number[]>()
 const seenByRoom = new Map<string, Set<string>>()
+// Per room: when its last draft toast went out, the asker it named, and whether a draft was stored since.
+const draftToasts = new Map<string, { at: number; asker: string; isDue: boolean }>()
+
+type ToastHost = Pick<AgentHost, 'storeGet' | 'storeSet' | 'now' | 'after' | 'toast'>
+
+export function draftToastText(opts: { name: string; count: number }): string {
+  const who = opts.name === '' ? 'Bir agent' : `${genitive(firstName(opts.name))} agent'ı`
+  return `${who} ${opts.count} soru bekletiyor`
+}
+
+async function toastDrafts(host: ToastHost, opts: { roomId: string; asker: string }): Promise<void> {
+  const waiting = (await loadDrafts(host)).filter(d => d.roomId === opts.roomId && d.asker === opts.asker)
+  if (waiting.length > 0) host.toast(draftToastText({ name: namesNow()[opts.asker] ?? '', count: waiting.length }))
+}
+
+async function flushDraftToast(host: ToastHost, roomId: string): Promise<void> {
+  const due = draftToasts.get(roomId)
+  if (due?.isDue !== true) return
+  draftToasts.set(roomId, { ...due, at: await host.now(), isDue: false })
+  await toastDrafts(host, { roomId, asker: due.asker })
+}
+
+// A draft past the ask limit is stored once; only a draft stored now raises a toast, and a burst in one room makes
+// one toast at once and, when more came within DRAFT_TOAST_MS, one more at its end with the count then.
+export async function storeDraft(host: ToastHost, draft: Draft): Promise<void> {
+  if (!(await addDraft(host, draft))) return
+  const now = await host.now()
+  const last = draftToasts.get(draft.roomId)
+  if (last === undefined || now - last.at >= DRAFT_TOAST_MS) {
+    draftToasts.set(draft.roomId, { at: now, asker: draft.asker, isDue: false })
+    await toastDrafts(host, draft)
+    return
+  }
+  if (!last.isDue) host.after(last.at + DRAFT_TOAST_MS - now, () => void flushDraftToast(host, draft.roomId).catch(() => undefined))
+  draftToasts.set(draft.roomId, { ...last, asker: draft.asker, isDue: true })
+}
 
 function depsFor(ctx: Ctx, turn: Turn): Deps {
   const { host } = ctx
@@ -41,10 +81,7 @@ function depsFor(ctx: Ctx, turn: Turn): Deps {
     post: async message => {
       if (!enqueueMessage({ host, room, message })) throw new Error('room not synced')
     },
-    addDraft: async draft => {
-      await addDraft(host, draft)
-      host.toast('Transceiver: günlük soru sınırı doldu, bir soru onayını bekliyor')
-    },
+    addDraft: draft => storeDraft(host, draft),
   }
 }
 

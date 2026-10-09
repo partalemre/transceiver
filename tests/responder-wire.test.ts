@@ -1,7 +1,10 @@
 import { expect, test } from 'claude-code/testing'
+import { addDraft, loadDrafts } from '../hooks/drafts'
 import { forgetRepo } from '../hooks/here'
+import { DRAFT_TOAST_MS, MAX_DRAFTS_PER_ROOM } from '../hooks/limits'
+import { resolveNames } from '../hooks/names'
 import { DENIED } from '../hooks/protocol'
-import { wireResponder } from '../hooks/responder-wire'
+import { draftToastText, storeDraft, wireResponder } from '../hooks/responder-wire'
 import { startLoop, stopRoom } from '../hooks/room-loop'
 import { saveRooms, type RoomRecord } from '../hooks/rooms'
 import type { Run } from '../hooks/run'
@@ -82,4 +85,48 @@ test('before connecting nothing is written; once connected the waiting query is 
   await w.host.advance(10_000)
   expect(answersIn(w.db).map(a => a?.ok)).toEqual([true])
   w.stop()
+})
+
+const NAMED = 'u_NNNNNNNNNNNNNNNNNNNNNN'
+const draftOf = (roomId: string, i: number, asker = NAMED) => ({ roomId, qid: `01K7A${String(i).padStart(21, '0')}`, question: `q${i}`, asker })
+
+test('a draft toast names the asker\'s agent and counts its waiting questions', () => {
+  expect(draftToastText({ name: 'Alperen Yıldız', count: 3 })).toBe("Alperen'in agent'ı 3 soru bekletiyor")
+  expect(draftToastText({ name: 'Emre', count: 1 })).toBe("Emre'nin agent'ı 1 soru bekletiyor")
+  expect(draftToastText({ name: '', count: 2 })).toBe('Bir agent 2 soru bekletiyor')
+})
+
+test('only a stored draft toasts, and a burst in one room makes one toast now and one at the window\'s end', async () => {
+  const host = fakeAgent(async () => ({ result: { db_profiles: { profiles: { [NAMED]: { name: 'Alperen Yıldız' } } } } }))
+  await resolveNames(host, { url: 'https://claude.ai/artifact/DT1', uids: [NAMED] })
+  await storeDraft(host, draftOf('DT1', 0))
+  expect(host.toasts).toEqual(["Alperen'in agent'ı 1 soru bekletiyor"])
+  // The same qid again is not a new draft: no toast, ever.
+  await storeDraft(host, draftOf('DT1', 0))
+  await host.advance(DRAFT_TOAST_MS)
+  expect(host.toasts.length).toBe(1)
+  // A burst inside the window: one toast at once, then one at its end with the count by then.
+  await storeDraft(host, draftOf('DT1', 1))
+  await storeDraft(host, draftOf('DT1', 2))
+  await storeDraft(host, draftOf('DT1', 3))
+  expect(host.toasts.length).toBe(2)
+  await host.advance(DRAFT_TOAST_MS - 1)
+  expect(host.toasts.length).toBe(2)
+  await host.advance(1)
+  expect(host.toasts.at(-1)).toBe("Alperen'in agent'ı 4 soru bekletiyor")
+  expect(host.toasts.length).toBe(3)
+  await host.advance(5 * DRAFT_TOAST_MS)
+  expect(host.toasts.length).toBe(3)
+  // Another room has its own window.
+  await storeDraft(host, draftOf('DT2', 4))
+  expect(host.toasts.length).toBe(4)
+})
+
+test('a draft dropped by the per-room cap raises no toast', async () => {
+  const host = fakeAgent(async () => ({}))
+  for (let i = 0; i < MAX_DRAFTS_PER_ROOM; i++) await addDraft(host, draftOf('DT3', i, PEER))
+  await storeDraft(host, draftOf('DT3', MAX_DRAFTS_PER_ROOM, PEER))
+  await host.advance(2 * DRAFT_TOAST_MS)
+  expect(host.toasts).toEqual([])
+  expect((await loadDrafts(host)).length).toBe(MAX_DRAFTS_PER_ROOM)
 })

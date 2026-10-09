@@ -109,5 +109,7 @@ export const COMMIT_SUBJECT_CHARS = 200
 
 // Drafts past the ask limit kept per room: a flood of asks cannot grow the store.
 export const MAX_DRAFTS_PER_ROOM = 20
+// Draft toasts per room: at most one per this long; a burst inside it is told once more at its end, with the count.
+export const DRAFT_TOAST_MS = 30_000
 // A shared artifact titled like a room but with no room meta is read again only after this long.
 export const NOT_ROOM_RETRY_MS = 10 * 60_000
