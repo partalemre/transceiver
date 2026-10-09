@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { DENIED, isUnreadable, parseHead, parseMessage, parseMeta, paths, utf8Bytes } from '../hooks/protocol'
+import { DENIED, isRepo, isUnreadable, parseHead, parseMessage, parseMeta, paths, utf8Bytes } from '../hooks/protocol'
 
 const ID = '01K7A0000000000000000000AB'
 const ok = { v: 1, id: ID, ts: 5, kind: 'human', text: 'merhaba' }
@@ -44,4 +44,30 @@ test('utf8 byte count matches multi-byte text', () => {
 test('paths keep each author in its own subtree', () => {
   expect(paths.msgs('u_x')).toBe('outbox/u_x/msgs')
   expect(paths.claims('u_x')).toBe('outbox/u_x/claims')
+})
+
+test('a dm meta may omit repo but a present repo must be valid', () => {
+  expect(parseMeta({ v: 1, kind: 'dm', createdAt: 1 })).not.toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', repo: { x: 1 }, createdAt: 1 })).toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', repo: null, createdAt: 1 })).toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', repo: '../x', createdAt: 1 })).toBe(null)
+})
+
+test('head pointers are empty or a valid id', () => {
+  const head = { v: 1, head: '', headTs: 0, seenUpTo: '', readUpTo: '', readTs: 0 }
+  expect(parseHead({ ...head, head: 'x'.repeat(5000) })).toBe(null)
+  expect(parseHead({ ...head, seenUpTo: 'nope' })).toBe(null)
+  expect(parseHead({ ...head, readUpTo: 'nope' })).toBe(null)
+  expect(parseHead({ ...head, head: ID, seenUpTo: ID, readUpTo: ID })).not.toBe(null)
+})
+
+test('text longer than the byte cap in UTF-16 units is unreadable', () => {
+  expect(isUnreadable(parseMessage(ID, { ...ok, text: 'a'.repeat(20_000) }))).toBe(true)
+})
+
+test('repo segments made only of dots are rejected', () => {
+  expect(isRepo('./x')).toBe(false)
+  expect(isRepo('a/.')).toBe(false)
+  expect(isRepo('a/...')).toBe(false)
+  expect(isRepo('partalemre/eliti')).toBe(true)
 })

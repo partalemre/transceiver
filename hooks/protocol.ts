@@ -1,4 +1,4 @@
-import { MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
+import { MAX_PATH_BYTES, MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
 
 export const DENIED = 'erişim yok'
 const KINDS = ['human', 'agent', 'query', 'answer', 'system'] as const
@@ -38,12 +38,15 @@ const THREE_BYTES = 0x10000
 type Obj = Record<string, unknown>
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0
-const isText = (x: unknown, max = MAX_TEXT_BYTES): x is string => typeof x === 'string' && utf8Bytes(x) <= max
+const isText = (x: unknown, max = MAX_TEXT_BYTES): x is string => typeof x === 'string' && x.length <= max && utf8Bytes(x) <= max
 const isOneOf = <T extends string>(list: readonly T[], x: unknown): x is T => list.includes(x as T)
 
 export const isUid = (x: unknown): x is string => typeof x === 'string' && UID.test(x)
 export const isId = (x: unknown): x is string => typeof x === 'string' && ID.test(x)
-export const isRepo = (x: unknown): x is string => typeof x === 'string' && REPO.test(x) && !x.includes('..')
+const isDotsOnly = (segment: string): boolean => /^\.+$/.test(segment)
+export const isRepo = (x: unknown): x is string =>
+  typeof x === 'string' && REPO.test(x) && !x.includes('..') && !x.split('/').some(isDotsOnly)
+const isIdOrEmpty = (x: unknown): x is string => x === '' || isId(x)
 export const isUnreadable = (x: Message | Unreadable): x is Unreadable => 'isUnreadable' in x
 
 function charBytes(code: number): number {
@@ -61,7 +64,7 @@ export function utf8Bytes(text: string): number {
 
 function parseQuery(x: unknown): Query | null {
   if (!isObj(x) || !isOneOf(QUERY_TYPES, x.type) || !isRepo(x.repo)) return null
-  if (x.path !== undefined && !isText(x.path, SHORT_TEXT * 5)) return null
+  if (x.path !== undefined && !isText(x.path, MAX_PATH_BYTES)) return null
   if (x.question !== undefined && !isText(x.question)) return null
   return { type: x.type, repo: x.repo, path: x.path as string | undefined, question: x.question as string | undefined }
 }
@@ -102,7 +105,7 @@ function stripUndefined<T extends object>(x: T): T {
 
 export function parseHead(raw: unknown): Head | null {
   if (!isObj(raw) || raw.v !== PROTOCOL_VERSION) return null
-  if (typeof raw.head !== 'string' || typeof raw.seenUpTo !== 'string' || typeof raw.readUpTo !== 'string') return null
+  if (![raw.head, raw.seenUpTo, raw.readUpTo].every(isIdOrEmpty)) return null
   if (!isCount(raw.headTs) || !isCount(raw.readTs)) return null
   if (raw.gh !== undefined && !(typeof raw.gh === 'string' && GH_LOGIN.test(raw.gh))) return null
   if (raw.label !== undefined && !isText(raw.label, SHORT_TEXT)) return null
@@ -114,7 +117,7 @@ export function parseHead(raw: unknown): Head | null {
 
 export function parseMeta(raw: unknown): RoomMeta | null {
   if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isOneOf(ROOM_KINDS, raw.kind) || !isCount(raw.createdAt)) return null
-  if (raw.kind === 'project' && !isRepo(raw.repo)) return null
+  if ((raw.kind === 'project' || 'repo' in raw) && !isRepo(raw.repo)) return null
   return stripUndefined({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, createdAt: raw.createdAt })
 }
 

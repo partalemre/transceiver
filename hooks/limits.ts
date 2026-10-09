@@ -1,5 +1,6 @@
 export const PROTOCOL_VERSION = 1
 export const MAX_TEXT_BYTES = 16_384
+export const MAX_PATH_BYTES = 1_000
 export const MAX_DIFF_BYTES = 65_536
 export const MAX_FILE_BYTES = 262_144
 export const LOG_COUNT = 20
