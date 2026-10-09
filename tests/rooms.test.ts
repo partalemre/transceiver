@@ -137,6 +137,7 @@ test('session start runs the loop through the engine, reading rooms from the sto
   const clock = mock.clock(on, { now: 1_791_545_100_000 })
   mock.env(on, { HOME: '/home/u' })
   on('tool.call', async (_$, e) => asToolResult(await callerFor(db)(e as unknown as Record<string, unknown>)))
+  on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('session.start', () => ({ cwd: '/w' }))
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/w' } as never)
   await clock.settle()

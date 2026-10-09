@@ -10,7 +10,8 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T3 dbtext | done | `2c2f2ce`, `2913d5c`, `5063a48` | — |
 | T4 relay | done (review fixes) | `f9b12b3`, `4dfcdbc`, `615618e` (kit-pull) | 70 |
 | T5 timeline + sync | done | `17a9259` | 98 |
-| T6 rooms + room page | done | see git log `feat(rooms)` | 111 |
+| T6 rooms + room page | done | `c544a9f` | 111 |
+| T7 commands + join | done | see git log `feat(commands)` | 121 |
 
 ## T4 review fixes
 
@@ -58,3 +59,21 @@ Plan deviations:
 - Room page: subscribes to the newest `KEEP_ENTRIES` messages per author (`orderBy ts desc`; the plan's `asc` limit kept the oldest 500), handles a viewer with no `user.id()`, stamps `ts = max(now, headTs + 1)` so a phone with a slow clock still moves the head forward, and moves the head with `update({ head, headTs })` (a merge) when it exists, so it never drops the mod's cursors or `gh`. The input's `maxlength` comes from `PAGE_MAX_CHARS`.
 - `room-loop.ts`: a failing step (e.g. `whoami` offline) is logged as `transceiver: <title>: <ErrorName>` and retried with backoff (the plan's loop stopped for good on the first throw and logged `String(err)`, which can carry tool text). `stopRoom` really stops a step already in flight from rescheduling. Messages queued during a tick are carried onto its result (`enqueueMessage({ host, room, message })`, for T8). The store is written only when the sync fingerprint changes, not every poll.
 - New constants: `SHARED_LIST_LIMIT`, `PAGE_MAX_CHARS`.
+
+## T7 commands + join
+
+`/transceiver` with `ekle`, `proje <sahip/repo>`, `katıl <link>`, `çık <oda adı | link>`, `kur`, `ayarlar` (verbs fold Turkish letters, so `katil`/`cik` work too). As the spike decided there is no allow-rule setup: `kur`, `ayarlar` and no args open the pane, where T8's "Bağlan" card raises the session's first write.
+
+Plan deviations:
+
+- `register.tsx` holds the wiring (`on('command.run')`, `$.command.register`, `$.ui.open`), not `commands.ts`'s `wireCommands(on)`, for the `$` rule found in T6. `commands.ts` exports the pure `parseCommand` and `runCommand({ host, openPane, cmd })`. The command name is a literal `'transceiver'` in `register.tsx` (it equals `COMMAND`): with the imported constant `claude plugin validate` reads the matcher as `command=?` and lists the hook as a gate; with the literal it reads "answers its own command". The `command.run` hook has a `.catch` that answers a short Turkish line instead of nothing.
+- One `session.start` hook does both registration and the loop (the engine refuses two unmatched hooks on one event); a refused registration is caught and logged so polling still starts.
+- `ekle`/`proje` pass `The user ran "/transceiver …"` as `consent` on the publish and the meta write. A refused publish is reported (`Oda açılamadı: …`), not thrown.
+- `joinRoom(host, text)` returns the plan's Turkish lines; joining only reads (meta), so it needs no consent; the room is saved `active` and polled at once. `joinUrlOf` accepts exactly one claude.ai artifact link and nothing else.
+- `çık` requires a name or link, matches only rooms not already left, and refuses an ambiguous name (two DMs share the title `Transceiver · DM`) instead of leaving the first match; the plan's `endsWith('')` would have left the first room on a bare `çık`.
+
+## Open questions
+
+- Publishing the room page from `~/.claude/transceiver/rooms/<id>.html`: the spike measured `ArtifactData`, `Artifact list` and profiles, not `Artifact publish` from a mod. The page file is outside the session's working directory; whether `publish` accepts it (or asks) is unmeasured. If it refuses, write the page under the session's scratchpad or cwd instead.
+- R2 (guest write from another account) is still unmeasured, as the spike notes; T6's room rules depend on it.
+- The other agent's modules (T10–T12) and the later tasks (T8–T14) must follow the same `$` rule: only `register.tsx` may hold `$`; pass ports (`Host`, or narrower ones like `McpHost` in `github.ts`) into other files.
