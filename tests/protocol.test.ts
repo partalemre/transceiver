@@ -30,6 +30,14 @@ test('an answer carries qid, ok, body and tokens', () => {
   expect(parseMessage(ID, a)).toEqual(a)
 })
 
+test('a split answer numbers its parts; a part out of range or alone is unreadable', () => {
+  const part = (answer: Record<string, unknown>) => ({ ...ok, kind: 'answer', answer: { qid: ID, ok: true, body: 'x', tokens: 0, ...answer } })
+  expect(parseMessage(ID, part({ part: 2, parts: 3 }))).toEqual(part({ part: 2, parts: 3 }))
+  for (const bad of [{ part: 0, parts: 3 }, { part: 4, parts: 3 }, { part: 1 }, { parts: 2 }, { part: 1.5, parts: 2 }, { part: 1, parts: 99 }]) {
+    expect(isUnreadable(parseMessage(ID, part(bad)))).toBe(true)
+  }
+})
+
 test('heads and meta reject junk', () => {
   expect(parseHead({ v: 1, head: '', headTs: 0, seenUpTo: '', readUpTo: '', readTs: 0 })).not.toBe(null)
   expect(parseHead({ v: 1, head: 3 })).toBe(null)

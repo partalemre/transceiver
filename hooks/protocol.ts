@@ -1,4 +1,4 @@
-import { MAX_PATH_BYTES, MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
+import { MAX_ANSWER_PARTS, MAX_PATH_BYTES, MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
 
 export const DENIED = 'erişim yok'
 const KINDS = ['human', 'agent', 'query', 'answer', 'system'] as const
@@ -8,7 +8,8 @@ const ROOM_KINDS = ['dm', 'project'] as const
 export type Kind = (typeof KINDS)[number]
 export type QueryType = (typeof QUERY_TYPES)[number]
 export type Query = { type: QueryType; repo: string; path?: string; question?: string }
-export type Answer = { qid: string; ok: boolean; body: string; tokens: number }
+// A long answer is split into `parts` messages sharing one qid, `part` counting from 1; a single one has neither.
+export type Answer = { qid: string; ok: boolean; body: string; tokens: number; part?: number; parts?: number }
 export type Message = {
   v: 1; id: string; ts: number; kind: Kind; text: string; replyTo?: string; query?: Query; answer?: Answer
 }
@@ -69,9 +70,18 @@ function parseQuery(x: unknown): Query | null {
   return { type: x.type, repo: x.repo, path: x.path as string | undefined, question: x.question as string | undefined }
 }
 
+const isPartNo = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 1 && (x as number) <= MAX_ANSWER_PARTS
+
+function parseParts(x: Obj): { part: number; parts: number } | {} | null {
+  if (x.part === undefined && x.parts === undefined) return {}
+  if (!isPartNo(x.part) || !isPartNo(x.parts) || x.part > x.parts) return null
+  return { part: x.part, parts: x.parts }
+}
+
 function parseAnswer(x: unknown): Answer | null {
   if (!isObj(x) || !isId(x.qid) || typeof x.ok !== 'boolean' || !isText(x.body) || !isCount(x.tokens)) return null
-  return { qid: x.qid, ok: x.ok, body: x.body, tokens: x.tokens }
+  const parts = parseParts(x)
+  return parts === null ? null : { qid: x.qid, ok: x.ok, body: x.body, tokens: x.tokens, ...parts }
 }
 
 const unreadable = (id: string, reason: string): Unreadable => ({ id, isUnreadable: true, reason })
