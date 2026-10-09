@@ -1,13 +1,37 @@
-import { MAX_ANSWER_PARTS, MAX_PATH_BYTES, MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
+import { GREP_MAX_CHARS, GREP_MIN_CHARS, MAX_ANSWER_PARTS, MAX_PATH_BYTES, MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
 
 export const DENIED = 'erişim yok'
 const KINDS = ['human', 'agent', 'query', 'answer', 'system'] as const
-const QUERY_TYPES = ['status', 'log', 'branch', 'diff', 'file', 'tests', 'plan', 'ask'] as const
 const ROOM_KINDS = ['dm', 'project'] as const
 
+// The query field a type reads its argument from.
+export type QueryArg = 'path' | 'text' | 'sha' | 'question'
+export type QueryTypeSpec = { arg: QueryArg | null; isArgRequired: boolean; isModelless: boolean }
+// Every query type, one entry each. Names are wire values and stay stable; the UI's chips and slash commands read
+// this. `arg` is the field the type takes (null: none); grep also takes an optional `path` folder and
+// `isCaseInsensitive`. A required argument that is missing is a denial, not an unreadable message.
+export const QUERY_TYPES = {
+  status: { arg: null, isArgRequired: false, isModelless: true },
+  branch: { arg: null, isArgRequired: false, isModelless: true },
+  log: { arg: null, isArgRequired: false, isModelless: true },
+  diff: { arg: null, isArgRequired: false, isModelless: true },
+  tests: { arg: null, isArgRequired: false, isModelless: true },
+  plan: { arg: null, isArgRequired: false, isModelless: true },
+  file: { arg: 'path', isArgRequired: true, isModelless: true },
+  grep: { arg: 'text', isArgRequired: true, isModelless: true },
+  files: { arg: 'path', isArgRequired: false, isModelless: true },
+  todo: { arg: 'path', isArgRequired: false, isModelless: true },
+  deps: { arg: null, isArgRequired: false, isModelless: true },
+  commit: { arg: 'sha', isArgRequired: true, isModelless: true },
+  ask: { arg: 'question', isArgRequired: true, isModelless: false },
+} as const satisfies Record<string, QueryTypeSpec>
+export type QueryType = keyof typeof QUERY_TYPES
+export const QUERY_TYPE_NAMES = Object.keys(QUERY_TYPES) as QueryType[]
+
 export type Kind = (typeof KINDS)[number]
-export type QueryType = (typeof QUERY_TYPES)[number]
-export type Query = { type: QueryType; repo: string; path?: string; question?: string }
+export type Query = {
+  type: QueryType; repo: string; path?: string; question?: string; text?: string; sha?: string; isCaseInsensitive?: boolean
+}
 // A long answer is split into `parts` messages sharing one qid, `part` counting from 1; a single one has neither.
 export type Answer = { qid: string; ok: boolean; body: string; tokens: number; part?: number; parts?: number }
 export type Message = {
@@ -63,11 +87,33 @@ export function utf8Bytes(text: string): number {
   return bytes
 }
 
+const SHA = /^[0-9a-f]{7,40}$/
+// Control characters, except a tab: a search text is one line.
+const SEARCH_BAD_CHARS = /[\u0000-\u0008\u000a-\u001f\u007f]/
+export const isSha = (x: unknown): x is string => typeof x === 'string' && SHA.test(x)
+// A literal search text: 2–200 characters, one line, not only spaces.
+export function isSearchText(x: unknown): x is string {
+  if (typeof x !== 'string' || SEARCH_BAD_CHARS.test(x) || x.trim() === '') return false
+  const chars = [...x].length
+  return chars >= GREP_MIN_CHARS && chars <= GREP_MAX_CHARS
+}
+export const isQueryType = (x: unknown): x is QueryType => typeof x === 'string' && Object.hasOwn(QUERY_TYPES, x)
+
+// Each field, when present, must have its shape; fields are kept whatever the type, and the handler reads its own.
+function hasQueryFields(x: Obj): boolean {
+  if (x.path !== undefined && !isText(x.path, MAX_PATH_BYTES)) return false
+  if (x.question !== undefined && !isText(x.question)) return false
+  if (x.text !== undefined && !isSearchText(x.text)) return false
+  if (x.sha !== undefined && !isSha(x.sha)) return false
+  return x.isCaseInsensitive === undefined || typeof x.isCaseInsensitive === 'boolean'
+}
+
 function parseQuery(x: unknown): Query | null {
-  if (!isObj(x) || !isOneOf(QUERY_TYPES, x.type) || !isRepo(x.repo)) return null
-  if (x.path !== undefined && !isText(x.path, MAX_PATH_BYTES)) return null
-  if (x.question !== undefined && !isText(x.question)) return null
-  return { type: x.type, repo: x.repo, path: x.path as string | undefined, question: x.question as string | undefined }
+  if (!isObj(x) || !isQueryType(x.type) || !isRepo(x.repo) || !hasQueryFields(x)) return null
+  return {
+    type: x.type, repo: x.repo, path: x.path as string | undefined, question: x.question as string | undefined,
+    text: x.text as string | undefined, sha: x.sha as string | undefined, isCaseInsensitive: x.isCaseInsensitive as boolean | undefined,
+  }
 }
 
 const isPartNo = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 1 && (x as number) <= MAX_ANSWER_PARTS

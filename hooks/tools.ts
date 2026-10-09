@@ -4,9 +4,10 @@ import { fence, newNonce } from './ask'
 import { WAITING } from './connection'
 import { projectRoomFor, repoHere } from './here'
 import type { AgentHost } from './host'
-import { ASK_MAX_QUESTION_CHARS, ASK_WAIT_MARGIN_MS, ASK_WAIT_MS, ASK_WAIT_STEP_MS, INBOX_LIMIT } from './limits'
-import { MAX_PATH_BYTES, MAX_TEXT_BYTES, QUERY_FUTURE_SKEW_MS } from './limits'
-import { isUnreadable, parseMessage, utf8Bytes, type Message, type Query, type QueryType } from './protocol'
+import { ASK_WAIT_MARGIN_MS, ASK_WAIT_MS, ASK_WAIT_STEP_MS, INBOX_LIMIT } from './limits'
+import { MAX_TEXT_BYTES, QUERY_FUTURE_SKEW_MS } from './limits'
+import { isUnreadable, parseMessage, QUERY_TYPE_NAMES, utf8Bytes, type Message } from './protocol'
+import { queryFromInput, queryText } from './queries-input'
 import { callerOf, relayOf } from './relay'
 import { enqueueMessage, syncOf } from './room-loop'
 import { loadRooms, type RoomRecord } from './rooms'
@@ -20,7 +21,6 @@ export type ToolCtx = { host: AgentHost; budgetLeft: () => number }
 type Input = Record<string, unknown>
 type Wait = { room: RoomRecord; qid: string; selfUid: string; since: number }
 
-const TYPES: readonly QueryType[] = ['status', 'log', 'branch', 'diff', 'file', 'tests', 'plan', 'ask']
 const NO_ROOM = 'Bu repo için ortak proje odası yok. /transceiver proje <sahip/repo> ile açılır; karşı taraf collaborator olmalı.'
 const NOT_SENT = 'Mesaj gönderilmedi: boş, çok uzun ya da gizli anahtar içeriyor.'
 const NOT_SYNCED = 'Oda henüz eşitlenmedi; birazdan yeniden dene.'
@@ -39,10 +39,18 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: 'ask', isDeferred: true,
-    description: 'Ask the teammate\'s side about this repo. status, log, branch, diff, file (with path), tests and plan are answered without a model; ask (with question) uses a small model on their side. Waits a few seconds, then returns pending:<id>; read a late answer with inbox.',
+    description: 'Ask the teammate\'s side about this repo. Answered without a model: status, log, branch, diff, tests, plan, '
+      + 'file (path), files (optional folder path: tracked file names), grep (text: literal search in tracked files, '
+      + 'optional folder path, isCaseInsensitive), todo (optional folder path: TODO/FIXME/HACK/XXX notes), deps '
+      + '(dependency manifests at the repo root), commit (sha: message and changed files). ask (question) uses a small '
+      + 'model on their side. Secret files and secrets are never sent: such answers read "erişim yok". Waits a few '
+      + 'seconds, then returns pending:<id>; read a late answer with inbox.',
     inputSchema: {
       type: 'object', required: ['type'],
-      properties: { type: { type: 'string', enum: TYPES }, path: { type: 'string' }, question: { type: 'string' } },
+      properties: {
+        type: { type: 'string', enum: QUERY_TYPE_NAMES }, path: { type: 'string' }, text: { type: 'string' },
+        sha: { type: 'string' }, question: { type: 'string' }, isCaseInsensitive: { type: 'boolean' },
+      },
     },
   },
 ]
@@ -103,18 +111,6 @@ async function inbox(ctx: ToolCtx): Promise<ToolOut> {
   return { result: `${DATA_NOTE}\n${fence(lines.join('\n'), newNonce(await ctx.host.now()))}` }
 }
 
-function queryOf(input: Input, repo: string): Query | string {
-  const type = TYPES.find(t => t === input.type)
-  if (type === undefined) return `type şunlardan biri olmalı: ${TYPES.join(', ')}`
-  const path = typeof input.path === 'string' ? input.path : undefined
-  const question = typeof input.question === 'string' ? input.question.trim() : undefined
-  if (type === 'file' && (path === undefined || path === '' || utf8Bytes(path) > MAX_PATH_BYTES)) return 'file için path gerekli.'
-  const isQuestionOk = question !== undefined && question !== '' && question.length <= ASK_MAX_QUESTION_CHARS
-  if (type === 'ask' && !isQuestionOk) return `ask için en fazla ${ASK_MAX_QUESTION_CHARS} karakterlik bir question gerekli.`
-  if (hasSecret(`${path ?? ''}\n${question ?? ''}`)) return NOT_SENT
-  return { type, repo, ...(type === 'file' ? { path } : {}), ...(type === 'ask' ? { question } : {}) }
-}
-
 // Looks in the room's own outboxes, not only in the poll's copy, so an answer shows up as soon as it is written.
 async function pulled(ctx: ToolCtx, opts: Wait): Promise<string | null> {
   const relay = relayOf(callerOf(ctx.host), opts.room.url)
@@ -143,12 +139,12 @@ async function ask(ctx: ToolCtx, input: Input): Promise<ToolOut> {
   const room = await roomHere(ctx.host)
   const selfUid = room === null ? undefined : syncOf(room.id)?.selfUid
   if (room === null || room.repo === undefined) return { deny: NO_ROOM }
-  const query = queryOf(input, room.repo)
+  const query = queryFromInput(input, room.repo)
   if (typeof query === 'string') return { deny: query }
   if (!ctx.host.isConnected()) return { deny: WAITING }
   const now = await ctx.host.now()
   const qid = newId(now)
-  const raw = { v: 1, id: qid, ts: now, kind: 'query', text: query.question ?? query.path ?? query.type, query }
+  const raw = { v: 1, id: qid, ts: now, kind: 'query', text: queryText(query), query }
   const message = parseMessage(qid, raw)
   if (isUnreadable(message) || selfUid === undefined) return { deny: NOT_SENT }
   if (!enqueueMessage({ host: ctx.host, room, message })) return { deny: NOT_SYNCED }

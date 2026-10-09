@@ -7,7 +7,9 @@ const git = (map: Record<string, string>, calls: string[][] = []): Run => async 
   calls.push([...argv])
   if (argv[0] === 'realpath') return { exitCode: 0, stdout: `${argv[1]}\n`, stderr: '' }
   if (argv.includes('check-ignore')) return { exitCode: 1, stdout: '', stderr: '' }
-  const key = argv.filter(a => !a.startsWith('-C') && a !== '/w').slice(1, 3).join(' ')
+  // The subcommand and its first argument, after git's own options (`--no-pager`, `-c …`, `-C root`).
+  const at = argv.indexOf('-C') + 2
+  const key = argv.slice(at, at + 2).join(' ')
   return { exitCode: 0, stdout: map[key] ?? '', stderr: '' }
 }
 const ctx = (map: Record<string, string>, files: Record<string, string> = {}, calls: string[][] = []) => ({

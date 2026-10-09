@@ -88,3 +88,21 @@ export const TIMELINE_LINES = 60
 export const ANSWER_PREVIEW_LINES = 12
 // A peer whose head moved (a send or a read mark) this recently shows as here.
 export const PRESENCE_MS = 5 * 60_000
+
+// Typed queries: grep, files, todo, deps, commit.
+// Each git or file step of a typed query; a step that runs past it is a denial.
+export const QUERY_RUN_TIMEOUT_MS = 10_000
+export const GREP_MIN_CHARS = 2
+export const GREP_MAX_CHARS = 200
+export const GREP_MAX_HITS = 50
+export const TODO_MAX_HITS = 100
+// Each matched line is cut to this many characters (after the whole output was scanned).
+export const HIT_LINE_CHARS = 200
+// A grep or todo reads at most this many matched files whole, to check `file` would serve each one.
+export const HIT_FILES_CHECKED = 100
+export const FILES_MAX = 500
+export const DEPS_MAX_PER_GROUP = 100
+export const DEPS_ITEM_CHARS = 100
+export const COMMIT_BODY_CHARS = 2_000
+export const COMMIT_MAX_FILES = 100
+export const COMMIT_SUBJECT_CHARS = 200

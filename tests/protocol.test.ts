@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { DENIED, isRepo, isUnreadable, parseHead, parseMessage, parseMeta, paths, utf8Bytes } from '../hooks/protocol'
+import { isSearchText, isSha, QUERY_TYPE_NAMES, QUERY_TYPES } from '../hooks/protocol'
+import { QUERY_CATALOG } from '../hooks/query-catalog'
 
 const ID = '01K7A0000000000000000000AB'
 const ok = { v: 1, id: ID, ts: 5, kind: 'human', text: 'merhaba' }
@@ -78,4 +80,49 @@ test('repo segments made only of dots are rejected', () => {
   expect(isRepo('a/.')).toBe(false)
   expect(isRepo('a/...')).toBe(false)
   expect(isRepo('partalemre/eliti')).toBe(true)
+})
+
+test('the query types keep their wire names, each with the one field it reads', () => {
+  expect(QUERY_TYPE_NAMES).toEqual(['status', 'branch', 'log', 'diff', 'tests', 'plan', 'file', 'grep', 'files', 'todo', 'deps', 'commit', 'ask'])
+  const args = Object.fromEntries(QUERY_TYPE_NAMES.map(t => [t, QUERY_TYPES[t].arg]))
+  expect(args).toEqual({
+    status: null, branch: null, log: null, diff: null, tests: null, plan: null, file: 'path', grep: 'text', files: 'path',
+    todo: 'path', deps: null, commit: 'sha', ask: 'question',
+  })
+  expect(QUERY_TYPE_NAMES.filter(t => !QUERY_TYPES[t].isModelless)).toEqual(['ask'])
+})
+
+test('the catalog names every type in Turkish, as plain data', () => {
+  expect(Object.keys(QUERY_CATALOG).sort()).toEqual([...QUERY_TYPE_NAMES].sort())
+  expect(QUERY_CATALOG.grep).toEqual({ label: 'Metin ara', description: 'Repoda bir metni arar' })
+  for (const t of QUERY_TYPE_NAMES) {
+    const { label, description } = QUERY_CATALOG[t]
+    expect(label.length > 0 && label.length <= 20 && description.length > 0 && description.length <= 80).toBe(true)
+    expect(`${label}${description}`.includes('$')).toBe(false)
+  }
+})
+
+test('grep, files, todo, deps and commit queries parse with their fields; a bad field is unreadable', () => {
+  const query = (q: Record<string, unknown>) => parseMessage(ID, { ...ok, kind: 'query', query: { repo: 'partalemre/eliti', ...q } })
+  const good = [
+    { type: 'grep', text: 'needle', path: 'lib', isCaseInsensitive: true }, { type: 'files' }, { type: 'files', path: 'src' },
+    { type: 'todo' }, { type: 'deps' }, { type: 'commit', sha: 'abcdef1' }, { type: 'commit', sha: 'a'.repeat(40) },
+  ]
+  for (const q of good) expect(query(q)).toEqual({ ...ok, kind: 'query', query: { repo: 'partalemre/eliti', ...q } })
+  const bad = [
+    { type: 'grep', text: 'a' }, { type: 'grep', text: 'a\nb' }, { type: 'grep', text: 7 }, { type: 'grep', text: 'ab', isCaseInsensitive: 'yes' },
+    { type: 'commit', sha: '--output=x' }, { type: 'commit', sha: 'HEAD' }, { type: 'commit', sha: 'ABCDEF1' }, { type: 'commit', sha: 'abc' },
+    { type: 'files', path: 'x'.repeat(1_001) }, { type: 'constructor' }, { type: 'toString' }, { type: '__proto__' },
+  ]
+  for (const q of bad) expect(isUnreadable(query(q))).toBe(true)
+})
+
+test('a search text is one line of 2–200 characters; a sha is 7–40 lower-case hex', () => {
+  expect(isSearchText('ab')).toBe(true)
+  expect(isSearchText('-e')).toBe(true)
+  expect(isSearchText('\tx')).toBe(true)
+  expect(isSearchText('😀'.repeat(200))).toBe(true)
+  for (const x of ['a', '😀'.repeat(201), 'a\u0000b', 'a\rb', '  ', null]) expect(isSearchText(x)).toBe(false)
+  expect(isSha('0123456789abcdef0123456789abcdef01234567')).toBe(true)
+  for (const x of ['012345', 'g123456', '-123456', '1234567\n', `${'a'.repeat(41)}`]) expect(isSha(x)).toBe(false)
 })

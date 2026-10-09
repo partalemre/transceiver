@@ -150,3 +150,27 @@ test('more than 60 queries a minute from one room are skipped', async () => {
   for (let i = 0; i < 60; i++) expect(await respond(d, entry({ ...query('status'), id: id(i) }))).toBe('answered')
   expect(await respond(d, entry({ ...query('status'), id: id(60) }))).toBe('skipped')
 })
+
+test('every modelless type is answered by the typed path with zero tokens, never the budget or the model', async () => {
+  const queries = [
+    { type: 'grep', text: 'needle' }, { type: 'files', path: 'lib' }, { type: 'todo' }, { type: 'deps' }, { type: 'commit', sha: 'abcdef1' },
+  ]
+  for (const q of queries) {
+    const seen: unknown[] = []
+    const d = deps({ typed: async query => { seen.push(query); return { ok: true, body: 'x' } } })
+    const m = parseMessage(QID, query('grep', { query: { repo: 'partalemre/eliti', ...q } })) as Message
+    expect(await respond(d, entry(m))).toBe('answered')
+    expect(seen).toEqual([{ repo: 'partalemre/eliti', ...q }])
+    expect(d.calls.filter(c => c === 'ask' || c === 'budget')).toEqual([])
+    expect(d.posted[0]?.answer?.tokens).toBe(0)
+  }
+})
+
+test('a new type behind a closed gate is denied with the exact text and never reaches the typed answer', async () => {
+  let isTyped = false
+  const d = deps({ gate: async () => false, typed: async () => { isTyped = true; return { ok: true, body: 'x' } } })
+  const m = parseMessage(QID, query('grep', { query: { type: 'grep', repo: 'partalemre/eliti', text: 'needle' } })) as Message
+  expect(await respond(d, entry(m))).toBe('denied')
+  expect(d.posted[0]?.answer).toEqual({ qid: QID, ok: false, body: DENIED, tokens: 0 })
+  expect(isTyped).toBe(false)
+})

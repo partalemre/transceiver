@@ -2,7 +2,7 @@ import type { AskReply } from './ask'
 import { sameName } from './gate'
 import { ANSWER_PART_HEADROOM, ASK_MAX_QUESTION_CHARS, MAX_ANSWER_PARTS, MAX_TEXT_BYTES, MINUTE_MS } from './limits'
 import { QUERY_FUTURE_SKEW_MS, QUERY_RATE_PER_MIN, QUERY_TTL_MS } from './limits'
-import { DENIED, isUnreadable, utf8Bytes, type Message, type Query } from './protocol'
+import { DENIED, isUnreadable, QUERY_TYPES, utf8Bytes, type Message, type Query } from './protocol'
 import { hasSecret } from './scan'
 import type { Draft } from './state-types'
 import type { Entry } from './timeline'
@@ -105,7 +105,8 @@ async function answerAsk(deps: Deps, opts: { roomId: string; asker: string; m: Q
 
 async function answerOpen(deps: Deps, opts: { roomId: string; asker: string; m: QueryMessage }): Promise<Outcome> {
   const { m } = opts
-  if (m.query.type === 'ask') return answerAsk(deps, opts)
+  // A type that needs a model goes through the day's budget; every other one is answered by `typed` alone.
+  if (!QUERY_TYPES[m.query.type].isModelless) return answerAsk(deps, opts)
   const out = await deps.typed(m.query).catch(() => DENIED_OUT)
   return reply(deps, m.id, { ...out, tokens: 0 })
 }

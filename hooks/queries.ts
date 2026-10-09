@@ -1,44 +1,15 @@
 import { LOG_COUNT, MAX_DIFF_BYTES, MAX_FILE_BYTES, MAX_TEXT_BYTES } from './limits'
-import { checkRelPath, resolveInRepo } from './pathguard'
-import { DENIED, utf8Bytes, type Query } from './protocol'
-import type { RealPath, Run } from './run'
+import { checkRelPath } from './pathguard'
+import { QUERY_TYPES, type Query, type QueryType } from './protocol'
+import { COMMIT_HANDLERS } from './queries-commit'
+import { denied, git, NONE, servedText, shareable, type Handler, type Out, type QueryCtx } from './queries-core'
+import { DEPS_HANDLERS } from './queries-deps'
+import { SEARCH_HANDLERS } from './queries-search'
 import { hasSecret } from './scan'
 
-export type QueryCtx = {
-  run: Run
-  root: string
-  readFile: (abs: string) => Promise<string>
-  readState: (plugin: string, key: string) => Promise<unknown>
-  // The engine's resolver (`realPathOf($)`); absent, realpath(1) through `run`.
-  realPath?: RealPath
-}
-type Out = { ok: boolean; body: string }
-type Handler = (ctx: QueryCtx, query: Query) => Promise<Out>
+export { trimBytes, type QueryCtx } from './queries-core'
 
-const CUT = '…[kırpıldı]'
-const NONE = 'kayıt yok'
 const NO_CHANGES = 'değişiklik yok'
-const denied: Out = { ok: false, body: DENIED }
-
-// Linear: counts bytes as it goes, never cuts inside a character.
-export function trimBytes(text: string, max: number): string {
-  if (utf8Bytes(text) <= max) return text
-  const room = max - utf8Bytes(CUT)
-  let used = 0
-  let end = 0
-  for (const ch of text) {
-    const size = utf8Bytes(ch)
-    if (used + size > room) break
-    used += size
-    end += ch.length
-  }
-  return text.slice(0, end) + CUT
-}
-
-const git = (ctx: QueryCtx, args: string[]) => ctx.run(['git', '-C', ctx.root, ...args])
-
-// The whole text is scanned before any cut: a cut could leave half a key that no longer matches.
-const shareable = (text: string, max: number): Out => (hasSecret(text) ? denied : { ok: true, body: trimBytes(text, max) })
 
 async function status(ctx: QueryCtx): Promise<Out> {
   const out = await git(ctx, ['status', '--porcelain=v1', '-b'])
@@ -66,13 +37,10 @@ async function diff(ctx: QueryCtx): Promise<Out> {
   return out.exitCode === 0 ? shareable(out.stdout, MAX_DIFF_BYTES) : denied
 }
 
+// Sent whole up to 256 KB: the responder splits a long body into numbered parts.
 async function file(ctx: QueryCtx, query: Query): Promise<Out> {
-  const abs = await resolveInRepo({ run: ctx.run, root: ctx.root, rel: query.path ?? '', realPath: ctx.realPath })
-  if (abs === null) return denied
-  const text = await ctx.readFile(abs)
-  if (text.includes('\u0000') || utf8Bytes(text) > MAX_FILE_BYTES) return denied
-  // Sent whole: the responder splits a long body into numbered parts.
-  return shareable(text, MAX_FILE_BYTES)
+  const text = await servedText(ctx, query.path ?? '')
+  return text === null ? denied : shareable(text, MAX_FILE_BYTES)
 }
 
 async function stateOf(ctx: QueryCtx, plugin: string, key: string): Promise<Out> {
@@ -81,7 +49,10 @@ async function stateOf(ctx: QueryCtx, plugin: string, key: string): Promise<Out>
   return shareable(JSON.stringify(value), MAX_TEXT_BYTES)
 }
 
-const HANDLERS: Record<Exclude<Query['type'], 'ask'>, Handler> = {
+type ModellessType = { [T in QueryType]: (typeof QUERY_TYPES)[T]['isModelless'] extends true ? T : never }[QueryType]
+
+// One handler per modelless type in QUERY_TYPES; the compiler holds the two lists together.
+const HANDLERS: Record<ModellessType, Handler> = {
   status: ctx => status(ctx),
   log: ctx => plain(ctx, ['log', `-n${LOG_COUNT}`, '--no-color', '--pretty=format:%h %s (%an, %ar)']),
   branch: ctx => plain(ctx, ['branch', '--format=%(refname:short)']),
@@ -89,10 +60,13 @@ const HANDLERS: Record<Exclude<Query['type'], 'ask'>, Handler> = {
   file: (ctx, q) => file(ctx, q),
   tests: ctx => stateOf(ctx, 'test-badge', 'badge'),
   plan: ctx => stateOf(ctx, 'plan-steps', 'tasks'),
+  ...SEARCH_HANDLERS,
+  ...DEPS_HANDLERS,
+  ...COMMIT_HANDLERS,
 }
 
 export async function answerTyped(ctx: QueryCtx, query: Query): Promise<Out> {
-  const handler = Object.hasOwn(HANDLERS, query.type) ? HANDLERS[query.type as keyof typeof HANDLERS] : undefined
+  const handler = Object.hasOwn(HANDLERS, query.type) ? HANDLERS[query.type as ModellessType] : undefined
   if (handler === undefined) return denied
   const out = await handler(ctx, query).catch(() => denied)
   // The last line of defence: nothing a scan flags leaves, whatever produced it.
