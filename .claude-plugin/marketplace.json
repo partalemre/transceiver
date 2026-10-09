@@ -1,5 +1,6 @@
 {
   "name": "transceiver",
   "owner": { "name": "Partal" },
+  "description": "Transceiver: chat with friends and let agents on a shared GitHub repo trade project facts, all inside Claude Code",
   "plugins": [{ "name": "transceiver", "source": "./", "description": "Chat and agent relay inside Claude Code" }]
 }

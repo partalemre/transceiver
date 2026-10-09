@@ -18,7 +18,8 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T13 budget + responder | done | `542b4fc` | 170 |
 | T14 agent tools + live | done | `dc992bc` | 260 |
 | T15 compaction + rollover | done | `0ea0835` | 289 |
-| T16 simulated E2E | done (real run pending) | see git log | 309 |
+| T16 simulated E2E | done (real run pending) | `957acf0` | 309 |
+| Release polish | done | see git log | 309 |
 
 ## T4 review fixes
 
@@ -169,3 +170,9 @@ The real two-account run needs Alperen; it is written out as `docs/e2e-checklist
 - **Walk** (20 steps): DM published with meta and link; invite listed only after sharing, accepted; guest refused on the owner's outbox and on `meta`; ◷ → ✓ → ✓✓ → blue ✓✓ both ways; receipts off on one side (no blue either way, the read mark itself still written by the other side); project room, both heads carry their login; gate closed before "Evet" (exactly `erişim yok`); a second Alperen session joins by link; a typed `status` answered once at 0 tokens while both Alperen sessions try the claim (each made exactly one claim attempt); `file lib/a.dart` served, `.env`, a key-bearing file and `../../etc/hosts` denied; ten `ask`s answered by the model, the 11th a draft that Alperen approves and Emre then reads in `inbox`; a `ghp_` token in an agent `send` refused and nowhere in any db; live wake fenced; a collaborator removed on GitHub denied after the 10-minute cache; `çık DM` stops Emre's polling of it while Alperen's goes on; no path, model or (in the DM) repo name in any db.
 - **Bug found by the walk (fixed):** `identity.ts` wrote the login onto the head of whatever room the tick named, without checking the room is in its own person's store; responder, live and retention already re-read the record. With two people in one process, Emre's listener wrote `gh: partalemre` onto Alperen's head (the owner may write all of `outbox`) and kept polling a DM he had left. `shareLogin` now requires an active record with the same id and url in its host's store, so a room left between the tick and the listener also gets nothing. Test: `tests/identity.test.ts` (a room not in this store, a room left meanwhile).
 - **Leak between test files (fixed):** test files share module state; the walk now ends with the pane flagged closed, or a later file's one-day advance polls every second.
+
+## Release polish
+
+- `plugin.json` is `1.0.0-rc.1` with a full description. The plan kept `0.1.0` and tagged `v0.1.0` after the real two-account run. The `-rc` says that run is still pending. No tag and no push were made, since both are the user's call.
+- `marketplace.json` has a top-level `description`, so `claude plugin validate .` passes with no warnings.
+- `README.md` is in Turkish and covers what the mod is, install, the room, invite, Bağlan and GitHub flow, commands, agent tools and the query types (including grep, files, todo, deps and commit, which a parallel task is adding), privacy and security, live mode and token cost, limits, and troubleshooting. It links `docs/e2e-checklist.md`.
