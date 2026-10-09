@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Copies secret-guard's detector so transceiver needs no other mod installed.
+# MODZ is found through $MODZ_DIR, else as the sibling folder ../MODZ of this repo.
+# From a git checkout it copies the committed files (HEAD), never half-edited ones.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MODZ_ROOT="${MODZ_DIR:-$ROOT/../MODZ}"
+REL="mods/secret-guard/hooks"
+DEST="$ROOT/hooks/secrets"
+FILES=(detect.ts jwt.ts)
+
+if [ ! -d "$MODZ_ROOT/$REL" ]; then
+  echo "vendor-sync: no $REL under MODZ; set MODZ_DIR" >&2
+  exit 1
+fi
+mkdir -p "$DEST"
+if git -C "$MODZ_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  REV="$(git -C "$MODZ_ROOT" rev-parse --short HEAD)"
+  for f in "${FILES[@]}"; do git -C "$MODZ_ROOT" show "HEAD:$REL/$f" >"$DEST/$f"; done
+else
+  REV="working tree"
+  for f in "${FILES[@]}"; do cp "$MODZ_ROOT/$REL/$f" "$DEST/$f"; done
+fi
+
+# The detector must stay self-contained: only imports between the vendored files.
+if grep -hE "^import" "$DEST"/*.ts | grep -vqE "from '\./(detect|jwt)'"; then
+  echo "vendor-sync: detect.ts imports something not vendored; add it to FILES" >&2
+  exit 1
+fi
+echo "vendored: ${FILES[*]} from MODZ $REV -> hooks/secrets"
