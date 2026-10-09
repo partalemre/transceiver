@@ -19,8 +19,10 @@ const ROOMS_KEY = 'tx.rooms'
 const SETTINGS_KEY = 'tx.settings'
 const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
 
-// Everyone in the room reads every outbox; each person writes only their own. `meta` is the owner's alone, so a
-// guest cannot turn a DM into a project room. `profile` lets the page and the pane show names (spike: Names).
+// Everyone in the room reads every outbox; each guest writes only their own. The owner can write any outbox: the db
+// contract lets no level rule limit the owner, and the prefix rule that opens reads must set a write level, so
+// `owner` is the narrowest one (docs/e2e-checklist.md 0.10). `meta` is the owner's alone, so a guest cannot turn a
+// DM into a project room. `profile` lets the page and the pane show names (spike: Names).
 const ROOM_CAPABILITIES = {
   db: { rules: [
     { path: 'outbox', read: 'view', write: 'owner' },
