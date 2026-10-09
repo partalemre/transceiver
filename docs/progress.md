@@ -11,7 +11,7 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T4 relay | done (review fixes) | `f9b12b3`, `4dfcdbc`, `615618e` (kit-pull) | 70 |
 | T5 timeline + sync | done | `17a9259` | 98 |
 | T6 rooms + room page | done | `c544a9f` | 111 |
-| T7 commands + join | done | see git log `feat(commands)` | 121 |
+| T7 commands + join | done | `8cbb333` | 121 |
 
 ## T4 review fixes
 
