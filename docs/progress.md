@@ -9,7 +9,8 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T2 protocol + ulid | done | `a6496ca`, `f6b3413` | — |
 | T3 dbtext | done | `2c2f2ce`, `2913d5c`, `5063a48` | — |
 | T4 relay | done (review fixes) | `f9b12b3`, `4dfcdbc`, `615618e` (kit-pull) | 70 |
-| T5 timeline + sync | done | see git log `feat(sync)` | 98 |
+| T5 timeline + sync | done | `17a9259` | 98 |
+| T6 rooms + room page | done | see git log `feat(rooms)` | 111 |
 
 ## T4 review fixes
 
@@ -39,3 +40,21 @@ Deviations from the plan (Task 4 interface):
 - `KEEP_ENTRIES` (500) and `POLL_BACKOFF` (2) moved from `sync.ts` into `limits.ts`.
 
 Tests: the plan's timeline and sync tests, plus a lost reply settled on the next tick, in-order flush, read catch-up on opening, `gh` kept across acks and sends, and the unreadable-doc cursor.
+
+## T6 rooms + room page + loop
+
+**Engine rule found while wiring (affects every later task):** the engine refuses to load a hooks module that passes `$` into a function imported from another file (`$ is followed only into a function declared in this same file, never across an import`), and `$.env.get` must take a literal name. The plan passes `$` everywhere (`createRoom({ $ })`, `startLoop($)`, `callerOf($)`, `joinRoom($, …)`). So:
+
+- New `hooks/host.ts` (not in the file map): a `Host` port (`tool`, `storeGet`, `storeSet`, `now`, `after`, `every`, `home`, `writeFile`, `log`). `register.tsx` builds it from `$` in `hostOf($)` (the MODZ reflect-mod `io($)` pattern) and is the only file that holds `$`. `rooms.ts`, `room-loop.ts` and `relay.callerOf(host, consent?)` take the port. Later tasks (pane, notify, tools, responder) need the same: either their `$` work lives in `register.tsx`, or the port grows (e.g. `openPane`, `toast`, `status`).
+- The test kit's `$` has only event nouns (`$.tool.call`, `$.session.start`, `$.command.run`, …), no `clock`/`store`, so unit tests use an in-memory `tests/fake-host.ts` (manual clock with `advance`). One test drives the real wiring: `$.session.start` with `mock.store`/`mock.clock`/`mock.env` and a `tool.call` hook answering from the fake db.
+
+Plan deviations:
+
+- `createRoom({ host, kind, repo?, consent? })`: `consent` rides on the publish and on the meta write (the session's first writes; T7 passes the command the person typed).
+- Room capabilities add `{ path: 'meta', read: 'view', write: 'owner' }`: without it the default lets any `interact` guest overwrite `meta/room` (turning a DM into a project room).
+- The publish URL is read from `result.url` first, then the text.
+- `invitedFrom` keeps a listed URL only if it parses as a claude.ai artifact link (a `url` field is untrusted input).
+- `recordOf({ url, meta, now, status })` is shared by discovery and joining (T7).
+- Room page: subscribes to the newest `KEEP_ENTRIES` messages per author (`orderBy ts desc`; the plan's `asc` limit kept the oldest 500), handles a viewer with no `user.id()`, stamps `ts = max(now, headTs + 1)` so a phone with a slow clock still moves the head forward, and moves the head with `update({ head, headTs })` (a merge) when it exists, so it never drops the mod's cursors or `gh`. The input's `maxlength` comes from `PAGE_MAX_CHARS`.
+- `room-loop.ts`: a failing step (e.g. `whoami` offline) is logged as `transceiver: <title>: <ErrorName>` and retried with backoff (the plan's loop stopped for good on the first throw and logged `String(err)`, which can carry tool text). `stopRoom` really stops a step already in flight from rescheduling. Messages queued during a tick are carried onto its result (`enqueueMessage({ host, room, message })`, for T8). The store is written only when the sync fingerprint changes, not every poll.
+- New constants: `SHARED_LIST_LIMIT`, `PAGE_MAX_CHARS`.

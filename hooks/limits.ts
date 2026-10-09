@@ -11,8 +11,11 @@ export const POLL_OPEN_MS = 1_000
 export const POLL_CLOSED_MS = 5_000
 export const POLL_MAX_MS = 30_000
 export const DISCOVER_MS = 60_000
+export const SHARED_LIST_LIMIT = 100
 export const POLL_BACKOFF = 2
 export const KEEP_ENTRIES = 500
+// A room page message: 4000 characters stay under MAX_TEXT_BYTES even at 4 bytes each.
+export const PAGE_MAX_CHARS = 4_000
 
 export const ASK_MODEL = 'haiku'
 export const ASK_MAX_TOKENS = 800

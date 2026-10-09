@@ -1,11 +1,10 @@
-import type { EngineInterface } from 'claude-code'
-
 import { alreadyStoredPath, errorKind, parseDocs, parseSelfUid, parseWriteVersion } from './dbtext'
 import { HEADS_PAGE, SINCE_PAGE } from './limits'
 import { emptyHead, isUid, parseHead, parseMessage, parseMeta, paths } from './protocol'
 import type { Head, Message, RoomMeta, Unreadable } from './protocol'
+import type { CallResult, ToolHost } from './host'
 
-export type CallResult = { text?: string; isError?: boolean; deny?: string; result?: unknown }
+export type { CallResult } from './host'
 export type ToolCaller = (input: Record<string, unknown>) => Promise<CallResult>
 export type RelayErrorKind = 'denied' | 'conflict' | 'missing' | 'failed'
 export type HeadState = { head: Head; version: number }
@@ -46,8 +45,8 @@ type Merge = HeadWrite & { extra: Record<string, unknown>[] }
 
 // `consent` is the person's own words for the press that raised a write (the spike showed the first write of a
 // session needs their approval); reads never carry it.
-export function callerOf($: EngineInterface, consent?: string): ToolCaller {
-  return async input => (await $.tool.call({ ...input, ...(consent === undefined ? {} : { consent }) } as never)) as CallResult
+export function callerOf(host: ToolHost, consent?: string): ToolCaller {
+  return input => host.tool({ ...input, ...(consent === undefined ? {} : { consent }) })
 }
 
 async function invoke(call: ToolCaller, input: Record<string, unknown>): Promise<CallResult> {
