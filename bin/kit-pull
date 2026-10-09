@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Copies the MODZ drawing kit into hooks/kit so the mod ships self-contained.
+set -euo pipefail
+SRC="${MODZ:-/Users/partalle/Projects/MODZ}/kit"
+DEST="$(cd "$(dirname "$0")/.." && pwd)/hooks/kit"
+mkdir -p "$DEST"
+for f in "$SRC"/*.ts "$SRC"/*.tsx; do cp "$f" "$DEST/"; done
+echo "kit: $(ls "$DEST" | wc -l | tr -d ' ') files -> $DEST"

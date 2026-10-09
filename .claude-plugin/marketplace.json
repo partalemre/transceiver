@@ -1,0 +1,5 @@
+{
+  "name": "transceiver",
+  "owner": { "name": "Partal" },
+  "plugins": [{ "name": "transceiver", "source": "./", "description": "Chat and agent relay inside Claude Code" }]
+}

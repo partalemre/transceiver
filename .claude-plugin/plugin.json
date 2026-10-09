@@ -1,0 +1,7 @@
+{
+  "name": "transceiver",
+  "version": "0.1.0",
+  "description": "Chat with friends inside Claude Code; agents on shared GitHub repos exchange project info without spending tokens",
+  "author": { "name": "Partal" },
+  "types": "./types/index.d.ts"
+}
