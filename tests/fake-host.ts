@@ -1,4 +1,5 @@
 import type { Timer } from 'claude-code'
+import { isConnected } from '../hooks/connection'
 import type { CallResult, Host } from '../hooks/host'
 
 type Pending = { due: number; fn: () => void; every?: number; isCancelled: boolean }
@@ -6,6 +7,7 @@ type Pending = { due: number; fn: () => void; every?: number; isCancelled: boole
 // An in-memory Host: a store, a clock that moves only when `advance` moves it, recorded writes, tools and logs.
 export type FakeHost = Host & {
   store: Map<string, unknown>; written: Record<string, string>; tools: Record<string, unknown>[]; logs: string[]
+  cwdPath: string; dirs: Set<string>; removed: string[]
   clock: { now: number }; advance(ms: number): Promise<void>
 }
 
@@ -21,7 +23,7 @@ export function fakeHost(answer: (input: Record<string, unknown>) => Promise<Cal
     return { cancel: () => { t.isCancelled = true } }
   }
   const host: FakeHost = {
-    store: new Map(), written: {}, tools: [], logs: [], clock: { now },
+    store: new Map(), written: {}, tools: [], logs: [], clock: { now }, cwdPath: '/w', dirs: new Set(['/w/.git']), removed: [],
     tool: async input => { host.tools.push(input); return answer(input) },
     storeGet: async key => clone(host.store.get(key)),
     storeSet: async (key, value) => { host.store.set(key, clone(value)) },
@@ -31,6 +33,10 @@ export function fakeHost(answer: (input: Record<string, unknown>) => Promise<Cal
     home: async () => '/home/u',
     writeFile: async (path, text) => { host.written[path] = text },
     log: text => { host.logs.push(text) },
+    cwd: async () => host.cwdPath,
+    isDir: async path => host.dirs.has(path),
+    remove: async path => { host.removed.push(path) },
+    isConnected: () => isConnected(),
     advance: async ms => {
       const end = host.clock.now + ms
       await settle()

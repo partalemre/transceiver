@@ -1,3 +1,4 @@
+import { setConnected } from './connection'
 import { parseArtifactUrls } from './dbtext'
 import type { CallResult, Host } from './host'
 import { PROTOCOL_VERSION, SHARED_LIST_LIMIT, TITLE_PREFIX } from './limits'
@@ -46,9 +47,26 @@ export async function loadSettings(host: Host): Promise<Settings> {
 
 export const saveSettings = (host: Host, s: Settings) => host.storeSet(SETTINGS_KEY, s)
 
-async function pagePath(host: Host, id: string): Promise<string> {
-  const home = (await host.home()) ?? ''
-  return `${home}/.claude/transceiver/rooms/${id}.html`
+// The Artifact tool publishes only a file under the session's working directory (or Claude's scratchpad), so the
+// page is written there, where it is never committed: inside `.git` in a repo, else in a `.transceiver` folder.
+// Either way it is removed once published; the room's page lives in the artifact.
+async function pageFiles(host: Host, id: string): Promise<{ file: string; dir?: string }> {
+  const cwd = (await host.cwd()).replace(/\/+$/, '')
+  if (await host.isDir(`${cwd}/.git`)) return { file: `${cwd}/.git/transceiver/room-${id}.html` }
+  const dir = `${cwd}/.transceiver`
+  return { file: `${dir}/room-${id}.html`, dir }
+}
+
+async function publishFrom(opts: { host: Host; id: string; title: string; consent?: string }): Promise<string> {
+  const { host } = opts
+  const page = await pageFiles(host, opts.id)
+  await host.writeFile(page.file, roomPageHtml({ title: opts.title }))
+  try {
+    return await publishPage({ host, file: page.file, consent: opts.consent })
+  } finally {
+    await host.remove(page.file).catch(() => undefined)
+    if (page.dir !== undefined) await host.remove(page.dir).catch(() => undefined)
+  }
 }
 
 function urlOf(out: CallResult): string | undefined {
@@ -76,11 +94,11 @@ export async function createRoom(opts: { host: Host; kind: RoomKind; repo?: stri
   const now = await host.now()
   const id = newId(now)
   const title = roomTitle({ kind, repo })
-  const file = await pagePath(host, id)
-  await host.writeFile(file, roomPageHtml({ title }))
-  const url = await publishPage({ host, file, consent: opts.consent })
+  const url = await publishFrom({ host, id, title, consent: opts.consent })
   const meta: RoomMeta = { v: PROTOCOL_VERSION, kind, createdAt: now, ...(repo === undefined ? {} : { repo }) }
   await relayOf(callerOf(host, opts.consent), url).writeMeta(meta)
+  // The meta write carried the person's consent and landed: this session may write from now on.
+  setConnected(true)
   return { id, url, kind, repo, title, status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: now }
 }
 

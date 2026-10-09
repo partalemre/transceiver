@@ -11,7 +11,8 @@ import type { Entry } from './timeline'
 // One timer per active room. The sync state lives here and in `$.store` (a reload drops module state and timers;
 // `session.start` starts the loop again from the store).
 
-export type TickEvent = { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean }
+// `tookMs`: how long the poll took, the pane's "sinyal" figure.
+export type TickEvent = { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean; tookMs?: number }
 type Listener = (ev: TickEvent) => Promise<void>
 
 const syncKey = (id: string) => `tx.sync.${id}`
@@ -72,11 +73,14 @@ async function step(host: Host, room: RoomRecord): Promise<void> {
   const settings = await loadSettings(host)
   const isViewing = isPaneOpen && viewing === room.id
   const relay = relayOf(callerOf(host), room.url)
-  const out = await tick({ relay, state: before, isViewing, isReceiptsOn: settings.isReceiptsOn, now: await host.now() })
+  const startedAt = await host.now()
+  // Until the session is connected (spike R1) the loop only reads: no send, no read mark raises an approval.
+  const out = await tick({ relay, state: before, isViewing, isReceiptsOn: settings.isReceiptsOn, now: startedAt, canWrite: host.isConnected() })
+  const tookMs = (await host.now()) - startedAt
   const state = carryQueued({ before, during: syncs.get(room.id), after: out.state })
   syncs.set(room.id, state)
   await persist(host, room.id, state)
-  for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied })
+  for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, tookMs })
   // A listener that queued a message (an answer) gets it sent at once rather than a poll later.
   const isQueued = (syncs.get(room.id)?.pending.length ?? 0) > state.pending.length
   schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen, failures: state.failures }))

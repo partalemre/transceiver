@@ -17,6 +17,13 @@ export type Host = {
   home(): Promise<string | undefined>
   writeFile(path: string, text: string): Promise<void>
   log(text: string): void
+  // The session's working directory: the Artifact tool publishes only files under it (or Claude's scratchpad).
+  cwd(): Promise<string>
+  isDir(path: string): Promise<boolean>
+  // A file, or an empty directory; anything else is left alone.
+  remove(path: string): Promise<void>
+  // Whether this session may write to rooms yet (connection.ts; spike R1). The poll loop only reads until then.
+  isConnected(): boolean
 }
 
 export type ToolHost = Pick<Host, 'tool'>

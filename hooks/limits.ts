@@ -54,3 +54,17 @@ export const REPO_CACHE_MS = 60_000
 export const LOGIN_RETRY_MS = 600_000
 export const LIVE_COOLDOWN_MS = 30_000
 export const LIVE_MAX_CHARS = 2_000
+
+// Pane and notifications (T8–T9).
+export const PREVIEW_CHARS = 80
+export const TOAST_CHARS = 60
+export const MAX_NAME_CHARS = 40
+// ArtifactData `profiles` takes at most 64 ids per call.
+export const PROFILES_PAGE = 64
+// The pane's clock moves by the minute: day labels and row times, not a redraw every poll.
+export const PANE_CLOCK_MS = 60_000
+// Messages of one author closer than this share one avatar.
+export const GROUP_MS = 5 * 60_000
+// The newest messages the pane draws; older ones stay on the room's web page.
+export const TIMELINE_LINES = 60
+export const ANSWER_PREVIEW_LINES = 12

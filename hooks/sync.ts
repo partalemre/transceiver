@@ -16,8 +16,9 @@ export type RoomSync = {
   failures: number
 }
 
-// `now` stamps `readTs`; without it the newest read message's time stands in.
-export type TickOpts = { relay: Relay; state: RoomSync; isViewing: boolean; isReceiptsOn: boolean; now?: number }
+// `now` stamps `readTs`; without it the newest read message's time stands in. `canWrite: false` (the session is
+// not connected yet) pulls only: queued messages and read marks wait.
+export type TickOpts = { relay: Relay; state: RoomSync; isViewing: boolean; isReceiptsOn: boolean; now?: number; canWrite?: boolean }
 export type TickResult = { state: RoomSync; fresh: Entry[]; isDenied: boolean }
 
 type Outcome = { state: RoomSync; isDenied: boolean; hasFailed: boolean }
@@ -89,11 +90,13 @@ async function pull(relay: Relay, state: RoomSync): Promise<{ state: RoomSync; f
   return { state: s, fresh }
 }
 
-// Seen moves with every message pulled; read follows it only while the person has this room open.
+// Seen moves with every message pulled; read follows it only while the person has this room open. Both catch up
+// on what was pulled while the session could not write yet, not only on this tick's fresh messages.
 async function acknowledge(opts: TickOpts, fresh: Entry[]): Promise<RoomSync> {
   const { state } = opts
   const own = state.ownHead
-  const newest = fresh.reduce((max, e) => (e.message.id > max ? e.message.id : max), own.seenUpTo)
+  const theirs = state.entries.filter(e => e.author !== state.selfUid)
+  const newest = [...theirs, ...fresh].reduce((max, e) => (e.message.id > max ? e.message.id : max), own.seenUpTo)
   const isReading = opts.isViewing && opts.isReceiptsOn && newest > own.readUpTo
   if (newest === own.seenUpTo && !isReading) return state
   const newestTs = fresh.reduce((max, e) => (isUnreadable(e.message) ? max : Math.max(max, e.message.ts)), own.readTs)
@@ -112,10 +115,11 @@ async function ackOutcome(opts: TickOpts, fresh: Entry[]): Promise<Outcome> {
 
 // A write the session has not approved yet (spike R1) must not stop reading: pull still runs, sends wait.
 export async function tick(opts: TickOpts): Promise<TickResult> {
-  const sent = await flush(opts.relay, opts.state)
+  const canWrite = opts.canWrite !== false
+  const sent = canWrite ? await flush(opts.relay, opts.state) : settled(opts.state)
   try {
     const pulled = await pull(opts.relay, sent.state)
-    const acked = sent.isDenied ? settled(pulled.state) : await ackOutcome({ ...opts, state: pulled.state }, pulled.fresh)
+    const acked = sent.isDenied || !canWrite ? settled(pulled.state) : await ackOutcome({ ...opts, state: pulled.state }, pulled.fresh)
     const failures = sent.hasFailed || acked.hasFailed ? opts.state.failures + 1 : 0
     return { state: { ...acked.state, failures }, fresh: pulled.fresh, isDenied: sent.isDenied || acked.isDenied }
   } catch (err) {
