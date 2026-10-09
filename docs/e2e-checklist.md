@@ -10,6 +10,15 @@ For each item, write the observed result next to it, and paste exact tool texts 
 - Neither session runs in `bypassPermissions` unless an item says so.
 - If an item fails, stop there and send the observed text. Do not work around it.
 
+## Measured solo, 2026-10-09 (one account, engine 2.1.293)
+
+What one person can measure without a second account, on a real room (`claude -p "/transceiver ekle"` in bypass mode, then `ArtifactData` with `as_level`):
+
+- **0.1, bypass half.** `Oda hazır: https://claude.ai/artifact/…` in 2.9 s, no dialog. The page shows "Henüz mesaj yok"; the stored rules are the three of `rooms.ts`; `meta/room` holds `{ v: 1, kind: 'dm', createdAt }`. The normal-mode dialog count is still open.
+- **0.3, platform half.** At `as_level: 'interact'` a write to `outbox/<own uid>/msgs` commits: the `outbox/{self}` `interact` rule lets a guest write their own outbox. The R2 risk is gone at the rule level; the pane's "Bağlan" flow still needs B's run.
+- **0.4.** At `as_level: 'interact'`, writes to `meta` and to `outbox/<another uid>/msgs` are both refused with exactly `no such artifact, collection, or document (or no access — the two are deliberately indistinguishable)`, the text `tests/fake-db.ts` assumes.
+- **Commands.** `/transceiver çık <link>` answers `Transceiver · DM odasından çıkıldı.`; an unknown verb prints the help list.
+
 ## Part 0 · Platform facts still unmeasured
 
 These are the open questions in `docs/progress.md`. The mod depends on each one.
