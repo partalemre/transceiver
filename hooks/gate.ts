@@ -27,6 +27,13 @@ function confirmedLogin(input: GateInput): string | null {
   return sameName(peer.gh, input.headGh) ? peer.gh : null
 }
 
+// GitHub's newest answer per lower-cased `repo#login`, for the pane's gate checklist: it says only what the gate
+// itself last asked, and when.
+const lastChecks = new Map<string, { isOk: boolean; at: number }>()
+
+export const lastCheck = (repo: string, login: string): { isOk: boolean; at: number } | undefined =>
+  lastChecks.get(`${repo}#${login}`.toLowerCase())
+
 export function makeGate(check: CollabCheck): (input: GateInput) => Promise<boolean> {
   const cache = new Map<string, { isOk: boolean; at: number }>()
   return async input => {
@@ -44,6 +51,7 @@ export function makeGate(check: CollabCheck): (input: GateInput) => Promise<bool
       return false
     }
     cache.set(key, { isOk, at: input.now })
+    lastChecks.set(key, { isOk, at: input.now })
     return isOk
   }
 }

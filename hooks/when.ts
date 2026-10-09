@@ -27,5 +27,22 @@ export function dayLabel(ts: number, now: number): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()] ?? ''}${year}`
 }
 
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const MS_PER_S = 1000
+
+// "az önce", "3 dk önce", "2 sa önce", "dün", "6 Eki": how long ago, for a read mark or a check.
+export function agoText(ts: number, now: number): string {
+  const ms = Math.max(0, now - ts)
+  if (ms < MINUTE_MS) return 'az önce'
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)} dk önce`
+  const day = dayLabel(ts, now)
+  if (day === 'Bugün') return `${Math.floor(ms / HOUR_MS)} sa önce`
+  return day === 'Dün' ? 'dün' : day
+}
+
+// "0,7 sn": seconds with one decimal and a Turkish comma.
+export const secondsText = (ms: number): string => `${(Math.max(0, ms) / MS_PER_S).toFixed(1).replace('.', ',')} sn`
+
 // A room row's time: the clock today, the day before that.
 export const rowTime = (ts: number, now: number): string => (ts <= 0 ? '' : dayLabel(ts, now) === 'Bugün' ? clockText(ts) : dayLabel(ts, now))

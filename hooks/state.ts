@@ -3,6 +3,7 @@
 // render hook. Any module may call `refreshPane()` after it changed something the pane shows.
 import type { RenderSurface } from 'claude-code'
 
+import { askUsedToday } from './budget'
 import { isConnected } from './connection'
 import type { Host } from './host'
 import { PANE_CLOCK_MS } from './limits'
@@ -31,6 +32,7 @@ let shown = ''
 let last: PaneModel | null = null
 let draftSource: (() => Promise<Draft[]>) | null = null
 let draftSettler: DraftSettler | null = null
+let repoSource: (() => Promise<string | null>) | null = null
 
 export const bindPane = (p: PanePort): void => { port = p }
 export const portNow = (): PanePort | null => port
@@ -47,6 +49,8 @@ export function patchSession(patch: Partial<SessionUi>): void {
 export const setDraftSource = (fn: () => Promise<Draft[]>): void => { draftSource = fn }
 export const setDraftSettler = (fn: DraftSettler): void => { draftSettler = fn }
 export const draftSettlerNow = (): DraftSettler | null => draftSettler
+// The session's repo (its git `origin`), for the gate checklist; register.tsx binds it.
+export const setRepoSource = (fn: () => Promise<string | null>): void => { repoSource = fn }
 
 // Read marks follow what is on screen: the open chat, while the pane is shown.
 function syncViewing(): void {
@@ -94,9 +98,10 @@ export async function refreshPane(): Promise<PaneModel | null> {
   markOnScreen(syncs)
   const now = Math.floor((await host.now()) / PANE_CLOCK_MS) * PANE_CLOCK_MS
   const drafts = draftSource === null ? [] : await draftSource().catch(() => [])
+  const sessionRepo = repoSource === null ? undefined : await repoSource().catch(() => undefined)
   const model = buildModel({
     rooms, syncs, names: namesNow(), settings: await loadSettings(host), session, isConnected: isConnected(),
-    drafts, canSettleDrafts: draftSettler !== null, now,
+    drafts, canSettleDrafts: draftSettler !== null, now, sessionRepo, askUsed: await askUsedToday(host).catch(() => ({})),
   })
   const json = JSON.stringify(model)
   last = model

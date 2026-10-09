@@ -34,3 +34,9 @@ export async function spendAsk(host: Pick<Host, 'storeGet' | 'storeSet' | 'now'>
   if (out.isAllowed) await host.storeSet(KEY, out.counts)
   return out.isAllowed
 }
+
+// The asks each room has spent today (the pane's budget meter); a stored count of another day is zero.
+export async function askUsedToday(host: Pick<Host, 'storeGet' | 'now'>): Promise<Record<string, number>> {
+  const raw = await host.storeGet(KEY)
+  return isBudget(raw) && raw.day === localDay(await host.now()) ? { ...raw.byRoom } : {}
+}

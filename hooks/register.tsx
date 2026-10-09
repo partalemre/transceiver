@@ -4,6 +4,7 @@ import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
 import { ARGUMENT_HINT, DESCRIPTION, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, setConnected } from './connection'
+import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
@@ -12,7 +13,7 @@ import { drawPane } from './pane'
 import { onPaneTick } from './pane-tick'
 import { onTick, startLoop } from './room-loop'
 import { realPathOf, runnerOf } from './run'
-import { bindPane, patchSession, refreshPane, setPaneShown, type UiHost } from './state'
+import { bindPane, patchSession, refreshPane, setPaneShown, setRepoSource, type UiHost } from './state'
 import { EMPTY_PANE } from './state-types'
 import { runTool, TOOL_SPECS } from './tools'
 
@@ -110,6 +111,7 @@ export const register: Register = on => {
     const agents = agentHostOf($)
     // The pane listens first, so a failing agent-side listener never keeps it from redrawing.
     bindPane({ host: agents, ui: uiOf($) })
+    setRepoSource(() => repoHere(agents))
     onTick(onPaneTick)
     wireAgents(agents)
     await registerTools($)
