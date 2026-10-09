@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Copies the MODZ drawing kit into hooks/kit so the mod ships self-contained.
+# MODZ is found through $MODZ, else as a sibling of this repo (both live under the same Projects folder).
 set -euo pipefail
-SRC="${MODZ:-/Users/partalle/Projects/MODZ}/kit"
-DEST="$(cd "$(dirname "$0")/.." && pwd)/hooks/kit"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SRC="${MODZ:-$(dirname "$ROOT")/MODZ}/kit"
+DEST="$ROOT/hooks/kit"
+[ -d "$SRC" ] || { echo "kit: $SRC not found; set MODZ=/path/to/MODZ" >&2; exit 1; }
 mkdir -p "$DEST"
-for f in "$SRC"/*.ts "$SRC"/*.tsx; do cp "$f" "$DEST/"; done
+for f in "$SRC"/*.ts "$SRC"/*.tsx; do [ -e "$f" ] && cp "$f" "$DEST/"; done
 echo "kit: $(ls "$DEST" | wc -l | tr -d ' ') files -> $DEST"
