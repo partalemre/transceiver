@@ -41,6 +41,8 @@ export const COMPACT_PAGE = 2 * COMPACT_BATCH_DELETES
 // A day doc stays well under the 1 MiB batch body; a busier day goes on in `<day>.2`, `<day>.3`, …
 export const DAY_DOC_MAX_BYTES = 512_000
 export const MAX_DAY_PARTS = 64
+// A batch refused for a delete whose message is already gone is sent again without it at most this many times.
+export const COMPACT_GONE_RESENDS = 3
 // A failed compaction or rollover is tried again after this long, not on every poll.
 export const RETENTION_RETRY_MS = 10 * 60_000
 // A peer cursor this close to the compaction age may have missed messages moved into day docs.

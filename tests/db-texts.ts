@@ -14,9 +14,21 @@ export const BATCH_EXISTS = `db batch write failed (version_mismatch): writes[0]
 
 export const BATCH_STALE_PIN = `db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[1] (write 2 of 2, "outbox/${SPIKE_UID}") was pinned to version 1 and that document is now at version 2: …`
 
+// Delete batches (docs/spike-results.md, "Delete batch texts"), kept with the `<uid>` the measurement shows.
+export const BATCH_DELETE_COMMITTED = [
+  'Database batch committed atomically — 2 writes; who can read them follows the page\'s access rules (by default, everyone who can open the artifact):',
+  '- set "outbox/<uid>/days"/"2026-10-09" (version 1)',
+  '- delete "outbox/<uid>/msgs"/"m0003probe"',
+  '6 of 25000 documents used in this artifact\'s database.',
+].join('\n')
+
+export const BATCH_DELETE_STALE_PIN = 'db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[1] (write 2 of 2, "outbox/<uid>/msgs/m0002") was pinned to version 7 and that document is now at version 1: …'
+
+export const BATCH_DELETE_GONE = 'db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[0] (write 1 of 1, "outbox/<uid>/msgs/m0003probe") was pinned to version 1 and that document has changed or may have been deleted (the server named no current version): …'
+
 export const DOC_LIMIT = 25_000
 
-// A delete's line is unmeasured; it is written like a set's, without a version.
+// A delete's line carries no version (measured).
 export type WriteLine = { op?: 'set' | 'delete'; collection: string; docId: string; version: number }
 
 export function batchCommitted(lines: WriteLine[], used: number): string {
@@ -34,6 +46,10 @@ export const batchExists = (r: Refusal) =>
 
 export const batchStalePin = (r: Refusal & { pinned: number; now: number }) =>
   `db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[${r.index}] (write ${r.index + 1} of ${r.count}, "${r.path}") was pinned to version ${r.pinned} and that document is now at version ${r.now}: …`
+
+// A pinned write whose doc is gone (measured on a delete): the server names no current version.
+export const batchGonePin = (r: Refusal & { pinned: number }) =>
+  `db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[${r.index}] (write ${r.index + 1} of ${r.count}, "${r.path}") was pinned to version ${r.pinned} and that document has changed or may have been deleted (the server named no current version): …`
 
 export const setCommitted = (collection: string, docId: string, version: number) =>
   `Database set committed: "${collection}"/"${docId}". The document is now at version ${version}.`

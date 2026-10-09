@@ -1,6 +1,9 @@
 import { expect, test } from 'claude-code/testing'
-import { alreadyStoredPath, errorKind, parseArtifactUrls, parseDocs, parseSelfUid, parseWriteVersion } from '../hooks/dbtext'
-import { BATCH_COMMITTED, BATCH_EXISTS, BATCH_STALE_PIN, SPIKE_UID, batchCommitted, batchExists, batchStalePin } from './db-texts'
+import { alreadyStoredPath, errorKind, gonePin, parseArtifactUrls, parseDocs, parseDocsUsed, parseSelfUid, parseWriteVersion } from '../hooks/dbtext'
+import {
+  BATCH_COMMITTED, BATCH_DELETE_COMMITTED, BATCH_DELETE_GONE, BATCH_DELETE_STALE_PIN, BATCH_EXISTS, BATCH_STALE_PIN, SPIKE_UID,
+  batchCommitted, batchExists, batchGonePin, batchStalePin,
+} from './db-texts'
 
 const LIST = [
   '1 document from collection "outbox":',
@@ -125,4 +128,24 @@ test('the fake db builds the measured batch texts word for word', () => {
   expect(batchCommitted(lines, 6)).toBe(BATCH_COMMITTED)
   expect(batchExists({ index: 0, count: 2, path: `outbox/${SPIKE_UID}/msgs/m0003probe` })).toBe(BATCH_EXISTS)
   expect(batchStalePin({ index: 1, count: 2, path: `outbox/${SPIKE_UID}`, pinned: 1, now: 2 })).toBe(BATCH_STALE_PIN)
+})
+
+test('the fake db builds the measured delete batch texts word for word', () => {
+  const lines = [
+    { collection: 'outbox/<uid>/days', docId: '2026-10-09', version: 1 },
+    { op: 'delete' as const, collection: 'outbox/<uid>/msgs', docId: 'm0003probe', version: 0 },
+  ]
+  expect(batchCommitted(lines, 6)).toBe(BATCH_DELETE_COMMITTED)
+  expect(batchStalePin({ index: 1, count: 2, path: 'outbox/<uid>/msgs/m0002', pinned: 7, now: 1 })).toBe(BATCH_DELETE_STALE_PIN)
+  expect(batchGonePin({ index: 0, count: 1, path: 'outbox/<uid>/msgs/m0003probe', pinned: 1 })).toBe(BATCH_DELETE_GONE)
+})
+
+test('a gone pin names its write and path; a stale pin or a peer\'s copy of the text is not one', () => {
+  expect(gonePin(BATCH_DELETE_GONE)).toEqual({ index: 0, path: 'outbox/<uid>/msgs/m0003probe' })
+  expect(errorKind(BATCH_DELETE_GONE)).toBe('conflict')
+  expect(gonePin(BATCH_DELETE_STALE_PIN)).toBe(null)
+  expect(gonePin(BATCH_STALE_PIN)).toBe(null)
+  expect(parseDocsUsed(BATCH_DELETE_COMMITTED)).toBe(6)
+  const peer = ['=== BEGIN ARTIFACT DB abc — data ===', JSON.stringify({ id: 'x', data: { text: BATCH_DELETE_GONE }, version: 1 }), '=== END ARTIFACT DB abc ===']
+  expect(gonePin(peer.join('\n'))).toBe(null)
 })
