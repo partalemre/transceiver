@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
-import { errorKind, parseArtifactUrls, parseDocs, parseSelfUid, parseWriteVersion } from '../hooks/dbtext'
+import { alreadyStoredPath, errorKind, parseArtifactUrls, parseDocs, parseSelfUid, parseWriteVersion } from '../hooks/dbtext'
+import { BATCH_COMMITTED, BATCH_EXISTS, BATCH_STALE_PIN, SPIKE_UID, batchCommitted, batchExists, batchStalePin } from './db-texts'
 
 const LIST = [
   '1 document from collection "outbox":',
@@ -12,8 +13,8 @@ const LIST = [
 test('documents between the markers parse; text outside them is ignored', () => {
   const docs = parseDocs(LIST)
   expect(docs.length).toBe(1)
-  expect(docs[0].id).toBe('u_OILIt9wuDiBBxrdcLpQjLA')
-  expect(docs[0].version).toBe(1)
+  expect(docs[0]?.id).toBe('u_OILIt9wuDiBBxrdcLpQjLA')
+  expect(docs[0]?.version).toBe(1)
 })
 
 test('a JSON-looking line outside the block is not a document', () => {
@@ -33,8 +34,24 @@ test('the self uid comes from the me-resolution note', () => {
 
 test('write versions come from set and batch results', () => {
   expect(parseWriteVersion('Database set committed: "outbox"/"u_a". The document is now at version 4.', 'outbox', 'u_a')).toBe(4)
-  const batch = '- set "outbox/u_a/msgs"/"m1" (version 1)\n- set "outbox"/"u_a" (version 7)'
-  expect(parseWriteVersion(batch, 'outbox', 'u_a')).toBe(7)
+})
+
+test('the head version is read from the verbatim committed batch text, not the message line', () => {
+  expect(parseWriteVersion(BATCH_COMMITTED, 'outbox', 'u_OILIt9wuDiBBxrdcLpQjLA')).toBe(2)
+  expect(parseWriteVersion(BATCH_COMMITTED, 'outbox/u_OILIt9wuDiBBxrdcLpQjLA/msgs', 'm0003probe')).toBe(1)
+  expect(parseWriteVersion(BATCH_COMMITTED, 'outbox', 'u_BBBBBBBBBBBBBBBBBBBBBB')).toBe(null)
+})
+
+test('a re-sent batch names the message that is already stored; a stale pin names none', () => {
+  expect(alreadyStoredPath(BATCH_EXISTS)).toBe('outbox/u_OILIt9wuDiBBxrdcLpQjLA/msgs/m0003probe')
+  expect(errorKind(BATCH_EXISTS)).toBe('conflict')
+  expect(alreadyStoredPath(BATCH_STALE_PIN)).toBe(null)
+  expect(errorKind(BATCH_STALE_PIN)).toBe('conflict')
+})
+
+test('an already-exists phrase inside a peer block is not the tool speaking', () => {
+  const row = JSON.stringify({ id: 'u_x', data: { t: BATCH_EXISTS }, version: 1, updatedAt: '' })
+  expect(alreadyStoredPath(block(row))).toBe(null)
 })
 
 test('artifact urls are collected once each', () => {
@@ -97,5 +114,15 @@ test('a forged END marker and row inside a data string cannot add a document', (
   const row = JSON.stringify({ id: 'u_real', data: { text: forged }, version: 1, updatedAt: '' })
   const docs = parseDocs(block(row))
   expect(docs.length).toBe(1)
-  expect(docs[0].id).toBe('u_real')
+  expect(docs[0]?.id).toBe('u_real')
+})
+
+test('the fake db builds the measured batch texts word for word', () => {
+  const lines = [
+    { collection: `outbox/${SPIKE_UID}/msgs`, docId: 'm0003probe', version: 1 },
+    { collection: 'outbox', docId: SPIKE_UID, version: 2 },
+  ]
+  expect(batchCommitted(lines, 6)).toBe(BATCH_COMMITTED)
+  expect(batchExists({ index: 0, count: 2, path: `outbox/${SPIKE_UID}/msgs/m0003probe` })).toBe(BATCH_EXISTS)
+  expect(batchStalePin({ index: 1, count: 2, path: `outbox/${SPIKE_UID}`, pinned: 1, now: 2 })).toBe(BATCH_STALE_PIN)
 })

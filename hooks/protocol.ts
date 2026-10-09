@@ -105,12 +105,13 @@ function stripUndefined<T extends object>(x: T): T {
 
 export function parseHead(raw: unknown): Head | null {
   if (!isObj(raw) || raw.v !== PROTOCOL_VERSION) return null
-  if (![raw.head, raw.seenUpTo, raw.readUpTo].every(isIdOrEmpty)) return null
+  const { head, seenUpTo, readUpTo } = raw
+  if (!isIdOrEmpty(head) || !isIdOrEmpty(seenUpTo) || !isIdOrEmpty(readUpTo)) return null
   if (!isCount(raw.headTs) || !isCount(raw.readTs)) return null
   if (raw.gh !== undefined && !(typeof raw.gh === 'string' && GH_LOGIN.test(raw.gh))) return null
   if (raw.label !== undefined && !isText(raw.label, SHORT_TEXT)) return null
-  return stripUndefined({
-    v: 1, head: raw.head, headTs: raw.headTs, seenUpTo: raw.seenUpTo, readUpTo: raw.readUpTo, readTs: raw.readTs,
+  return stripUndefined<Head>({
+    v: 1, head, headTs: raw.headTs, seenUpTo, readUpTo, readTs: raw.readTs,
     gh: raw.gh as string | undefined, label: raw.label as string | undefined,
   })
 }
@@ -118,7 +119,7 @@ export function parseHead(raw: unknown): Head | null {
 export function parseMeta(raw: unknown): RoomMeta | null {
   if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isOneOf(ROOM_KINDS, raw.kind) || !isCount(raw.createdAt)) return null
   if ((raw.kind === 'project' || 'repo' in raw) && !isRepo(raw.repo)) return null
-  return stripUndefined({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, createdAt: raw.createdAt })
+  return stripUndefined<RoomMeta>({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, createdAt: raw.createdAt })
 }
 
 export const emptyHead = (): Head => ({ v: 1, head: '', headTs: 0, seenUpTo: '', readUpTo: '', readTs: 0 })

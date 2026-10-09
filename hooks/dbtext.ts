@@ -6,6 +6,7 @@ const SELF = /resolved to your user id on this artifact: (u_[A-Za-z0-9_-]{22})/
 const URL_RE = /https:\/\/claude\.ai\/artifact\/[A-Za-z0-9]+/g
 const CONFLICT = /\(version_mismatch\)/
 const MISSING = /no such artifact, collection, or document/i
+const ALREADY_STORED = /writes\[\d+\] \(write \d+ of \d+\) targets (\S+), which already exists/
 
 function asDoc(line: string): DbDoc | null {
   try {
@@ -56,6 +57,10 @@ export function parseWriteVersion(text: string, collection: string, docId: strin
   const single = /now at version (\d+)/.exec(text)
   return single === null ? null : Number(single[1])
 }
+
+// A batch refused because one of its create-only writes names a doc that is already there
+// (spike: "writes[0] (write 1 of 2) targets outbox/<uid>/msgs/<id>, which already exists, …").
+export const alreadyStoredPath = (text: string): string | null => ALREADY_STORED.exec(outsideBlocks(text))?.[1] ?? null
 
 export const parseArtifactUrls = (text: string): string[] => [...new Set(outsideBlocks(text).match(URL_RE) ?? [])]
 
