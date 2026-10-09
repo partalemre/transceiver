@@ -6,6 +6,7 @@ import type { RenderSurface } from 'claude-code'
 import { askUsedToday } from './budget'
 import { isConnected } from './connection'
 import type { Host } from './host'
+import { hubOf, type HubShown } from './hub'
 import { PANE_CLOCK_MS } from './limits'
 import { namesNow, resolveNames } from './names'
 import { setViewing, syncOf } from './room-loop'
@@ -17,6 +18,8 @@ import { buildModel, EMPTY_SESSION, type SessionUi } from './view'
 // What the pane needs of the engine beyond Host; bound from `$` in register.tsx.
 export type UiHost = {
   setPane(model: PaneModel): Promise<void>
+  // The MODZ hub's line; the port writes it only when it differs from the one written.
+  setHub(shown: HubShown): Promise<void>
   isPaneShown(): Promise<boolean>
   toast(text: string): void
   status(text: string | undefined): void
@@ -109,5 +112,6 @@ export async function refreshPane(): Promise<PaneModel | null> {
     shown = json
     await ui.setPane(model)
   }
+  await ui.setHub(hubOf(model.rooms))
   return model
 }

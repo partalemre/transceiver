@@ -6,6 +6,7 @@ import { DESCRIPTION, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
+import { HUB_PANE, isOpenFor, isSameLine } from './hub'
 import { stamped } from './kit/stamp'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
@@ -41,13 +42,18 @@ function hostOf($: EngineInterface): Host {
 }
 
 // The pane's reach: its model in `$.state` (the render hook reads it), whether it is on screen, the status line,
-// toasts and the clipboard. Nothing here opens the pane: only the person's command does (openPane).
+// toasts and the clipboard. Nothing here opens the pane: only the person's command or hub press does (openPane).
 const PANE_STATE = { plugin: 'transceiver', key: 'pane' } as const
+const HUB_STATE = { plugin: 'transceiver', key: 'hub' } as const
 const DEFAULT_COLUMNS = 80
 
 function uiOf($: EngineInterface): UiHost {
   return {
     setPane: async model => { await $.state.set(PANE_STATE, model) },
+    setHub: async line => {
+      if (isSameLine((await $.state.get(HUB_STATE)).value, line)) return
+      await $.state.set(HUB_STATE, { pane: HUB_PANE, ...line, at: await $.clock.now() })
+    },
     isPaneShown: async () => (await $.ui.panes()).some(p => p.id === PANE_ID && p.isShown),
     toast: text => $.ui.toast(text),
     status: text => $.ui.status(text),
@@ -95,7 +101,7 @@ async function registerTools($: EngineInterface): Promise<void> {
   }
 }
 
-// Asked for by the person's command only; a chat pane stays open beside the transcript (no closeOnEscape).
+// Asked for by the person only (the command, the MODZ hub row); a chat pane stays open beside the transcript.
 async function openPane($: EngineInterface): Promise<void> {
   await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
   setPaneShown(true)
@@ -132,6 +138,12 @@ function onPane(on: On): void {
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS
     return stamped(ui, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers }))
   })
+  // A press on the MODZ hub's Transceiver row: the pane opens (or an open one comes forward) asking for the keyboard.
+  on('state.set', { plugin: 'modz', key: 'open' }, async ($, e, next) => {
+    const done = await next(e)
+    if (isOpenFor(e.value, HUB_PANE)) await openPane($)
+    return done
+  }).catch(($, e, next) => next(e))
   // Closed by the person: no read marks from here on; toasts and the status line take over.
   on('ui.close', { id: 'transceiver' }, async ($, e, next) => {
     setPaneShown(false)

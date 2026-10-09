@@ -100,10 +100,18 @@ export type PaneModel = {
   sessionRepo: string | null
 }
 
+// The one-line card the MODZ hub collects from every mod (MODZ DESIGN.md §9), and the hub's open request.
+export type HubTone = 'idle' | 'live' | 'ok' | 'warn' | 'bad'
+export type HubCard = { pane: string; detail: string; tone: HubTone; at: number }
+export type ModzOpen = { pane: string; at: number }
+
 declare module 'claude-code' {
   interface PluginState {
     transceiver: {
       pane: PaneModel
+      hub: HubCard
     }
+    // The MODZ hub's open request this mod listens for; modz owns and writes it.
+    modz: { open: ModzOpen }
   }
 }
