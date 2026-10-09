@@ -1,9 +1,10 @@
-// The `transceiver` pane: one view at a time when narrow (rooms → chat, "Yeni sohbet", "Ayarlar"), the rooms
-// beside the chat when wide. Pure: register.tsx's render hook hands in the element table, the model and the
-// handlers.
+// The `transceiver` pane: one view at a time when narrow (rooms → chat, "Yeni sohbet", "Ayarlar"); when wide the
+// rooms rail, the chat and, for a project room, the aside with its gate, budget and today's counts. Pure:
+// register.tsx's render hook hands in the element table, the model and the handlers.
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
+import { Aside } from './pane-aside'
 import { ChatView } from './pane-chat'
 import { AddView, SettingsView } from './pane-forms'
 import { Head, Meta, pxOf, type Ctx } from './pane-kit'
@@ -11,10 +12,11 @@ import { RoomsColumn } from './pane-list'
 import type { PaneModel } from './state-types'
 import { lookOf } from './theme'
 
-// From this many cells the rooms stay beside the chat; the rooms column takes LIST_COLUMNS of them.
+// From this many cells the rooms stay beside the chat.
 export const WIDE_COLUMNS = 104
-const LIST_COLUMNS = 38
-const COLUMN_GAP = 3
+const RAIL_COLUMNS = 36
+const ASIDE_COLUMNS = 33
+const PAD = 2
 const MIN_COLUMNS = 24
 // With no rooms yet there is nothing to put beside a chat: one column, no wider than reads well.
 const SINGLE_MAX_COLUMNS = 72
@@ -35,7 +37,7 @@ function MainView(ctx: Ctx): RenderElement | null {
   return null
 }
 
-// With nothing picked, the wide right side says what to do rather than stand empty.
+// With nothing picked, the wide middle says what to do rather than stand empty.
 function Placeholder(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
   return (
@@ -48,15 +50,24 @@ function Placeholder(ctx: Ctx): RenderElement {
   )
 }
 
-function Wide(ctx: Ctx): RenderElement {
+const sized = (ctx: Ctx, columns: number): Ctx => ({ ...ctx, columns, px: pxOf(columns) })
+
+function Wide(ctx: Ctx, pad: number): RenderElement {
   const { Box } = ctx.ui
-  const left = { ...ctx, columns: LIST_COLUMNS, px: pxOf(LIST_COLUMNS) }
-  const rightColumns = Math.max(MIN_COLUMNS, ctx.columns - LIST_COLUMNS - COLUMN_GAP)
-  const right = { ...ctx, columns: rightColumns, px: pxOf(rightColumns) }
+  const room = ctx.model.view === 'chat' ? ctx.model.rooms.find(r => r.id === ctx.model.activeId) : undefined
+  const hasAside = room?.kind === 'project'
+  const asideColumns = hasAside ? ASIDE_COLUMNS : 0
+  const main = sized(ctx, Math.max(MIN_COLUMNS, ctx.columns - RAIL_COLUMNS - asideColumns - pad * 2 - (hasAside ? pad * 2 : 0)))
+  const rail = sized(ctx, RAIL_COLUMNS - pad)
   return (
-    <Box flexDirection="row" gap={COLUMN_GAP}>
-      <Box flexDirection="column" width={LIST_COLUMNS} flexShrink={0}>{RoomsColumn(left)}</Box>
-      <Box flexDirection="column" flexGrow={1}>{MainView(right) ?? Placeholder(right)}</Box>
+    <Box flexDirection="row" width={ctx.columns}>
+      <Box key="rail" flexDirection="column" width={RAIL_COLUMNS} flexShrink={0} backgroundColor={ctx.look.inset} paddingX={pad / 2} paddingY={pad}>
+        {RoomsColumn(rail)}
+      </Box>
+      <Box key="main" flexDirection="column" flexGrow={1} paddingX={pad} paddingY={pad / 2}>{MainView(main) ?? Placeholder(main)}</Box>
+      {hasAside && room !== undefined
+        ? <Box key="aside-col" flexDirection="column" width={ASIDE_COLUMNS} flexShrink={0} paddingX={pad} paddingY={pad}>{Aside(sized(ctx, ASIDE_COLUMNS - pad * 2), room)}</Box>
+        : null}
     </Box>
   )
 }
@@ -64,15 +75,18 @@ function Wide(ctx: Ctx): RenderElement {
 export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   const hasRooms = o.model.rooms.length > 0 || o.model.invites.length > 0
   const columns = Math.max(MIN_COLUMNS, hasRooms ? o.columns : Math.min(o.columns, SINGLE_MAX_COLUMNS))
+  const isText = o.surface === 'terminal' || !('Svg' in ui)
+  const look = lookOf({ isText, isLight: o.isLight })
+  const pad = isText ? 0 : PAD
   const isWide = columns >= WIDE_COLUMNS
-  const look = lookOf({ isText: o.surface === 'terminal' || !('Svg' in ui), isLight: o.isLight })
   const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, model: o.model, on: o.on }
   const { Box } = ui
-  const body = isWide ? Wide(ctx) : MainView(ctx) ?? RoomsColumn(ctx)
+  if (isWide) return <Box flexDirection="column" width={columns} backgroundColor={look.sheet}>{Wide(ctx, pad)}</Box>
+  const inner = sized(ctx, columns - pad * 2)
   return (
-    <Box flexDirection="column" gap={1} width={columns}>
-      {body}
-      {o.surface === 'mobile' ? Meta(ctx, 'Telefonda yalnızca okunur; yazmak için odanın sayfasını aç.', 'mobile-note') : null}
+    <Box flexDirection="column" gap={1} width={columns} paddingX={pad} paddingY={pad / 2} backgroundColor={look.sheet}>
+      {MainView(inner) ?? RoomsColumn(inner)}
+      {o.surface === 'mobile' ? Meta(inner, 'Telefonda yalnızca okunur; yazmak için odanın sayfasını aç.', 'mobile-note') : null}
     </Box>
   )
 }

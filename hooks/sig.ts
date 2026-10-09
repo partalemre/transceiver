@@ -21,8 +21,11 @@ const SIGNAL_CSS = [
   ...Object.keys(SIGNAL.dark).map(k => `.f-${k}{fill:var(--${k})}.s-${k}{stroke:var(--${k})}`),
 ].join('')
 
+// The signal glyph's outer arcs breathe a beat after the inner ones.
+const DELAY_CSS = '.txd{animation-delay:.3s}.txd2{animation-delay:.6s}'
+
 export function sigPic(part: Part): SvgPic {
-  const style = (/[fs]-signal/.test(part.body) ? SIGNAL_CSS : '') + svgStyle(part.body)
+  const style = (/[fs]-signal/.test(part.body) ? SIGNAL_CSS : '') + svgStyle(part.body) + (part.body.includes('txd') ? DELAY_CSS : '')
   const source = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${part.width}" height="${part.height}" viewBox="0 0 ${part.width} ${part.height}"`,
     ` role="img" aria-label="${escapeXml(part.alt)}"><style>${style}</style>${part.body}</svg>`,

@@ -1,131 +1,94 @@
-// One timeline entry: a person's message as a bubble (mine in signal, theirs on the card colour, time and receipt
-// inside), agent traffic as an Iris card (a question, an answer, a denial in Flare), a system line, or an
-// unreadable doc.
+// A person's message on the desktop: a rounded bubble, mine in signal on the right, theirs on the card colour on
+// the left (a project room puts their face beside the last of a run); a run shows its time once, under the last;
+// a reply quotes what it answers; a DM that names a shared project room carries a chip to it; a message still
+// going out is dashed and says so. System lines sit centred; an unreadable doc says it is one.
 import type { RenderElement } from 'claude-code'
 
-import { ANSWER_PREVIEW_LINES } from './limits'
-import { Avatar, isText, pxOf, receiptTone, SvgOf, type Ctx } from './pane-kit'
-import type { Message, QueryType } from './protocol'
-import { eyebrowLine, sigPic } from './sig'
-import type { Line } from './state-types'
-import { avatarRole } from './theme'
+import { isText, Pic, PX_PER_CELL, ticksOf, type Ctx } from './pane-kit'
+import { facePart, quotePart, stampPart } from './sig-chat'
+import { glyphPiece, rowPart, textPiece } from './sig-ui'
+import type { Line, RoomView } from './state-types'
+import { avatarRole, initialsOf } from './theme'
+import { messageOf } from './traffic'
 import { clockText } from './when'
 
-const AVATAR = 24
-const AVATAR_CELLS = 3
-// The empty side of a bubble, so mine and theirs never line up into one column.
-const GUTTER = 6
+const FACE = 24
+const FACE_CELLS = 3
+// The empty side of a bubble: about a fifth of the pane, so mine and theirs never line up into one column.
+const GUTTER_RATIO = 0.18
+const BUBBLE_PAD_PX = 2 * PX_PER_CELL + 2
+// The chip's glyph, and what "Odaya git" and the padding take beside the repo's name.
+const CHIP_GLYPH = 16
+const CHIP_ROOM_PX = 120
 
-const QUERY_LABEL: Record<QueryType, string> = {
-  status: 'git durumu', log: 'son commit\'ler', branch: 'dal', diff: 'değişiklikler',
-  file: 'dosya', tests: 'testler', plan: 'plan', ask: 'soru',
-}
+export type BubbleOpts = { line: Line; isFirst: boolean; isLast: boolean; room: RoomView }
 
-export type BubbleOpts = { line: Line; isFirst: boolean; hasNames: boolean }
-
-const isMessage = (m: Line['message']): m is Message & Line['message'] => !('isUnreadable' in m)
+const gutterOf = (ctx: Ctx) => Math.max(4, Math.round(ctx.columns * GUTTER_RATIO))
 
 function Stamp(ctx: Ctx, line: Line, ts: number): RenderElement {
-  const { Box, Text } = ctx.ui
-  const tick = line.receipt === undefined ? null : receiptTone(ctx, line.receipt)
+  const { Box } = ctx.ui
+  const isPending = line.receipt === 'pending'
+  const status = !isPending ? undefined : ctx.model.isConnected ? { text: 'gönderiliyor', paint: 'lo' } : { text: 'bağlantı bekleniyor', paint: 'warn' }
+  return <Box key="stamp" flexDirection="row" justifyContent="flex-end">{Pic(ctx, stampPart({ time: clockText(ts), ticks: ticksOf(line.receipt), status }))}</Box>
+}
+
+// ⌥ partalemre/eliti ··· Odaya git: a shared project room this DM names.
+function RoomChip(ctx: Ctx, o: { line: Line; maxPx: number }): RenderElement | null {
+  const { Box, Button, Text } = ctx.ui
+  const link = o.line.roomLink
+  if (link === undefined) return null
+  const run = ctx.look.role.run
+  const repo = textPiece(link.repo, { size: 12.5, isMono: true, paint: 'hi', max: Math.max(0, o.maxPx - CHIP_ROOM_PX) })
+  const name = rowPart({ width: repo.width + CHIP_GLYPH + 8, height: 18, left: [glyphPiece('branch', { size: CHIP_GLYPH, paint: 'run' }), repo], alt: link.repo })
   return (
-    <Box flexDirection="row" justifyContent="flex-end" gap={1}>
-      <Text color={ctx.look.lo}>{clockText(ts)}</Text>
-      {tick === null ? null : <Text color={tick.color}>{tick.glyph}</Text>}
+    <Box key="room-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderColor={run.line} backgroundColor={run.tint} paddingX={1}>
+      {Pic(ctx, name)}
+      <Box flexGrow={1} />
+      <Button key={`goto-${o.line.id}`} plain onPress={() => ctx.on.select(link.roomId)}><Text bold color={run.fg}>Odaya git</Text></Button>
     </Box>
   )
 }
 
-// Mine to the right with the gutter on the left; theirs to the left behind their avatar (first of a run only).
-function Side(ctx: Ctx, o: { line: Line; isFirst: boolean; body: RenderElement }): RenderElement {
+function bubbleBody(ctx: Ctx, o: BubbleOpts, text: string, ts: number): RenderElement {
+  const { Box, Text } = ctx.ui
+  const { line } = o
+  const tone = line.isMine ? ctx.look.signal : { tint: ctx.look.card, line: ctx.look.line }
+  const maxPx = (ctx.columns - gutterOf(ctx) - FACE_CELLS) * PX_PER_CELL - BUBBLE_PAD_PX
+  const isPending = line.receipt === 'pending'
+  return (
+    <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>
+      {line.replyTo === undefined ? null : Pic(ctx, quotePart({ ...line.replyTo, maxWidth: maxPx }), 'quote')}
+      <Text key="text" color={ctx.look.hi} wrap="wrap">{text}</Text>
+      {RoomChip(ctx, { line, maxPx })}
+      {o.isLast || isPending ? Stamp(ctx, line, ts) : null}
+    </Box>
+  )
+}
+
+// Mine to the right with the gutter on the left; theirs to the left, behind their face in a project room.
+function Side(ctx: Ctx, o: BubbleOpts & { body: RenderElement }): RenderElement {
   const { Box } = ctx.ui
   const { line } = o
-  if (line.isMine) {
-    return <Box key={`msg-${line.id}`} flexDirection="row" justifyContent="flex-end" paddingLeft={GUTTER}>{o.body}</Box>
-  }
-  const face = o.isFirst ? Avatar(ctx, { name: line.authorName, seed: line.seed, size: AVATAR }) : <Box width={isText(ctx) ? 1 : AVATAR_CELLS} flexShrink={0} />
+  const gutter = gutterOf(ctx)
+  if (line.isMine) return <Box key={`msg-${line.id}`} flexDirection="row" justifyContent="flex-end" paddingLeft={gutter}>{o.body}</Box>
+  const hasFaces = o.room.kind === 'project'
+  const face = !hasFaces ? null : o.isLast
+    ? Pic(ctx, facePart({ initials: initialsOf(line.authorName), paint: avatarRole(line.seed), size: FACE }), `face-${line.id}`)
+    : <Box key={`face-${line.id}`} width={FACE_CELLS} flexShrink={0} />
   return (
-    <Box key={`msg-${line.id}`} flexDirection="row" justifyContent="flex-start" alignItems="flex-start" gap={1} paddingRight={GUTTER}>
+    <Box key={`msg-${line.id}`} flexDirection="row" alignItems="flex-end" gap={1} paddingRight={gutter}>
       {face}
       {o.body}
     </Box>
   )
 }
 
-function HumanBubble(ctx: Ctx, o: BubbleOpts, m: Message): RenderElement {
-  const { Box, Text } = ctx.ui
-  const { line } = o
-  const tone = line.isMine ? ctx.look.signal : { tint: ctx.look.card, line: ctx.look.line }
-  const nameColor = ctx.look.role[avatarRole(line.seed)].fg
-  const body = (
-    <Box flexDirection="column" borderStyle="round" borderColor={tone.line} backgroundColor={tone.tint} paddingX={1}>
-      {o.hasNames && o.isFirst && !line.isMine ? <Text bold color={nameColor}>{line.authorName}</Text> : null}
-      <Text color={ctx.look.hi} wrap="wrap">{m.text}</Text>
-      {Stamp(ctx, line, m.ts)}
-    </Box>
-  )
-  return Side(ctx, { line, isFirst: o.isFirst, body })
-}
-
-function clipLines(text: string): string {
-  const lines = text.split('\n')
-  if (lines.length <= ANSWER_PREVIEW_LINES) return text
-  return `${lines.slice(0, ANSWER_PREVIEW_LINES).join('\n')}\n… ${lines.length - ANSWER_PREVIEW_LINES} satır daha`
-}
-
-type AgentSpec = { eyebrow: string; text: string; isDenied: boolean; isCode: boolean }
-
-function agentSpec(m: Message): AgentSpec {
-  if (m.kind === 'query') {
-    const type = m.query?.type ?? 'ask'
-    const text = type === 'ask' ? m.query?.question ?? m.text : type === 'file' ? m.query?.path ?? m.text : m.text || QUERY_LABEL[type]
-    return { eyebrow: type === 'ask' ? 'Agent sorusu' : `Agent sorusu · ${QUERY_LABEL[type]}`, text, isDenied: false, isCode: type === 'file' }
-  }
-  if (m.kind === 'answer') {
-    const isDenied = m.answer?.ok === false
-    return { eyebrow: isDenied ? 'Agent cevabı · erişim yok' : 'Agent cevabı', text: clipLines(m.answer?.body ?? m.text), isDenied, isCode: !isDenied }
-  }
-  return { eyebrow: 'Agent mesajı', text: m.text, isDenied: false, isCode: false }
-}
-
-function AgentHead(ctx: Ctx, o: { spec: AgentSpec; meta: string; columns: number }): RenderElement {
-  const { Text } = ctx.ui
-  const tone = o.spec.isDenied ? ctx.look.role.danger : ctx.look.role.run
-  if (isText(ctx)) return <Text color={tone.fg} bold>{`◆ ${o.spec.eyebrow.toLocaleUpperCase('tr')}  `}<Text color={ctx.look.lo}>{o.meta}</Text></Text>
-  const paint = o.spec.isDenied ? 'danger' : 'run'
-  return SvgOf(ctx, sigPic(eyebrowLine({ text: o.spec.eyebrow, paint, width: pxOf(o.columns), meta: o.meta }))) ?? <Text>{o.spec.eyebrow}</Text>
-}
-
-function AgentCard(ctx: Ctx, o: BubbleOpts, m: Message): RenderElement {
-  const { Box, Text } = ctx.ui
-  const spec = agentSpec(m)
-  const tone = spec.isDenied ? ctx.look.role.danger : ctx.look.role.run
-  const tokens = m.kind === 'answer' && (m.answer?.tokens ?? 0) > 0 ? ` · ${m.answer?.tokens} token` : ''
-  // Mine carry the time and receipt at the foot, as a bubble does; theirs say who and when up top.
-  const who = o.line.isMine ? o.line.authorName : `${o.line.authorName.split(' ')[0] ?? ''} · ${clockText(m.ts)}`
-  const meta = `${who}${tokens}`
-  const columns = Math.max(1, ctx.columns - GUTTER - AVATAR_CELLS - 4)
-  const text = spec.isCode && !isText(ctx)
-    ? <Box backgroundColor={ctx.look.inset} paddingX={1}><Text color={ctx.look.mid} wrap="wrap">{spec.text}</Text></Box>
-    : <Text color={spec.isDenied ? tone.fg : ctx.look.hi} wrap="wrap">{spec.text}</Text>
-  const body = (
-    <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={tone.line} backgroundColor={tone.tint} paddingX={1}>
-      {AgentHead(ctx, { spec, meta, columns })}
-      {text}
-      {o.line.receipt === undefined ? null : Stamp(ctx, o.line, m.ts)}
-    </Box>
-  )
-  return Side(ctx, { line: o.line, isFirst: true, body })
-}
-
 export function Bubble(ctx: Ctx, o: BubbleOpts): RenderElement {
   const { Box, Text } = ctx.ui
-  const m = o.line.message
-  if (!isMessage(m)) {
-    return <Box key={`msg-${o.line.id}`} paddingLeft={AVATAR_CELLS + 1}><Text color={ctx.look.lo} italic>okunamayan mesaj</Text></Box>
-  }
-  if (m.kind === 'system') {
+  const m = messageOf(o.line)
+  if (m === null) return <Box key={`msg-${o.line.id}`} paddingLeft={FACE_CELLS + 1}><Text color={ctx.look.lo} italic>okunamayan mesaj</Text></Box>
+  if (m.kind === 'system' || isText(ctx)) {
     return <Box key={`msg-${o.line.id}`} justifyContent="center"><Text color={ctx.look.lo} italic wrap="wrap">{m.text}</Text></Box>
   }
-  return m.kind === 'human' ? HumanBubble(ctx, o, m) : AgentCard(ctx, o, m)
+  return Side(ctx, { ...o, body: bubbleBody(ctx, o, m.text, m.ts) })
 }

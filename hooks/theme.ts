@@ -14,6 +14,8 @@ export type Look = {
   lineStrong?: string
   card?: string
   inset?: string
+  sheet?: string
+  track?: string
   signal: Tone
   role: Record<Role, Tone>
 }
@@ -30,6 +32,7 @@ function desktopLook(isLight: boolean): Look {
   return {
     isText: false, isLight,
     hi: p.hi, mid: p.mid, lo: p.lo, line: p.line, lineStrong: p.lineStrong, card: p.card, inset: p.inset,
+    sheet: p.sheet, track: p.track,
     signal: isLight ? SIGNAL.light : SIGNAL.dark,
     role: p.roles,
   }

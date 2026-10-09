@@ -1,140 +1,131 @@
-// The rooms column: the brand header, the cards, then one row per room (avatar, name, time, last message with
-// its receipt, unread badge), or the empty state with the ways in.
+// The rooms rail: the brand head with "+", the cards, the rooms under PROJELER and KİŞİLER (face, name, time, a
+// second line with its receipt or the gate's dot, the unread badge, the open room tinted), and the connection
+// footer with "Ayarlar". The terminal draws the same rail as lines.
 import type { RenderElement } from 'claude-code'
 
-import { ButtonRow } from './kit/ui'
-import { Cards } from './pane-cards'
-import { Avatar, BRAND, Frame, Head, innerPx, isText, kindOf, latencyText, pxOf, receiptTone, SvgOf, type Ctx } from './pane-kit'
-import { badgePart, sigPic, stepsPart } from './sig'
+import { POLL_OPEN_MS } from './limits'
+import { Cards, EmptyCard } from './pane-cards'
+import { IconButton, isText, Pic, PX_PER_CELL, receiptTone, roomFace, ticksOf, type Ctx } from './pane-kit'
+import { projectLine } from './pane-words'
+import { badgePart } from './sig'
+import { brandPart, footerPart, previewPart, sectionPart } from './sig-rail'
 import type { RoomView } from './state-types'
-import { rowTime } from './when'
+import { rowTime, secondsText } from './when'
 
-const AVATAR = 34
-// What a row leaves for the preview: avatar, gaps, padding and the badge.
-const ROW_CHROME = 12
+const FACE = 36
+const FACE_CELLS = 5
+const PLUS_CELLS = 5
+// A row's padding and the badge beside its second line.
+const ROW_CHROME_CELLS = 2
+const BADGE_CELLS = 4
 
-const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text)
-
-function summary(ctx: Ctx): string {
-  const rooms = ctx.model.rooms
-  const unread = rooms.reduce((n, r) => n + r.unread, 0)
-  if (rooms.length === 0) return 'Henüz oda yok'
-  return unread > 0 ? `${rooms.length} oda · ${unread} okunmamış` : `${rooms.length} oda · hepsi okundu`
+function previewOf(ctx: Ctx, room: RoomView, width: number) {
+  if (room.isTroubled) return previewPart({ width, text: 'bağlantı sorunu · yeniden deneniyor', isUnread: false, paint: 'warn' })
+  if (room.kind === 'project') return previewPart({ width, text: projectLine(room), isUnread: false, paint: room.gate === 'open' ? 'mid' : 'lo', dot: room.gate === 'open' ? 'ok' : room.gate === 'closed' ? 'line-strong' : 'warn' })
+  if (room.lastText === '') {
+    return previewPart({ width, text: room.isWaiting ? 'Arkadaşın kabul edince burada yazışırsınız' : 'Henüz mesaj yok', isUnread: false })
+  }
+  return previewPart({ width, text: room.lastText, isUnread: room.unread > 0, ticks: room.lastIsMine ? ticksOf(room.lastReceipt) : undefined })
 }
 
-export function ListHead(ctx: Ctx): RenderElement {
-  const { Box } = ctx.ui
-  const m = ctx.model
-  const meta = m.busy ?? (m.isConnected || m.rooms.length === 0 ? latencyText(m.latencyMs) : 'bağlantı bekleniyor')
-  const hasRooms = m.rooms.length > 0
+function TextRow(ctx: Ctx, room: RoomView): RenderElement {
+  const { Box, Button, Text } = ctx.ui
+  const tick = room.lastReceipt === undefined || !room.lastIsMine ? null : receiptTone(ctx, room.lastReceipt)
+  const glyph = room.kind === 'project' ? '⌥' : room.isWaiting ? '◷' : '●'
   return (
-    <Box key="list-head" flexDirection="column" gap={1}>
-      {Head(ctx, { glyph: 'radio', tone: 'signal', eyebrow: BRAND, meta, headline: 'Sohbetler', sub: summary(ctx), width: pxOf(ctx.columns) })}
-      {hasRooms
-        ? ButtonRow(ctx.ui, ctx.surface, ctx.look.isLight, {
-            buttons: [
-              { key: 'open-add', label: 'Yeni sohbet', variant: 'secondary', onPress: () => ctx.on.openView('add') },
-              { key: 'open-settings', label: 'Ayarlar', variant: 'plain', onPress: () => ctx.on.openView('settings') },
-            ],
-          })
-        : null}
+    <Box key={`row-${room.id}`} flexDirection="column">
+      <Box flexDirection="row" gap={1}>
+        <Text color={room.kind === 'project' ? ctx.look.role.run.fg : ctx.look.lo}>{glyph}</Text>
+        <Button key={`open-${room.id}`} plain onPress={() => ctx.on.select(room.id)}><Text bold>{room.title}</Text></Button>
+        <Box flexGrow={1} />
+        {room.unread > 0 ? <Text color={ctx.look.signal.fg} bold>{`(${room.unread})`}</Text> : null}
+        <Text color={ctx.look.lo}>{rowTime(room.lastTs, ctx.model.now)}</Text>
+      </Box>
+      <Text color={ctx.look.lo} wrap="truncate-end">{`  ${tick === null ? '' : `${tick.glyph} `}${room.kind === 'project' ? projectLine(room) : room.lastText}`}</Text>
     </Box>
   )
 }
 
-function Preview(ctx: Ctx, room: RoomView): RenderElement {
-  const { Text } = ctx.ui
-  if (room.isTroubled) return <Text color={ctx.look.role.warn.fg} wrap="truncate-end">bağlantı sorunu · yeniden deneniyor</Text>
-  if (room.lastText === '') {
-    const hint = room.isWaiting ? 'Arkadaşın kabul edince burada yazışırsınız' : room.kind === 'project' ? 'Henüz mesaj yok · ilk soruyu sor' : 'Henüz mesaj yok'
-    return <Text color={ctx.look.lo} italic wrap="truncate-end">{hint}</Text>
-  }
-  const tick = room.lastReceipt === undefined ? null : receiptTone(ctx, room.lastReceipt)
-  return (
-    <Text color={room.unread > 0 ? ctx.look.mid : ctx.look.lo} wrap="truncate-end">
-      {tick === null ? null : <Text color={tick.color}>{`${tick.glyph} `}</Text>}
-      {clip(room.lastText, ctx.columns - ROW_CHROME - (tick === null ? 0 : tick.glyph.length + 1))}
-    </Text>
-  )
-}
-
-function Unread(ctx: Ctx, room: RoomView): RenderElement | null {
-  const { Text } = ctx.ui
-  if (room.unread === 0) return null
-  if (isText(ctx)) return <Text color={ctx.look.signal.fg} bold>{`(${room.unread})`}</Text>
-  return SvgOf(ctx, sigPic(badgePart(room.unread)), `badge-${room.id}`)
-}
-
 export function RoomRow(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
+  if (isText(ctx)) return TextRow(ctx, room)
   const isActive = room.id === ctx.model.activeId && ctx.model.view === 'chat'
   const hasUnread = room.unread > 0
+  const width = (ctx.columns - FACE_CELLS - ROW_CHROME_CELLS - (hasUnread ? BADGE_CELLS : 0)) * PX_PER_CELL
+  const face = roomFace(room, { size: FACE, now: ctx.model.now, isMuted: room.kind === 'project' && room.gate === 'closed' })
   return (
-    <Box key={`row-${room.id}`} flexDirection="row" gap={1} alignItems="center" paddingX={1}
-      backgroundColor={isActive ? ctx.look.signal.tint : undefined}>
-      {Avatar(ctx, { name: room.title, seed: room.seed, size: AVATAR, kind: kindOf(room), key: `av-${room.id}` })}
+    <Box key={`row-${room.id}`} flexDirection="row" gap={1} alignItems="center" paddingX={1} backgroundColor={isActive ? ctx.look.card : undefined}>
+      {Pic(ctx, face, `av-${room.id}`)}
       <Box flexDirection="column" flexGrow={1}>
         <Box flexDirection="row" justifyContent="space-between" gap={1}>
           <Button key={`open-${room.id}`} plain onPress={() => ctx.on.select(room.id)}>
-            <Text bold color={ctx.look.hi}>{room.title}</Text>
+            <Text bold color={ctx.look.hi}>{room.kind === 'project' ? room.repo?.split('/')[1] ?? room.title : room.title}</Text>
           </Button>
-          <Text color={hasUnread ? ctx.look.signal.fg : ctx.look.lo}>{rowTime(room.lastTs, ctx.model.now)}</Text>
+          <Text color={hasUnread ? ctx.look.signal.fg : ctx.look.lo} bold={hasUnread}>{rowTime(room.lastTs, ctx.model.now)}</Text>
         </Box>
-        <Box flexDirection="row" justifyContent="space-between" gap={1}>
-          {Preview(ctx, room)}
-          {Unread(ctx, room)}
+        <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
+          {Pic(ctx, previewOf(ctx, room, width), `preview-${room.id}`)}
+          {hasUnread ? Pic(ctx, badgePart(room.unread), `badge-${room.id}`) : null}
         </Box>
       </Box>
     </Box>
   )
 }
 
-const STEPS = [
-  { title: 'Arkadaşını ekle', sub: 'Senin için bir oda açılır, adresi claude.ai\'de.' },
-  { title: 'Linki paylaş', sub: 'Paylaş menüsünden e-postasıyla davet et.' },
-  { title: 'Yazış', sub: 'Mesajlar anında burada; taşıma token harcamaz.' },
-]
-
-function Steps(ctx: Ctx): RenderElement {
+function Brand(ctx: Ctx): RenderElement {
   const { Box, Text } = ctx.ui
-  if (!isText(ctx)) return SvgOf(ctx, sigPic(stepsPart({ steps: STEPS, width: innerPx(ctx.columns) })), 'steps') ?? <Box />
+  const hasRooms = ctx.model.rooms.length > 0
+  const plus = hasRooms ? IconButton(ctx, { key: 'open-add', label: '+', onPress: () => ctx.on.openView('add') }) : null
+  const brand = isText(ctx)
+    ? <Text key="brand" color={ctx.look.signal.fg} bold>((·)) TRANSCEIVER  <Text color={ctx.look.hi}>Sohbetler</Text></Text>
+    : Pic(ctx, brandPart({ width: (ctx.columns - (hasRooms ? PLUS_CELLS : 0)) * PX_PER_CELL, title: 'Sohbetler' }), 'brand')
+  return <Box key="list-head" flexDirection="row" alignItems="center" gap={1}>{brand}<Box flexGrow={1} />{plus}</Box>
+}
+
+function Section(ctx: Ctx, o: { key: string; title: string; rooms: RoomView[] }): RenderElement | null {
+  const { Box, Text } = ctx.ui
+  if (o.rooms.length === 0) return null
+  const label = isText(ctx) ? <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title.toLocaleUpperCase('tr')}</Text> : Pic(ctx, sectionPart({ width: ctx.px, text: o.title }), `${o.key}-label`)
   return (
-    <Box key="steps" flexDirection="column">
-      {STEPS.map((s, i) => <Text key={`step-${i}`}><Text color={ctx.look.signal.fg} bold>{`${i + 1} `}</Text><Text bold>{s.title}</Text><Text color={ctx.look.lo}>{` · ${s.sub}`}</Text></Text>)}
+    <Box key={o.key} flexDirection="column" gap={isText(ctx) ? 0 : 1}>
+      {label}
+      {o.rooms.map(room => RoomRow(ctx, room))}
     </Box>
   )
 }
 
-export function EmptyRooms(ctx: Ctx): RenderElement {
-  const hasInput = 'Input' in ctx.ui
-  return Frame(ctx, {
-    key: 'empty', tone: 'signal',
-    children: [
-      Head(ctx, {
-        glyph: 'radio', tone: 'signal', eyebrow: 'Başla', headline: 'Telsizini aç',
-        sub: 'Arkadaşlarınla Claude\'un içinden yazış. Ortak bir GitHub reposunda agent\'larınız da konuşabilir.',
-      }),
-      Steps(ctx),
-      ButtonRow(ctx.ui, ctx.surface, ctx.look.isLight, {
-        buttons: [
-          { key: 'add-dm', label: 'Arkadaş ekle', variant: 'primary', onPress: () => ctx.on.addDm() },
-          ...(hasInput ? [{ key: 'open-add', label: 'Proje ya da link', variant: 'secondary' as const, onPress: () => ctx.on.openView('add') }] : []),
-        ],
-      }),
-    ],
-  })
+// ● Bağlı · yoklama 1 sn ··· Ayarlar
+function Footer(ctx: Ctx): RenderElement {
+  const { Box, Button, Text } = ctx.ui
+  const m = ctx.model
+  const text = m.busy ?? (m.isConnected ? `Bağlı · yoklama ${secondsText(POLL_OPEN_MS).replace(',0', '')}` : 'bağlantı bekleniyor')
+  const paint = m.isConnected ? 'signal' : 'warn'
+  const line = isText(ctx)
+    ? <Text key="footer-text" color={m.isConnected ? ctx.look.signal.fg : ctx.look.role.warn.fg}>{`● ${text}`}</Text>
+    : Pic(ctx, footerPart({ width: (ctx.columns - 10) * PX_PER_CELL, text, paint }), 'footer')
+  return (
+    <Box key="footer" flexDirection="row" alignItems="center" gap={1}>
+      {line}
+      <Box flexGrow={1} />
+      <Button key="open-settings" label="Ayarlar" plain onPress={() => ctx.on.openView('settings')} />
+    </Box>
+  )
 }
 
 export function RoomsColumn(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
   const rooms = ctx.model.rooms
+  if (rooms.length === 0) {
+    return <Box key="rooms" flexDirection="column" gap={1}>{Cards(ctx)}{EmptyCard(ctx)}</Box>
+  }
   return (
-    <Box key="rooms" flexDirection="column" gap={1}>
-      {ListHead(ctx)}
+    <Box key="rooms" flexDirection="column" gap={1} flexGrow={1}>
+      {Brand(ctx)}
       {Cards(ctx)}
-      {rooms.length === 0
-        ? EmptyRooms(ctx)
-        : <Box key="room-list" flexDirection="column" gap={isText(ctx) ? 0 : 1}>{rooms.map(room => RoomRow(ctx, room))}</Box>}
+      {Section(ctx, { key: 'projects', title: 'Projeler', rooms: rooms.filter(r => r.kind === 'project') })}
+      {Section(ctx, { key: 'people', title: 'Kişiler', rooms: rooms.filter(r => r.kind === 'dm') })}
+      <Box flexGrow={1} />
+      {Footer(ctx)}
     </Box>
   )
 }
