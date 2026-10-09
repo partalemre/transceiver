@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Copies secret-guard's detector so transceiver needs no other mod installed.
-# MODZ is found through $MODZ_DIR, else as the sibling folder ../MODZ of this repo.
+# MODZ is found through $MODZ_DIR (or $MODZ, as bin/kit-pull reads), else as the sibling ../MODZ.
 # From a git checkout it copies the committed files (HEAD), never half-edited ones.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MODZ_ROOT="${MODZ_DIR:-$ROOT/../MODZ}"
+MODZ_ROOT="${MODZ_DIR:-${MODZ:-$ROOT/../MODZ}}"
 REL="mods/secret-guard/hooks"
 DEST="$ROOT/hooks/secrets"
 FILES=(detect.ts jwt.ts)
