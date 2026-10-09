@@ -6,7 +6,7 @@ import type { Run } from '../hooks/run'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
 const room: GateRoom = { kind: 'project', repo: 'partalemre/eliti', peers: [{ uid: PEER, gh: 'alperenx', isGhConfirmed: true }] }
 const query = { type: 'status' as const, repo: 'partalemre/eliti' }
-const base = { room, peerUid: PEER, query, sessionRepo: 'partalemre/eliti', now: 0 }
+const base = { room, peerUid: PEER, query, sessionRepo: 'partalemre/eliti', headGh: 'alperenx', now: 0 }
 const out = (exitCode: number, stdout = '') => ({ exitCode, stdout, stderr: '' })
 
 test('remotes parse in ssh and https forms', () => {
@@ -49,6 +49,21 @@ test('each failing condition closes it', async () => {
   expect(await makeGate(async () => false)(base)).toBe(false)
 })
 
+test('owner, repo and login compare case-insensitively, as GitHub does', async () => {
+  const seen: string[] = []
+  const gate = makeGate(async ({ repo, login }) => { seen.push(`${repo}#${login}`); return true })
+  const upper = { ...base, sessionRepo: 'PartalEmre/Eliti', headGh: 'AlperenX', query: { ...query, repo: 'partalEmre/ELITI' } }
+  expect(await gate(upper)).toBe(true)
+  expect(await gate({ ...base, room: { ...room, repo: 'PARTALEMRE/eliti' } })).toBe(true)
+  expect(seen.length).toBe(1)
+})
+
+test('a head that now names another login than the confirmed one closes the gate', async () => {
+  const gate = makeGate(async () => true)
+  expect(await gate({ ...base, headGh: 'torvalds' })).toBe(false)
+  expect(await gate({ ...base, headGh: undefined })).toBe(false)
+})
+
 test('a check that throws closes the gate, and results are cached for 10 minutes', async () => {
   let calls = 0
   const gate = makeGate(async () => { calls++; throw new Error('offline') })
@@ -68,7 +83,7 @@ test('a cached yes for one login never opens the gate for another', async () => 
   const gate = makeGate(async ({ login }) => { seen.push(login); return login === 'alperenx' })
   expect(await gate(base)).toBe(true)
   const other = { ...room, peers: [{ uid: PEER, gh: 'mallory', isGhConfirmed: true }] }
-  expect(await gate({ ...base, room: other })).toBe(false)
+  expect(await gate({ ...base, room: other, headGh: 'mallory' })).toBe(false)
   expect(seen).toEqual(['alperenx', 'mallory'])
 })
 

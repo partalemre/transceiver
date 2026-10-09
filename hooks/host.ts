@@ -1,4 +1,6 @@
-import type { Timer } from 'claude-code'
+import type { McpToolResult, ModelCompleteRequest, ModelCompleteResult, Timer } from 'claude-code'
+
+import type { RealPath, Run } from './run'
 
 // What a tool call resolves to, as far as this mod reads it.
 export type CallResult = { text?: string; isError?: boolean; deny?: string; result?: unknown }
@@ -18,3 +20,20 @@ export type Host = {
 }
 
 export type ToolHost = Pick<Host, 'tool'>
+
+// The agent side's reach (T13–T14), bound beside Host in register.tsx: commands, files, the model, the session's
+// own conversation. `isConnected` says whether this session may write yet (the pane's "Bağlan" press, spike R1).
+export type AgentHost = Host & {
+  run: Run
+  realPath: RealPath
+  readFile(path: string): Promise<string>
+  root(): Promise<string>
+  readState(plugin: string, key: string): Promise<unknown>
+  mcpCall(server: string, tool: string, args?: Record<string, unknown>): Promise<McpToolResult>
+  complete(request: ModelCompleteRequest): Promise<ModelCompleteResult>
+  sleep(ms: number): Promise<void>
+  sendSelf(text: string): Promise<boolean>
+  note(text: string): Promise<void>
+  toast(text: string): void
+  isConnected(): boolean
+}

@@ -3,7 +3,7 @@ import type { Timer } from 'claude-code'
 import type { Host } from './host'
 import { DISCOVER_MS } from './limits'
 import type { Message } from './protocol'
-import { callerOf, relayOf } from './relay'
+import { callerOf, relayOf, type HeadState } from './relay'
 import { discoverInvites, loadRooms, loadSettings, saveRooms, type RoomRecord } from './rooms'
 import { enqueue, initialSync, nextDelay, tick, type RoomSync } from './sync'
 import type { Entry } from './timeline'
@@ -25,7 +25,14 @@ let viewing: string | null = null
 let isPaneOpen = false
 let discovery: Timer | null = null
 
-export const onTick = (fn: Listener) => { listeners.push(fn) }
+// Returns the unsubscribe, so a rewiring (or a test) never stacks listeners.
+export function onTick(fn: Listener): () => void {
+  listeners.push(fn)
+  return () => {
+    const at = listeners.indexOf(fn)
+    if (at >= 0) listeners.splice(at, 1)
+  }
+}
 export const setViewing = (roomId: string | null, isOpen: boolean) => { viewing = roomId; isPaneOpen = isOpen }
 export const syncOf = (roomId: string) => syncs.get(roomId)
 
@@ -70,7 +77,9 @@ async function step(host: Host, room: RoomRecord): Promise<void> {
   syncs.set(room.id, state)
   await persist(host, room.id, state)
   for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied })
-  schedule(host, room, nextDelay({ isPaneOpen, failures: state.failures }))
+  // A listener that queued a message (an answer) gets it sent at once rather than a poll later.
+  const isQueued = (syncs.get(room.id)?.pending.length ?? 0) > state.pending.length
+  schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen, failures: state.failures }))
 }
 
 // Only the room's title and the error's name reach the log, never message text or tool output.
@@ -101,6 +110,13 @@ export function stopRoom(roomId: string): void {
   active.delete(roomId)
   timers.get(roomId)?.cancel()
   timers.delete(roomId)
+}
+
+// Takes the own head a listener wrote (e.g. the `gh` login), so the next send is pinned to its version.
+export function adoptOwnHead(roomId: string, own: HeadState): void {
+  const state = syncs.get(roomId)
+  if (state === undefined || own.version <= state.ownVersion) return
+  syncs.set(roomId, { ...state, ownHead: own.head, ownVersion: own.version })
 }
 
 // Shows the message at once (pending) and sends it on the room's next tick. False until the room has synced once.

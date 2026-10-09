@@ -35,3 +35,22 @@ export const ROLLOVER_DOCS = 20_000
 export const PANE_ID = 'transceiver'
 export const COMMAND = 'transceiver'
 export const TITLE_PREFIX = 'Transceiver · '
+
+// Agents: responder, ask, tools, live wake (T13–T14).
+export const ASK_EFFORT = 'low'
+export const ASK_MAX_QUESTION_CHARS = 2_000
+export const ASK_CONTEXT_FILES = 200
+export const ASK_CONTEXT_COMMITS = 5
+// The ask tool waits inside a hook's 10 s budget: it stops waiting while this much is left.
+export const ASK_WAIT_MARGIN_MS = 1_500
+export const ANSWER_PART_HEADROOM = 32
+// The largest answer (a 256 KB file) split under the message cap, plus one for character boundaries.
+export const MAX_ANSWER_PARTS = Math.ceil(MAX_FILE_BYTES / (MAX_TEXT_BYTES - ANSWER_PART_HEADROOM)) + 1
+export const MINUTE_MS = 60_000
+export const QUERY_FUTURE_SKEW_MS = 60_000
+export const INBOX_LIMIT = 30
+export const NONCE_CHARS = 16
+export const REPO_CACHE_MS = 60_000
+export const LOGIN_RETRY_MS = 600_000
+export const LIVE_COOLDOWN_MS = 30_000
+export const LIVE_MAX_CHARS = 2_000
