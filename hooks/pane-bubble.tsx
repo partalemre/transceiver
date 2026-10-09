@@ -5,7 +5,7 @@
 import type { RenderElement } from 'claude-code'
 
 import { isText, Pic, PX_PER_CELL, ticksOf, type Ctx } from './pane-kit'
-import { facePart, quotePart, stampPart } from './sig-chat'
+import { facePart, quotePart, stampPart, type StampOpts } from './sig-chat'
 import { glyphPiece, rowPart, textPiece } from './sig-ui'
 import type { Line, RoomView } from './state-types'
 import { avatarRole, initialsOf } from './theme'
@@ -25,10 +25,15 @@ export type BubbleOpts = { line: Line; isFirst: boolean; isLast: boolean; room: 
 
 const gutterOf = (ctx: Ctx) => Math.max(4, Math.round(ctx.columns * GUTTER_RATIO))
 
+// A message still going out says so, in amber while it waits for "Bağlan".
+function pendingStatus(ctx: Ctx, line: Line): StampOpts['status'] {
+  if (line.receipt !== 'pending') return undefined
+  return ctx.model.isConnected ? { text: 'gönderiliyor', paint: 'lo' } : { text: 'bağlantı bekleniyor', paint: 'warn' }
+}
+
 function Stamp(ctx: Ctx, line: Line, ts: number): RenderElement {
   const { Box } = ctx.ui
-  const isPending = line.receipt === 'pending'
-  const status = !isPending ? undefined : ctx.model.isConnected ? { text: 'gönderiliyor', paint: 'lo' } : { text: 'bağlantı bekleniyor', paint: 'warn' }
+  const status = pendingStatus(ctx, line)
   return <Box key="stamp" flexDirection="row" justifyContent="flex-end">{Pic(ctx, stampPart({ time: clockText(ts), ticks: ticksOf(line.receipt), status }))}</Box>
 }
 
@@ -65,16 +70,22 @@ function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): Ren
   )
 }
 
+// Their face beside the last bubble of a run, a blank of its width beside the others; only project rooms show faces.
+function Face(ctx: Ctx, o: BubbleOpts): RenderElement | null {
+  const { line } = o
+  if (o.room.kind !== 'project') return null
+  if (o.isLast) return Pic(ctx, facePart({ initials: initialsOf(line.authorName), paint: avatarRole(line.seed), size: FACE }), `face-${line.id}`)
+  const { Box } = ctx.ui
+  return <Box key={`face-${line.id}`} width={FACE_CELLS} flexShrink={0} />
+}
+
 // Mine to the right with the gutter on the left; theirs to the left, behind their face in a project room.
 function Side(ctx: Ctx, o: BubbleOpts & { body: RenderElement }): RenderElement {
   const { Box } = ctx.ui
   const { line } = o
   const gutter = gutterOf(ctx)
   if (line.isMine) return <Box key={`msg-${line.id}`} flexDirection="row" justifyContent="flex-end" paddingLeft={gutter}>{o.body}</Box>
-  const hasFaces = o.room.kind === 'project'
-  const face = !hasFaces ? null : o.isLast
-    ? Pic(ctx, facePart({ initials: initialsOf(line.authorName), paint: avatarRole(line.seed), size: FACE }), `face-${line.id}`)
-    : <Box key={`face-${line.id}`} width={FACE_CELLS} flexShrink={0} />
+  const face = Face(ctx, o)
   return (
     <Box key={`msg-${line.id}`} flexDirection="row" alignItems="flex-end" gap={1} paddingRight={gutter}>
       {face}

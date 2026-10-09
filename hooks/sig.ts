@@ -110,7 +110,8 @@ export function headPart(o: HeadOpts): Part {
     title ? place(title.body, x, titleTop) : '',
     sub ? place(sub.body, x, subTop) : '',
   ]
-  const bottom = sub ? subTop + sub.height : title ? titleTop + title.height : EYEBROW_H
+  const titleBottom = title ? titleTop + title.height : EYEBROW_H
+  const bottom = sub ? subTop + sub.height : titleBottom
   return { body: body.join(''), width: o.width, height: Math.max(size, bottom), alt: [eyebrow.alt, o.headline, o.sub].filter(Boolean).join(' — ') }
 }
 

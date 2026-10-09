@@ -59,12 +59,18 @@ const CHECK_ROW = 20
 const SECTION_GAP = 10
 
 // ✓ / ✕ / ○ and the condition, one per row, under its eyebrow and above a meta line.
+// A check not yet run reads as a question in the alt text.
+function altMark(state: boolean | null): string {
+  if (state === null) return '?'
+  return state ? '✓' : '✕'
+}
+
 export function checklistPart(o: { width: number; tone: GateTone; checks: readonly Check[]; meta: string }): Part {
   const head = rowPart({ width: o.width, height: CHECK_ROW, left: [glyphPiece('shield', { size: 16, paint: o.tone.paint }), eyebrowPiece(o.tone.label, { paint: o.tone.paint })], alt: o.tone.label })
   const rows = o.checks.map(c => {
     const mark = c.state === null ? glyphPiece('clock', { size: 14, paint: 'lo' }) : glyphPiece(c.state ? 'check' : 'cross', { size: 14, paint: c.state ? 'ok' : 'danger', stroke: 1.8 })
     const text = textPiece(c.text, { size: 13, paint: c.state === false ? 'mid' : 'hi', isMono: c.isMono, max: o.width - 22 })
-    return rowPart({ width: o.width, height: CHECK_ROW, left: [mark, text], alt: `${c.state === null ? '?' : c.state ? '✓' : '✕'} ${c.text}` })
+    return rowPart({ width: o.width, height: CHECK_ROW, left: [mark, text], alt: `${altMark(c.state)} ${c.text}` })
   })
   const meta = rowPart({ width: o.width, height: CHECK_ROW, left: [textPiece(o.meta, { ...SMALL, paint: 'lo', max: o.width })], alt: o.meta })
   return stackPart([head, ...rows, meta], { width: o.width, gap: 6 })
@@ -77,12 +83,13 @@ const BIG = { size: 24, weight: 650 }
 // ASK BÜTÇESİ / 3 / 10 bugün / ▬▬▬▭▭▭▭▭▭▭ / a note.
 export function budgetPart(o: { width: number; used: number; limit: number; note: string }): Part {
   const isFull = o.used >= o.limit
+  const usedPaint = isFull ? 'warn' : 'run'
   const eyebrow = rowPart({ width: o.width, height: CHECK_ROW, left: [eyebrowPiece('Ask bütçesi', { paint: 'lo' })], alt: 'Ask bütçesi' })
   const big = textPiece(String(o.used), { ...BIG, paint: isFull ? 'warn' : 'hi' })
   const count = rowPart({ width: o.width, height: big.height, left: [big, textPiece(`/ ${o.limit} bugün`, { size: 14, paint: 'lo' })], gap: 6, alt: `${o.used} / ${o.limit} bugün` })
   const seg = (o.width - SEGMENT_GAP * (o.limit - 1)) / o.limit
   const segments = Array.from({ length: o.limit }, (_, i) =>
-    rectEl({ x: i * (seg + SEGMENT_GAP), y: 0, width: seg, height: SEGMENT_H, radius: SEGMENT_H / 2, paint: i < o.used ? (isFull ? 'warn' : 'run') : 'track' }))
+    rectEl({ x: i * (seg + SEGMENT_GAP), y: 0, width: seg, height: SEGMENT_H, radius: SEGMENT_H / 2, paint: i < o.used ? usedPaint : 'track' }))
   const meter: Part = { body: segments.join(''), width: o.width, height: SEGMENT_H, alt: '' }
   const note = bodyPart({ text: o.note, width: o.width, size: 11.5, lineHeight: 15, paint: 'lo', maxLines: 2 })
   return stackPart([eyebrow, count, meter, note], { width: o.width, gap: 8 })

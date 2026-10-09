@@ -71,6 +71,8 @@ const CLOCK = 12
 
 export type StampOpts = { time?: string; ticks?: 'one' | 'two' | 'read'; status?: { text: string; paint: string } }
 
+const TICK_WORD: Record<NonNullable<StampOpts['ticks']>, string> = { one: 'gönderildi', two: 'ulaştı', read: 'okundu' }
+
 // "18:33 ✓✓" (Tide once read), or "gönderiliyor ◷" while it goes out (amber when it waits for "Bağlan").
 export function stampPart(o: StampOpts): Part {
   const pieces: Piece[] = []
@@ -79,7 +81,7 @@ export function stampPart(o: StampOpts): Part {
   } else if (o.time !== undefined) pieces.push(textPiece(o.time, { ...STAMP_TEXT, paint: 'lo' }))
   if (o.status === undefined && o.ticks !== undefined) pieces.push(checksPiece({ isDouble: o.ticks !== 'one', paint: o.ticks === 'read' ? 'read' : 'lo' }))
   const width = pieces.reduce((n, p) => n + p.width, 0) + STAMP_GAP * Math.max(0, pieces.length - 1)
-  const alt = [o.status?.text, o.time, o.ticks === 'read' ? 'okundu' : o.ticks === 'two' ? 'ulaştı' : o.ticks === 'one' ? 'gönderildi' : undefined]
+  const alt = [o.status?.text, o.time, o.ticks === undefined ? undefined : TICK_WORD[o.ticks]]
   return { ...rowPart({ width, height: STAMP_H, left: pieces, gap: STAMP_GAP, alt: '' }), alt: alt.filter(Boolean).join(' · ') }
 }
 

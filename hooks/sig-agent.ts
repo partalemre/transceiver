@@ -44,12 +44,17 @@ const SQUARE = 8
 const SQUARE_GAP = 2
 const SQUARE_R = 2
 
+function squarePaint(i: number, green: number, red: number): string {
+  if (i < green) return 'ok'
+  return i < green + red ? 'danger' : 'track'
+}
+
 // Five squares: added in Moss, removed in Flare, the rest on the track, as GitHub draws a stat.
 function squaresPiece(stat: DiffStat): Piece {
   const total = stat.added + stat.removed
   const green = total === 0 ? 0 : Math.round((stat.added / total) * (SQUARES - 1))
   const red = total === 0 ? 0 : Math.min(SQUARES - green, Math.max(stat.removed > 0 ? 1 : 0, Math.round((stat.removed / total) * (SQUARES - 1))))
-  const paints = Array.from({ length: SQUARES }, (_, i) => (i < green ? 'ok' : i < green + red ? 'danger' : 'track'))
+  const paints = Array.from({ length: SQUARES }, (_, i) => squarePaint(i, green, red))
   const body = paints.map((paint, i) => rectEl({ x: i * (SQUARE + SQUARE_GAP), y: 0, width: SQUARE, height: SQUARE, radius: SQUARE_R, paint })).join('')
   return { body, width: SQUARES * (SQUARE + SQUARE_GAP) - SQUARE_GAP, height: SQUARE }
 }

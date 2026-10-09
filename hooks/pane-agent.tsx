@@ -22,8 +22,10 @@ const WIDE_GUTTER_RATIO = 0.24
 // What the Göster button takes beside a compact body.
 const MORE_PX = 72
 
-const agentOf = (line: Line | undefined, noun = 'agent\'ı'): string =>
-  (line === undefined ? `Karşı tarafın ${noun}` : line.isMine ? 'Senin agent\'ın' : `${genitive(firstName(line.authorName))} ${noun}`)
+function agentOf(line: Line | undefined, noun = 'agent\'ı'): string {
+  if (line === undefined) return `Karşı tarafın ${noun}`
+  return line.isMine ? 'Senin agent\'ın' : `${genitive(firstName(line.authorName))} ${noun}`
+}
 
 function clipLines(text: string, isOpen: boolean): string {
   const lines = text.split('\n')
@@ -33,8 +35,10 @@ function clipLines(text: string, isOpen: boolean): string {
 
 // How many of a search's or a list's rows hide behind "Göster".
 const hiddenOf = (c: Compact): number => (c.kind === 'hits' || c.kind === 'list' ? Math.max(0, c.count - FIRST_ROWS) : 0)
-const extraOf = (c: Compact): string | undefined =>
-  (c.kind === 'hits' ? `${c.count} eşleşme` : c.kind === 'list' ? `${c.count} ${c.noun}` : undefined)
+function extraOf(c: Compact): string | undefined {
+  if (c.kind === 'hits') return `${c.count} eşleşme`
+  return c.kind === 'list' ? `${c.count} ${c.noun}` : undefined
+}
 
 function MoreButton(ctx: Ctx, o: { tx: Tx; isOpen: boolean }): RenderElement {
   const { Button } = ctx.ui

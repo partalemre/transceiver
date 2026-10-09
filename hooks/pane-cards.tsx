@@ -110,6 +110,11 @@ function WaitingList(ctx: Ctx): RenderElement | null {
   )
 }
 
+function connectLabel(busy: string | null, waiting: number): string {
+  if (busy !== null) return 'Bağlanıyor…'
+  return waiting > 0 ? 'Bağlan ve gönder' : 'Bağlan'
+}
+
 export function ConnectCard(ctx: Ctx): RenderElement {
   const n = ctx.model.waiting.length
   const busy = ctx.model.busy
@@ -121,7 +126,7 @@ export function ConnectCard(ctx: Ctx): RenderElement {
       Words(ctx, { key: 'connect-body', part: body(ctx, CONNECT), text: CONNECT }),
       WaitingList(ctx),
       Buttons(ctx, [
-        { key: 'connect', label: busy !== null ? 'Bağlanıyor…' : n > 0 ? 'Bağlan ve gönder' : 'Bağlan', variant: 'primary', onPress: () => ctx.on.connect() },
+        { key: 'connect', label: connectLabel(busy, n), variant: 'primary', onPress: () => ctx.on.connect() },
         { key: 'connect-later', label: 'Şimdi değil', variant: 'plain', onPress: () => ctx.on.dismissConnect() },
       ]),
     ],

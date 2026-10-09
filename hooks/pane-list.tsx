@@ -19,9 +19,17 @@ const PLUS_CELLS = 5
 const ROW_CHROME_CELLS = 2
 const BADGE_CELLS = 4
 
+const GATE_DOT: Record<RoomView['gate'], string> = { open: 'ok', closed: 'line-strong', unknown: 'warn' }
+
+// A project's branch, a DM nobody joined yet, any other room.
+function rowGlyph(room: RoomView): string {
+  if (room.kind === 'project') return '⌥'
+  return room.isWaiting ? '◷' : '●'
+}
+
 function previewOf(ctx: Ctx, room: RoomView, width: number) {
   if (room.isTroubled) return previewPart({ width, text: 'bağlantı sorunu · yeniden deneniyor', isUnread: false, paint: 'warn' })
-  if (room.kind === 'project') return previewPart({ width, text: projectLine(room), isUnread: false, paint: room.gate === 'open' ? 'mid' : 'lo', dot: room.gate === 'open' ? 'ok' : room.gate === 'closed' ? 'line-strong' : 'warn' })
+  if (room.kind === 'project') return previewPart({ width, text: projectLine(room), isUnread: false, paint: room.gate === 'open' ? 'mid' : 'lo', dot: GATE_DOT[room.gate] })
   if (room.lastText === '') {
     return previewPart({ width, text: room.isWaiting ? 'Arkadaşın kabul edince burada yazışırsınız' : 'Henüz mesaj yok', isUnread: false })
   }
@@ -31,7 +39,7 @@ function previewOf(ctx: Ctx, room: RoomView, width: number) {
 function TextRow(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
   const tick = room.lastReceipt === undefined || !room.lastIsMine ? null : receiptTone(ctx, room.lastReceipt)
-  const glyph = room.kind === 'project' ? '⌥' : room.isWaiting ? '◷' : '●'
+  const glyph = rowGlyph(room)
   return (
     <Box key={`row-${room.id}`} flexDirection="column">
       <Box flexDirection="row" gap={1}>

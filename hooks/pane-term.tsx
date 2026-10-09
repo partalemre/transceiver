@@ -19,8 +19,23 @@ import { clockText, dayKey, dayLabel, secondsText } from './when'
 const CHIP_KEYS: Record<string, string> = { status: 's', diff: 'd', tests: 't', log: 'l', branch: 'b' }
 const SHEET_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'w', 'y', 'z']
 
-const agentOf = (line: Line | undefined, noun = 'agent\'ı') =>
-  (line === undefined ? `karşı tarafın ${noun}` : line.isMine ? 'senin agent\'ın' : `${genitive(firstName(line.authorName))} ${noun}`)
+function agentOf(line: Line | undefined, noun = 'agent\'ı'): string {
+  if (line === undefined) return `karşı tarafın ${noun}`
+  return line.isMine ? 'senin agent\'ın' : `${genitive(firstName(line.authorName))} ${noun}`
+}
+
+type Joined = ReturnType<typeof joined>
+
+// Who answered: this machine, the peer's agent (or, at 0 tokens, their machine), or nobody yet.
+function answererOf(a: Joined): string {
+  if (a === null) return 'cevap bekleniyor…'
+  return a.line.isMine ? 'bu makine' : agentOf(a.line, a.tokens > 0 ? 'agent\'ı' : 'makinesi')
+}
+
+function tokensOf(a: Joined): string {
+  if (a === null) return ''
+  return a.tokens > 0 ? ` · ${a.tokens} token` : ' · 0 token'
+}
 
 function Top(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
@@ -107,8 +122,8 @@ function TxBlock(ctx: Ctx, tx: Tx): RenderElement {
     return <Box key={`tx-${tx.id}`} flexDirection="row" gap={1}><Text color={ctx.look.role.danger.fg}>{`✕ ${agentOf(tx.query)} ${what} → erişim yok`}</Text><Box flexGrow={1} /><Text color={ctx.look.lo}>{clockText(a.ts)}</Text></Box>
   }
   const rail = a?.line.isMine === true ? ctx.look.signal.line : ctx.look.role.run.line
-  const who = a === null ? 'cevap bekleniyor…' : a.line.isMine ? 'bu makine' : agentOf(a.line, a.tokens > 0 ? 'agent\'ı' : 'makinesi')
-  const tokens = a === null ? '' : a.tokens > 0 ? ` · ${a.tokens} token` : ' · 0 token'
+  const who = answererOf(a)
+  const tokens = tokensOf(a)
   return (
     <Box key={`tx-${tx.id}`} flexDirection="column">
       <Box flexDirection="row" gap={1}><Text color={ctx.look.role.run.fg}>{`◆ ${agentOf(tx.query)} sordu`}</Text><Text color={ctx.look.lo}>{`[${type}]`}</Text><Box flexGrow={1} /><Text color={ctx.look.lo}>{q === null ? '' : clockText(q.ts)}</Text></Box>

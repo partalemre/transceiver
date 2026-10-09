@@ -55,10 +55,15 @@ export function Pic(ctx: Ctx, part: Part, key?: string): RenderElement {
 export type ToneName = 'signal' | Role
 export const toneOf = (look: Look, name: ToneName): Tone => (name === 'signal' ? look.signal : look.role[name])
 
+function frameTone(look: Look, o: { tone?: ToneName; isDanger?: boolean }): Tone | undefined {
+  if (o.isDanger) return look.role.danger
+  return o.tone === undefined ? undefined : toneOf(look, o.tone)
+}
+
 // A card: round border in the tone's line, card fill on the desktop; `isDanger` is the single Flare border.
 export function Frame(ctx: Ctx, o: { tone?: ToneName; isDanger?: boolean; key?: string; children: RenderChildren }): RenderElement {
   const { Box } = ctx.ui
-  const tone = o.isDanger ? ctx.look.role.danger : o.tone === undefined ? undefined : toneOf(ctx.look, o.tone)
+  const tone = frameTone(ctx.look, o)
   return (
     <Box key={o.key} flexDirection="column" borderStyle={o.isDanger ? 'single' : 'round'} borderColor={tone?.line ?? ctx.look.line}
       backgroundColor={ctx.look.card} paddingX={FRAME_PAD_X} paddingY={isText(ctx) ? 0 : 1} gap={1}>
@@ -136,5 +141,8 @@ export function receiptTone(ctx: Ctx, receipt: Receipt): ReceiptTone {
   return { glyph: receipt === 'sent' ? '✓' : '✓✓', color: ctx.look.lo }
 }
 
+// A message still going out has no ticks yet.
+const TICKS: Record<Receipt, 'one' | 'two' | 'read' | undefined> = { pending: undefined, sent: 'one', delivered: 'two', read: 'read' }
+
 export const ticksOf = (receipt: Receipt | undefined): 'one' | 'two' | 'read' | undefined =>
-  receipt === undefined || receipt === 'pending' ? undefined : receipt === 'read' ? 'read' : receipt === 'sent' ? 'one' : 'two'
+  (receipt === undefined ? undefined : TICKS[receipt])

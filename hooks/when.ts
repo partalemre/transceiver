@@ -45,4 +45,8 @@ export function agoText(ts: number, now: number): string {
 export const secondsText = (ms: number): string => `${(Math.max(0, ms) / MS_PER_S).toFixed(1).replace('.', ',')} sn`
 
 // A room row's time: the clock today, the day before that.
-export const rowTime = (ts: number, now: number): string => (ts <= 0 ? '' : dayLabel(ts, now) === 'Bugün' ? clockText(ts) : dayLabel(ts, now))
+export function rowTime(ts: number, now: number): string {
+  if (ts <= 0) return ''
+  const day = dayLabel(ts, now)
+  return day === 'Bugün' ? clockText(ts) : day
+}

@@ -16,13 +16,18 @@ const SELF_QUOTE = 'Sen'
 
 export const nameOf = (names: Record<string, string>, uid: string): string => names[uid] || SOMEONE
 
+const firstLine = (text: string) => text.split('\n').find(line => line.trim() !== '')?.trim() ?? ''
+
+function flatOf(message: Message): string {
+  if (message.kind === 'query') return `Soru: ${firstLine(message.query?.question ?? message.query?.path ?? message.text)}`
+  if (message.kind === 'answer') return `Cevap: ${message.answer?.ok === false ? 'erişim yok' : firstLine(message.answer?.body ?? message.text)}`
+  return firstLine(message.text)
+}
+
 // One line of preview: a query shows as the question, an answer as a reply, an unreadable doc as such.
 export function previewOf(message: Message | Unreadable): string {
   if (isUnreadable(message)) return 'okunamayan mesaj'
-  const first = (text: string) => text.split('\n').find(line => line.trim() !== '')?.trim() ?? ''
-  const flat = message.kind === 'query' ? `Soru: ${first(message.query?.question ?? message.query?.path ?? message.text)}`
-    : message.kind === 'answer' ? `Cevap: ${message.answer?.ok === false ? 'erişim yok' : first(message.answer?.body ?? message.text)}`
-      : first(message.text)
+  const flat = flatOf(message)
   return flat.length > PREVIEW_CHARS ? `${flat.slice(0, PREVIEW_CHARS - 1)}…` : flat
 }
 

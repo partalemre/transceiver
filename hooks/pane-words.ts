@@ -52,9 +52,14 @@ export function checkedText(room: RoomView, now: number): string {
   return at === null ? 'GitHub henüz sorulmadı; ilk soruda sorulur' : `GitHub ${agoText(at, now)} kontrol edildi`
 }
 
+function gateText(room: RoomView): string {
+  if (room.gate === 'closed') return `kapı kapalı · ${gateDetail(room)}`
+  return room.gate === 'open' ? 'kapı açık' : 'kapı bekliyor'
+}
+
 // A project row's second line: the gate's word and today's agent questions.
 export function projectLine(room: RoomView): string {
   const count = room.project?.queriesToday ?? 0
-  const gate = room.gate === 'closed' ? `kapı kapalı · ${gateDetail(room)}` : room.gate === 'open' ? 'kapı açık' : 'kapı bekliyor'
+  const gate = gateText(room)
   return room.gate === 'closed' || count === 0 ? gate : `${gate} · ${count} agent sorusu`
 }

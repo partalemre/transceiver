@@ -27,17 +27,22 @@ function LiveRow(ctx: Ctx, room: RoomView): RenderElement {
   )
 }
 
+// A check not yet run is open, then passed or failed.
+function markOf(state: boolean | null): string {
+  if (state === null) return '○'
+  return state ? '✓' : '✕'
+}
+
 // The same on the terminal, as lines.
 function TextAside(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
   const p = room.project
   const rows = checkRows(room)
   const word = GATE_WORD[room.gate]
-  const mark = (state: boolean | null) => (state === null ? '○' : state ? '✓' : '✕')
   return (
     <Box key="aside" flexDirection="column">
       <Text color={ctx.look.role[word.paint as 'ok'].fg} bold>{`${word.glyph} ${word.label} · ${passedOf(rows)}/${rows.length}`}</Text>
-      {rows.map((r, i) => <Text key={`check-${i}`} color={r.state === false ? ctx.look.role.danger.fg : undefined}>{`${mark(r.state)} ${r.text}`}</Text>)}
+      {rows.map((r, i) => <Text key={`check-${i}`} color={r.state === false ? ctx.look.role.danger.fg : undefined}>{`${markOf(r.state)} ${r.text}`}</Text>)}
       <Text color={ctx.look.lo}>{checkedText(room, ctx.model.now)}</Text>
       <Text>{`Ask bütçesi ${p?.askUsed ?? 0}/${p?.askLimit ?? 0} bugün`}</Text>
       <Text color={ctx.look.lo}>{`bugün: ${p?.today.answered ?? 0} sorgu · ${p?.today.modelless ?? 0} 0 token · ${p?.today.denied ?? 0} reddedildi`}</Text>
