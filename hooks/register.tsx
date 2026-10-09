@@ -1,4 +1,4 @@
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, On, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
@@ -101,9 +101,7 @@ async function openPane($: EngineInterface): Promise<void> {
   await refreshPane()
 }
 
-// The command's name is written as a literal (it is COMMAND in limits.ts): the engine reads a literal name to know
-// this hook answers only its own command.
-export const register: Register = on => {
+function onSession(on: On): void {
   on('session.start', async ($, e, next) => {
     // A refused registration must not keep the rooms from polling.
     await $.command.register({ name: 'transceiver', description: DESCRIPTION, argumentHint: ARGUMENT_HINT, immediate: true })
@@ -124,6 +122,9 @@ export const register: Register = on => {
     if (isBypassMode(e.permission_mode)) setConnected(true)
     return next(e)
   }).catch(($, e, next) => next(e))
+}
+
+function onPane(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'transceiver' }, async ($, e) => {
     const ui = $.ui.resolve(e)
     const model = (await $.state.get(PANE_STATE)).value ?? EMPTY_PANE
@@ -136,6 +137,9 @@ export const register: Register = on => {
     void refreshPane()
     return next(e)
   }).catch(($, e, next) => next(e))
+}
+
+function onTools(on: On): void {
   // The agent tools: the model calls them as mcp__transceiver__send, inbox and ask. The ask tool waits inside this
   // hook's own budget.
   on('tool.call', { tool: ['mcp__transceiver__send', 'mcp__transceiver__inbox', 'mcp__transceiver__ask'] }, async ($, e, next) => {
@@ -149,6 +153,11 @@ export const register: Register = on => {
     if (e.agentId === undefined) setTurnRunning(false)
     return next(e)
   })
+}
+
+// The command's name is written as a literal (it is COMMAND in limits.ts): the engine reads a literal name to know
+// this hook answers only its own command.
+function onCommand(on: On): void {
   on('command.run', { command: 'transceiver' }, async ($, e) => {
     const cmd = parseCommand(e.args)
     if (cmd.verb === 'ayarlar') patchSession({ view: 'settings' })
@@ -156,4 +165,11 @@ export const register: Register = on => {
     await refreshPane()
     return text === null ? {} : { text }
   }).catch(() => ({ text: 'Transceiver: komut tamamlanamadı, birazdan yeniden dene.' }))
+}
+
+export const register: Register = on => {
+  onSession(on)
+  onPane(on)
+  onTools(on)
+  onCommand(on)
 }
