@@ -115,6 +115,8 @@ declare module 'claude-code' {
     transceiver: {
       pane: PaneModel
       hub: HubCard
+      // Whether this session may write (connection.ts); kept here so a hot reload does not drop it.
+      connected: boolean
     }
     // The MODZ hub's open request this mod listens for; modz owns and writes it.
     modz: { open: ModzOpen }

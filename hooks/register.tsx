@@ -3,7 +3,7 @@ import type { EngineInterface, On, Register } from 'claude-code'
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
 import { DESCRIPTION, parseCommand, runCommand } from './commands'
-import { isBypassMode, isConnected, setConnected } from './connection'
+import { isBypassMode, isConnected, persistConnection, restoreConnection, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
 import { HUB_PANE, isOpenFor, isSameLine } from './hub'
@@ -45,6 +45,7 @@ function hostOf($: EngineInterface): Host {
 // The pane's reach: its model in `$.state` (the render hook reads it), whether it is on screen, the status line,
 // toasts and the clipboard. Nothing here opens the pane: only the person's command or hub press does (openPane).
 const PANE_STATE = { plugin: 'transceiver', key: 'pane' } as const
+const CONNECTION_STATE = { plugin: 'transceiver', key: 'connected' } as const
 const HUB_STATE = { plugin: 'transceiver', key: 'hub' } as const
 const DEFAULT_COLUMNS = 80
 
@@ -114,6 +115,8 @@ function onSession(on: On): void {
     // A refused registration must not keep the rooms from polling.
     await $.command.register({ name: 'transceiver', description: DESCRIPTION, immediate: true })
       .catch(() => $.ui.log('transceiver: /transceiver could not be registered'))
+    persistConnection(is => { void $.state.set(CONNECTION_STATE, is).catch(() => undefined) })
+    await restoreConnection(() => $.state.get(CONNECTION_STATE))
     const agents = agentHostOf($)
     // The pane listens first, so a failing agent-side listener never keeps it from redrawing.
     bindPane({ host: agents, ui: uiOf($) })
