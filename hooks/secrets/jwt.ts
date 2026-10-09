@@ -3,13 +3,16 @@ const BITS_PER_CHAR = 6
 const BITS_PER_BYTE = 8
 const BYTE_MASK = 255
 
+// Plain base64's two symbols read as their base64url twins, so either spelling decodes.
+const URL_SAFE: Record<string, string> = { '+': '-', '/': '_' }
+
 // base64url to text, spelled out: the hooks environment has no atob or Buffer.
 export function decodeBase64Url(text: string): string {
   let buffer = 0
   let bits = 0
   let out = ''
   for (const char of text.replace(/=+$/, '')) {
-    const value = ALPHABET.indexOf(char === '+' ? '-' : char === '/' ? '_' : char)
+    const value = ALPHABET.indexOf(URL_SAFE[char] ?? char)
     if (value < 0) return ''
     buffer = (buffer << BITS_PER_CHAR) | value
     bits += BITS_PER_CHAR

@@ -105,6 +105,9 @@ export function pyprojectDeps(text: string): Group[] {
   return [...(deps.length === 0 ? [] : [{ title: 'project.dependencies', deps }]), ...tomlDeps(text, poetryGroup)]
 }
 
+// A one-line `require mod v1.2.3`, without the keyword; any other line outside a block has none.
+const requireSpec = (line: string): string => (/^require\s+/.test(line) ? line.replace(/^require\s+/, '') : '')
+
 export function goDeps(text: string): Group[] {
   const deps: Dep[] = []
   let isInBlock = false
@@ -112,7 +115,7 @@ export function goDeps(text: string): Group[] {
     const line = raw.replace(/\/\/.*$/, '').trim()
     if (/^require\s*\($/.test(line)) { isInBlock = true; continue }
     if (isInBlock && line === ')') { isInBlock = false; continue }
-    const spec = isInBlock ? line : /^require\s+/.test(line) ? line.replace(/^require\s+/, '') : ''
+    const spec = isInBlock ? line : requireSpec(line)
     const m = GO_LINE.exec(spec)
     if (m?.[1] !== undefined && m[2] !== undefined) deps.push({ name: m[1], version: m[2] })
   }

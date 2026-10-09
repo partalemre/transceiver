@@ -76,7 +76,7 @@ test('anything but a clean answer from git or realpath is a no', async () => {
 })
 
 test('an engine resolver can stand in for the realpath binary', async () => {
-  const realPath = async (p: string) => (p === '/w' ? '/w' : p.endsWith('link') ? '/etc/hosts' : p)
+  const realPath = async (p: string) => (p.endsWith('link') ? '/etc/hosts' : p)
   const run = fakeRun()
   expect(await resolveInRepo({ run, root: '/w', rel: 'a.txt', realPath })).toBe('/w/a.txt')
   expect(await resolveInRepo({ run, root: '/w', rel: 'link', realPath })).toBe(null)

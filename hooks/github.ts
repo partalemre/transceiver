@@ -51,10 +51,15 @@ function parseJson(text: string): unknown {
   }
 }
 
+function rowsIn(doc: unknown): unknown[] {
+  if (Array.isArray(doc)) return doc
+  return isObj(doc) && Array.isArray(doc.items) ? doc.items : []
+}
+
 // Measured shape: one text block of JSON `{ items: [{ login, id, role_name }], nextPage, ... }`.
 function loginsIn(result: McpToolResult): string[] {
   const docs = [result.structuredContent, ...result.content.map(b => (typeof b.text === 'string' ? parseJson(b.text) : undefined))]
-  const rows = docs.flatMap(doc => (Array.isArray(doc) ? doc : isObj(doc) && Array.isArray(doc.items) ? doc.items : []))
+  const rows = docs.flatMap(rowsIn)
   return rows.flatMap(row => (isObj(row) && typeof row.login === 'string' ? [row.login.toLowerCase()] : []))
 }
 

@@ -76,9 +76,12 @@ async function connect(p: PanePort): Promise<void> {
   }).catch(() => null)
   const isOk = out !== null && out.deny === undefined
   setConnected(isOk)
-  patchSession({ busy: null, error: isOk ? null : out === null ? SAY.offline : SAY.declined })
+  patchSession({ busy: null, error: isOk ? null : connectError(out) })
   if (isOk) for (const r of rooms) pokeRoom(p.host, r)
 }
+
+// No answer at all is the network; an answer that is not a yes is a refusal.
+const connectError = (out: unknown): string => (out === null ? SAY.offline : SAY.declined)
 
 async function addRoom(p: PanePort, opts: { kind: RoomKind; repo?: string; label: string }): Promise<void> {
   if (sessionNow().busy !== null) return

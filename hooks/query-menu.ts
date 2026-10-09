@@ -58,7 +58,12 @@ export function queryMessage(o: { id: string; ts: number; repo: string; type: st
 
 export type Composed = { kind: 'text'; text: string } | { kind: 'query'; type: string; arg?: string } | { kind: 'hint'; text: string }
 
-const usage = (spec: QuerySpec) => `/${spec.type}${spec.arg === undefined ? '' : spec.arg.isOptional ? ' [değer]' : ' <değer>'}`
+function argHint(spec: QuerySpec): string {
+  if (spec.arg === undefined) return ''
+  return spec.arg.isOptional ? ' [değer]' : ' <değer>'
+}
+
+const usage = (spec: QuerySpec) => `/${spec.type}${argHint(spec)}`
 
 // `/diff`, `/file src/a.ts`, `/ask neden?`: a query; another slash word: a hint, never sent; else plain text.
 export function composeOf(text: string): Composed {
