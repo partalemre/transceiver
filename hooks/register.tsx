@@ -6,6 +6,7 @@ import { DESCRIPTION, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
+import { stamped } from './kit/stamp'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
 import { setTurnRunning } from './live'
@@ -129,7 +130,7 @@ function onPane(on: On): void {
     const ui = $.ui.resolve(e)
     const model = (await $.state.get(PANE_STATE)).value ?? EMPTY_PANE
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS
-    return drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers })
+    return stamped(ui, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers }))
   })
   // Closed by the person: no read marks from here on; toasts and the status line take over.
   on('ui.close', { id: 'transceiver' }, async ($, e, next) => {
