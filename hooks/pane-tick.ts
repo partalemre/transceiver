@@ -1,6 +1,8 @@
 // After every room poll: keep the connection flag honest, time the poll, follow whether the pane is on screen
-// (read marks depend on it), and redraw.
+// (read marks and toasts depend on it), redraw, and notify outside the pane (T9).
 import { setConnected } from './connection'
+import { namesNow } from './names'
+import { notifyTick } from './notify'
 import type { TickEvent } from './room-loop'
 import { patchSession, portNow, refreshPane, setPaneShown } from './state'
 
@@ -12,5 +14,6 @@ export async function onPaneTick(ev: TickEvent): Promise<void> {
   if (ev.tookMs !== undefined) patchSession({ latencyMs: ev.tookMs })
   const isShown = await p.ui.isPaneShown().catch(() => false)
   setPaneShown(isShown)
-  await refreshPane()
+  const model = await refreshPane()
+  if (model !== null) notifyTick({ ui: p.ui, model, roomId: ev.room.id, fresh: ev.fresh, isShown, names: namesNow() })
 }
