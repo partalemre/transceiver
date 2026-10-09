@@ -3,7 +3,7 @@ import type { AgentHost } from './host'
 import { LOGIN_RETRY_MS } from './limits'
 import { callerOf, relayOf } from './relay'
 import { adoptOwnHead, onTick, type TickEvent } from './room-loop'
-import { loadSettings } from './rooms'
+import { loadRooms, loadSettings } from './rooms'
 
 type Known = { login: string | null; at: number }
 let memo: Known | null = null
@@ -22,9 +22,12 @@ async function loginOf(host: AgentHost): Promise<string | null> {
 export const forgetLogin = () => { memo = null }
 
 // The only identity transceiver publishes, and only into rooms the person accepted, once the session may write:
-// their GitHub login on their own head, merged so no cursor moves.
+// their GitHub login on their own head, merged so no cursor moves. The room is read fresh from this person's own
+// store: one left meanwhile, or a room this host does not hold, gets nothing.
 export async function shareLogin(host: AgentHost, ev: TickEvent): Promise<boolean> {
-  if (ev.room.status !== 'active' || ev.isDenied || !host.isConnected()) return false
+  if (ev.isDenied || !host.isConnected()) return false
+  const isMine = (await loadRooms(host)).some(r => r.id === ev.room.id && r.url === ev.room.url && r.status === 'active')
+  if (!isMine) return false
   const login = await loginOf(host)
   const { state } = ev
   if (login === null || state.ownHead.gh === login) return false

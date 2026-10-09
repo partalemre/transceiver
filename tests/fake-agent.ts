@@ -2,7 +2,7 @@ import type { ModelCompleteRequest, ModelCompleteResult } from 'claude-code'
 import { isConnected, setConnected } from '../hooks/connection'
 import type { AgentHost, CallResult } from '../hooks/host'
 import type { Run } from '../hooks/run'
-import { fakeHost, type FakeHost } from './fake-host'
+import { fakeHost, type FakeHost, type Scheduler } from './fake-host'
 
 // An in-memory AgentHost: FakeHost plus scripted commands, files, model replies and the session's own rows.
 // `isOn` is the session's connection (connection.ts), which the room loop reads too; a new fake starts connected.
@@ -19,8 +19,9 @@ export const answered = (text: string): ModelCompleteResult => ({ isAnswered: tr
 export const gitIn = (repo: string, more: Run = async () => ({ exitCode: 0, stdout: '', stderr: '' })): Run =>
   async (argv, init) => (argv.includes('get-url') ? { exitCode: 0, stdout: `git@github.com:${repo}.git\n`, stderr: '' } : more(argv, init))
 
-export function fakeAgent(answer: (input: Record<string, unknown>) => Promise<CallResult>, run: Run = gitIn('partalemre/eliti')): FakeAgent {
-  const base = fakeHost(answer)
+// `at` shares a Scheduler with other fakes (one clock for several people's mods), or sets the start time.
+export function fakeAgent(answer: (input: Record<string, unknown>) => Promise<CallResult>, run: Run = gitIn('partalemre/eliti'), at?: number | Scheduler): FakeAgent {
+  const base = fakeHost(answer, at)
   const agent = Object.assign(base, {
     isDelivered: false, sent: [] as string[], notes: [] as string[], toasts: [] as string[],
     asked: [] as ModelCompleteRequest[], files: {} as Record<string, string>,
