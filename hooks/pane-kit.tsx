@@ -1,20 +1,17 @@
-// What every part of the pane draws with: the drawing context, Svg placement, a card frame and its header, a
-// rule, a bordered icon button, faces for rooms and people, and the receipt glyphs of the terminal.
-import type { ElementTable, RenderChildren, RenderElement, RenderSurface } from 'claude-code'
+// What every part of the pane draws with: the drawing context, Svg placement, a meta line, a rule, faces for rooms
+// and people, and the receipt glyphs.
+import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
 import { WAITING } from './connection'
-import { GLYPH } from './kit/icons'
 import type { Part, SvgPic } from './kit/svg-core'
-import { upperTr } from './kit/svg-core'
-import type { Role } from './kit/tokens'
 import { PRESENCE_MS } from './limits'
-import { headPart, sigPic, type Glyph } from './sig'
+import { sigPic } from './sig'
 import { facePart } from './sig-chat'
 import { tilePart } from './sig-states'
 import { rulePart } from './sig-ui'
 import type { PaneModel, Receipt, RoomView } from './state-types'
-import { avatarRole, initialsOf, type Look, type Tone } from './theme'
+import { avatarRole, initialsOf, type Look } from './theme'
 
 export type Ctx = {
   ui: ElementTable
@@ -30,14 +27,10 @@ export type Ctx = {
 }
 
 export const PX_PER_CELL = 8
-const FRAME_PAD_X = 2
-const FRAME_BORDER = 2
 const MIN_PX = 160
 
 export const isText = (ctx: Ctx): boolean => ctx.look.isText || !('Svg' in ctx.ui)
 export const pxOf = (columns: number): number => Math.max(MIN_PX, columns * PX_PER_CELL)
-// The px a frame's content gets inside `columns`.
-export const innerPx = (columns: number): number => pxOf(columns - FRAME_PAD_X * 2 - FRAME_BORDER)
 export const within = (ctx: Ctx, columns: number): Ctx => ({ ...ctx, columns, px: pxOf(columns) })
 
 export function SvgOf(ctx: Ctx, pic: SvgPic, key?: string): RenderElement | null {
@@ -52,47 +45,6 @@ export function Pic(ctx: Ctx, part: Part, key?: string): RenderElement {
   return SvgOf(ctx, sigPic(part), key) ?? <Text key={key} color={ctx.look.lo}>{part.alt}</Text>
 }
 
-export type ToneName = 'signal' | Role
-export const toneOf = (look: Look, name: ToneName): Tone => (name === 'signal' ? look.signal : look.role[name])
-
-function frameTone(look: Look, o: { tone?: ToneName; isDanger?: boolean }): Tone | undefined {
-  if (o.isDanger) return look.role.danger
-  return o.tone === undefined ? undefined : toneOf(look, o.tone)
-}
-
-// A card: round border in the tone's line, card fill on the desktop; `isDanger` is the single Flare border.
-export function Frame(ctx: Ctx, o: { tone?: ToneName; isDanger?: boolean; key?: string; children: RenderChildren }): RenderElement {
-  const { Box } = ctx.ui
-  const tone = frameTone(ctx.look, o)
-  return (
-    <Box key={o.key} flexDirection="column" borderStyle={o.isDanger ? 'single' : 'round'} borderColor={tone?.line ?? ctx.look.line}
-      backgroundColor={ctx.look.card} paddingX={FRAME_PAD_X} paddingY={isText(ctx) ? 0 : 1} gap={1}>
-      {o.children}
-    </Box>
-  )
-}
-
-// `width` (px) for a header drawn outside a frame; inside one it is the frame's inner width.
-export type HeadSpec = { glyph: Glyph; tone: ToneName; eyebrow: string; headline?: string; sub?: string; meta?: string; width?: number }
-
-// The forms' header: one Svg on the desktop (tile, eyebrow, headline, sub), lines of text on the terminal.
-export function Head(ctx: Ctx, o: HeadSpec): RenderElement {
-  const { Box, Text } = ctx.ui
-  if (!isText(ctx)) return SvgOf(ctx, sigPic(headPart({ ...o, paint: o.tone, width: o.width ?? innerPx(ctx.columns) }))) ?? <Box />
-  const tone = toneOf(ctx.look, o.tone)
-  const glyph = o.glyph === 'radio' ? '((·))' : GLYPH[o.glyph]
-  return (
-    <Box flexDirection="column">
-      <Box flexDirection="row" justifyContent="space-between">
-        <Text color={tone.fg} bold>{`${glyph} ${upperTr(o.eyebrow)}`}</Text>
-        {o.meta ? <Text color={ctx.look.lo}>{o.meta}</Text> : null}
-      </Box>
-      {o.headline ? <Text bold>{o.headline}</Text> : null}
-      {o.sub ? <Text color={ctx.look.mid} wrap="wrap">{o.sub}</Text> : null}
-    </Box>
-  )
-}
-
 // One line of meta text in text.lo.
 export function Meta(ctx: Ctx, text: string, key?: string): RenderElement {
   const { Text } = ctx.ui
@@ -104,16 +56,6 @@ export function Rule(ctx: Ctx, key: string): RenderElement {
   const { Text } = ctx.ui
   if (isText(ctx)) return <Text key={key} color={ctx.look.line}>{'─'.repeat(Math.max(1, ctx.columns))}</Text>
   return Pic(ctx, rulePart(ctx.px), key)
-}
-
-// A bordered, plain button with one glyph ("‹", "+"), as the boards' icon buttons.
-export function IconButton(ctx: Ctx, o: { key: string; label: string; onPress: () => void }): RenderElement {
-  const { Box, Button } = ctx.ui
-  return (
-    <Box key={`${o.key}-box`} borderStyle="round" borderColor={ctx.look.lineStrong} paddingX={isText(ctx) ? 0 : 1} flexShrink={0}>
-      <Button key={o.key} label={o.label} plain onPress={() => o.onPress()} />
-    </Box>
-  )
 }
 
 // A person was here lately: their head moved within PRESENCE_MS.

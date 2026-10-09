@@ -40,9 +40,6 @@ export function supportedSpecs(): QuerySpec[] {
 export const specOf = (type: string): QuerySpec | undefined => supportedSpecs().find(s => s.type === type)
 export const isModeType = (type: string): boolean => Object.hasOwn(QUERY_TYPES, type) && asksForArg(type as QueryType)
 
-// The chips that stay in view; the rest are one press away ("Daha fazla").
-export const CHIP_TYPES: readonly string[] = ['status', 'diff', 'tests', 'log', 'branch']
-
 // The query a type builds, run through the protocol's own guard: an unknown type, a missing required argument
 // or one of the wrong shape (a sha that is not one, a one-letter search) is refused before it is sent.
 export function queryMessage(o: { id: string; ts: number; repo: string; type: string; arg?: string }): Message | null {

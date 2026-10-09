@@ -1,12 +1,12 @@
-// Svg pieces the kit lacks: the spec's `signal` role (teal), the radio glyph, avatars, the unread badge, the chat
-// head, the day divider and a switch. Same rules as the kit: paint names become CSS variables for both schemes,
+// Svg pieces the kit lacks: the spec's `signal` role (teal), the radio glyph, avatars, the unread badge, the day
+// divider, a switch and a status chip. Same rules as the kit: paint names become CSS variables for both schemes,
 // no hex in the markup, reduced motion last.
 import { ICON_GRID } from './kit/icons'
 import type { IconName } from './kit/icons'
-import { baseline, escapeXml, iconEl, num, outlineEl, place, rectEl, sans, STROKE, TYPE, textEl, upperTr } from './kit/svg-core'
+import { baseline, escapeXml, iconEl, num, outlineEl, rectEl, sans, STROKE, TYPE, textEl, upperTr } from './kit/svg-core'
 import type { Part, SvgPic } from './kit/svg-core'
 import { fitText } from './kit/svg-metrics'
-import { bodyPart, EYEBROW_H, eyebrowWidth, linesPart } from './kit/svg-text'
+import { EYEBROW_H, eyebrowWidth } from './kit/svg-text'
 import { svgStyle } from './kit/tokens'
 
 const SIGNAL = {
@@ -47,72 +47,6 @@ function glyphEl(o: { glyph: Glyph; x: number; y: number; size: number; paint: s
     `<path d="${RADIO_ARCS}" fill="none" class="s-${o.paint}" stroke-width="${num(STROKE / scale)}" stroke-linecap="round"/>`,
     `<circle cx="12" cy="12" r="${DOT_R}" class="f-${o.paint}"/></g>`,
   ].join('')
-}
-
-const TILE_RADIUS = 9
-const TILE_ICON = 18
-const HAIRLINE = 0.6
-
-export function tilePart(o: { glyph: Glyph; paint: string; size?: number }): Part {
-  const size = o.size ?? 36
-  const icon = Math.min(TILE_ICON, Math.round(size / 2))
-  const box = { x: 0, y: 0, width: size, height: size, radius: Math.min(TILE_RADIUS, size / 4) }
-  const body = [
-    rectEl({ ...box, paint: `${o.paint}-tint` }),
-    outlineEl({ ...box, paint: `${o.paint}-line` }, HAIRLINE),
-    glyphEl({ glyph: o.glyph, x: (size - icon) / 2, y: (size - icon) / 2, size: icon, paint: o.paint }),
-  ]
-  return { body: body.join(''), width: size, height: size, alt: '' }
-}
-
-const DOT = 6
-const DOT_GAP = 6
-const META_GAP = 12
-const META = TYPE.label
-
-// The kit's eyebrow, for any paint (the kit's takes kit roles only).
-export function eyebrowLine(o: { text: string; paint: string; width: number; meta?: string; hasDot?: boolean }): Part {
-  const y = baseline(0, EYEBROW_H, TYPE.eyebrow.size)
-  const left = o.hasDot === false ? 0 : DOT + DOT_GAP
-  const metaMeasure = sans(META.size, META.weight)
-  const meta = o.meta ? fitText(o.meta, o.width / 2, metaMeasure) : ''
-  const label = fitText(upperTr(o.text), o.width - left - (meta ? metaMeasure(meta) + META_GAP : 0), eyebrowWidth)
-  const tracking = TYPE.eyebrow.size * TYPE.eyebrow.tracking
-  const body = [
-    o.hasDot === false ? '' : `<circle cx="${DOT / 2}" cy="${EYEBROW_H / 2}" r="${DOT / 2}" class="f-${o.paint}"/>`,
-    textEl({ x: left, y, text: label, paint: o.paint, ...TYPE.eyebrow, tracking }),
-    meta ? textEl({ x: o.width, y, text: meta, paint: 'lo', ...META, anchor: 'end' }) : '',
-  ]
-  return { body: body.join(''), width: o.width, height: EYEBROW_H, alt: [label, meta].filter(Boolean).join(' · ') }
-}
-
-export type HeadOpts = {
-  glyph: Glyph; paint: string; eyebrow: string; width: number
-  headline?: string; sub?: string; meta?: string; tile?: number
-}
-
-const TILE_GAP = 12
-const STACK_GAP = 4
-
-// [tile] [EYEBROW ··· meta] / [headline] / [sub]: the kit's card header, for any paint.
-export function headPart(o: HeadOpts): Part {
-  const size = o.tile ?? 36
-  const x = size + TILE_GAP
-  const w = o.width - x
-  const eyebrow = eyebrowLine({ text: o.eyebrow, paint: o.paint, width: w, meta: o.meta })
-  const title = o.headline ? linesPart({ text: o.headline, width: w }) : null
-  const titleTop = EYEBROW_H + STACK_GAP
-  const subTop = titleTop + (title ? title.height + STACK_GAP : 0)
-  const sub = o.sub ? bodyPart({ text: o.sub, width: w, maxLines: 4 }) : null
-  const body = [
-    tilePart({ glyph: o.glyph, paint: o.paint, size }).body,
-    place(eyebrow.body, x, 0),
-    title ? place(title.body, x, titleTop) : '',
-    sub ? place(sub.body, x, subTop) : '',
-  ]
-  const titleBottom = title ? titleTop + title.height : EYEBROW_H
-  const bottom = sub ? subTop + sub.height : titleBottom
-  return { body: body.join(''), width: o.width, height: Math.max(size, bottom), alt: [eyebrow.alt, o.headline, o.sub].filter(Boolean).join(' — ') }
 }
 
 const INITIALS_RATIO = 0.4

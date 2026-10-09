@@ -1,6 +1,6 @@
-// The chat's Svg: a face with its presence dot, the breathing signal glyph and its pill, a message's time and
+// The chat's Svg: a face with its presence dot, the breathing signal glyph, a message's time and
 // receipt, a reply's quote, the "n yeni mesaj" rule and the head beside the face.
-import { baseline, num, outlineEl, place, rectEl, sans, textEl } from './kit/svg-core'
+import { baseline, num, place, rectEl, sans, textEl } from './kit/svg-core'
 import type { Part } from './kit/svg-core'
 import { fitText } from './kit/svg-metrics'
 import { checksPiece, glyphPiece, rowPart, textPiece, type Piece } from './sig-ui'
@@ -43,25 +43,6 @@ export function signalPiece(o: { size: number; paint: string; isLive: boolean })
     `<path d="${SIGNAL_INNER}" class="s-${o.paint}${inner}"/><path d="${SIGNAL_OUTER}" class="s-${o.paint}${outer}"/></g>`,
   ]
   return { body: body.join(''), width: o.size, height: o.size }
-}
-
-const PILL_H = 24
-const PILL_PAD = 9
-const PILL_GLYPH = 14
-const PILL_GAP = 6
-const PILL_TEXT = { size: 11.5, weight: 600 }
-
-// "((·)) 0,7 sn": the last poll's round trip in a signal pill.
-export function signalPillPart(o: { text: string; isLive: boolean }): Part {
-  const label = textPiece(o.text, { ...PILL_TEXT, paint: 'signal' })
-  const width = PILL_PAD * 2 + PILL_GLYPH + PILL_GAP + label.width
-  const box = { x: 0, y: 0, width, height: PILL_H, radius: PILL_H / 2 }
-  const body = [
-    rectEl({ ...box, paint: 'signal-tint' }), outlineEl({ ...box, paint: 'signal-line' }),
-    place(signalPiece({ size: PILL_GLYPH, paint: 'signal', isLive: o.isLive }).body, PILL_PAD, (PILL_H - PILL_GLYPH) / 2),
-    place(label.body, PILL_PAD + PILL_GLYPH + PILL_GAP, (PILL_H - label.height) / 2),
-  ]
-  return { body: body.join(''), width, height: PILL_H, alt: `sinyal ${o.text}` }
 }
 
 const STAMP_H = 14
