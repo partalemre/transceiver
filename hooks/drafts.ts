@@ -2,6 +2,7 @@ import { askModel, newNonce } from './ask'
 import type { AgentHost, Host } from './host'
 import type { Message } from './protocol'
 import { DENIED_OUT, safeParts, type Out } from './responder'
+import { MAX_DRAFTS_PER_ROOM } from './limits'
 import { enqueueMessage } from './room-loop'
 import { loadRooms } from './rooms'
 import type { Draft } from './state-types'
@@ -33,9 +34,11 @@ async function saveDrafts(host: Pick<Host, 'storeSet'>, drafts: Draft[]): Promis
   for (const fn of listeners) fn(drafts)
 }
 
+// At most MAX_DRAFTS_PER_ROOM wait per room; past that a question is dropped, and its asker's wait ends as pending.
 export async function addDraft(host: Pick<Host, 'storeGet' | 'storeSet'>, draft: Draft): Promise<void> {
   const drafts = await loadDrafts(host)
-  if (drafts.some(d => d.qid === draft.qid)) return
+  const isFull = drafts.filter(d => d.roomId === draft.roomId).length >= MAX_DRAFTS_PER_ROOM
+  if (isFull || drafts.some(d => d.qid === draft.qid)) return
   await saveDrafts(host, [...drafts, draft])
 }
 

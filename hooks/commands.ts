@@ -2,7 +2,7 @@ import type { Host } from './host'
 import { joinRoom } from './join'
 import { COMMAND } from './limits'
 import { isRepo } from './protocol'
-import { pokeRoom, stopRoom } from './room-loop'
+import { forgetRoom, pokeRoom } from './room-loop'
 import { createRoom, loadRooms, saveRooms, type RoomKind } from './rooms'
 
 export type Verb = 'open' | 'ekle' | 'proje' | 'katil' | 'cik' | 'kur' | 'ayarlar' | 'yardim'
@@ -54,7 +54,7 @@ async function leave(host: Host, name: string): Promise<string> {
   if (matches.length > 1) return 'Birden fazla oda eşleşti; odanın linkiyle dene.'
   const [room] = matches
   if (room === undefined) return `Oda bulunamadı: ${name}`
-  stopRoom(room.id)
+  await forgetRoom(host, room.id)
   await saveRooms(host, rooms.map(r => (r.id === room.id ? { ...r, status: 'left' as const } : r)))
   return `${room.title} odasından çıkıldı.`
 }

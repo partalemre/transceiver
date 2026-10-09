@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import { enqueueMessage, startLoop, stopRoom, syncOf } from '../hooks/room-loop'
 import { roomPageHtml } from '../hooks/room-page'
 import { createRoom, discoverInvites, invitedFrom, loadRooms, loadSettings, roomTitle, saveRooms } from '../hooks/rooms'
+import { NOT_ROOM_RETRY_MS } from '../hooks/limits'
 import { callerFor, fakeDb, type FakeDb } from './fake-db'
 import { fakeHost, type FakeHost } from './fake-host'
 import type { CallResult } from '../hooks/host'
@@ -81,10 +82,12 @@ test('a refused publish surfaces as an error and writes no meta', async () => {
   expect(db.docs.size).toBe(0)
 })
 
-test('discovery offers a shared room only once its meta doc parses', async () => {
+test('discovery offers a shared room only once its meta doc parses, reading a non-room again only later', async () => {
   const { db, host } = world()
   expect(await discoverInvites({ host, known: [] })).toEqual([])
   db.docs.set('meta/room', { data: { v: 1, kind: 'dm', createdAt: 1 }, version: 1 })
+  expect(await discoverInvites({ host, known: [] })).toEqual([])
+  host.clock.now += NOT_ROOM_RETRY_MS
   const found = await discoverInvites({ host, known: [] })
   expect(found.map(r => [r.url, r.status, r.title])).toEqual([[ROOM, 'invited', 'Transceiver · DM']])
   expect(await discoverInvites({ host, known: found })).toEqual([])

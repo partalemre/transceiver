@@ -6,13 +6,17 @@ export type Entry = { author: string; message: Message | Unreadable; isPending?:
 const tsOf = (e: Entry) => ('ts' in e.message ? e.message.ts : 0)
 const order = (a: Entry, b: Entry) => tsOf(a) - tsOf(b) || (a.message.id < b.message.id ? -1 : 1)
 
+// Keyed by author and id: ids are not namespaced by outbox, so a peer reusing my message's id in their own outbox
+// is their message, never a copy of mine.
+const keyOf = (e: Entry) => `${e.author}/${e.message.id}`
+
 export function mergeEntries(current: Entry[], incoming: Entry[], keep = Number.POSITIVE_INFINITY): Entry[] {
   const byId = new Map<string, Entry>()
-  for (const e of current) byId.set(e.message.id, e)
+  for (const e of current) byId.set(keyOf(e), e)
   for (const e of incoming) {
-    const prev = byId.get(e.message.id)
+    const prev = byId.get(keyOf(e))
     // A pending copy never replaces a stored one; a stored copy always replaces a pending one.
-    if (prev === undefined || prev.isPending === true) byId.set(e.message.id, e.isPending === true ? e : { author: e.author, message: e.message })
+    if (prev === undefined || prev.isPending === true) byId.set(keyOf(e), e.isPending === true ? e : { author: e.author, message: e.message })
   }
   const sorted = [...byId.values()].sort(order)
   return sorted.slice(Math.max(0, sorted.length - keep))

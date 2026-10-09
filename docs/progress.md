@@ -19,7 +19,8 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T14 agent tools + live | done | `dc992bc` | 260 |
 | T15 compaction + rollover | done | `0ea0835` | 289 |
 | T16 simulated E2E | done (real run pending) | `957acf0` | 309 |
-| Release polish | done | see git log | 309 |
+| Release polish | done | `4937999` | 309 |
+| Review pass | done | see git log | 352 of 356 (4 failing are the pane redesign in progress) |
 
 ## T4 review fixes
 
@@ -192,3 +193,32 @@ Files: `queries.ts` (dispatch, the old handlers), `queries-core.ts` (git runner,
 - **ask tool.** Schema: `type` (enum from `QUERY_TYPE_NAMES`), `path`, `text`, `sha`, `question`, `isCaseInsensitive`; the description lists every type. A sha is trimmed and lower-cased; the message's `text` is the argument, else the type.
 
 Tests: `tests/queries-search.test.ts` (argv shape, option-like texts, pathspec magic/`..`/`.git`/absolute/backslash folders denied before git runs, text bounds, hits in denied/ignored/linked-away/binary/huge/secret files dropped, the secret oracle, scan before cut incl. a file changed between git's read and ours, caps, record parsing, todo counts and file cap, files filter/count/cap/cut), `tests/queries-commit.test.ts` (output, argv, bad shas incl. `--output=x`/`HEAD`/`abc^{tree}`/`abc:.env`, unknown/non-commit, body cut with a secret past it, file cap), `tests/queries-deps.test.ts` (each parser, link/secret/denied manifests skipped, only root reads, caps, sanitising), `tests/queries-input.test.ts`, plus protocol and responder additions. The grep, todo and files guards were mutation-checked (dropping the file check or the pre-cut scan fails five tests). Also run by hand against a scratch repo with `.env`, a `.pem`, an out-of-repo and an in-repo symlink, a binary, a newline and a `:(top)` file name, and a tag on a blob.
+
+## Review pass
+
+I read every file in `hooks/` again. The pane files (`pane*`, `view*`, `state*`, `sig*`, `actions`, `theme`, `when`, `kit/`), `register.tsx`, `budget.ts` and `gate.ts` belong to the parallel pane redesign, and `queries*`, `responder*` and the query part of `protocol.ts` belong to the query-types task. Those were read but not edited; findings in them are listed under "Reported". Each fix has a test in `tests/review.test.ts`, unless noted otherwise.
+
+Fixed:
+
+1. **Overlapping polls of one room** (`room-loop.ts`). A `pokeRoom` while a poll was in flight started a second `step` beside it. With the pane open this happens on almost every send, because a poll takes about 0.7 s and runs every second. The two steps sent the same message twice (the second was settled as delivered at the cost of extra reads), pinned a stale head version, and the step that finished last overwrote newer cursors, entries and `ownVersion`. Now one poll per room runs at a time: a poke during one marks it to run again at once when it ends. A room left while its poll was in flight keeps nothing of that poll.
+2. **Discovery** (`room-loop.ts`, `rooms.ts`). Runs no longer overlap. Before, a slow run with many meta reads could start again a minute later and run beside the first. Rooms are re-read just before saving, so a room joined by link during a run is not added a second time as `invited`. A shared artifact titled `Transceiver ·` whose meta is missing is read again only after `NOT_ROOM_RETRY_MS` (10 min) instead of every minute. Before, anyone could make the mod do up to 100 reads a minute by sharing artifacts with that title. A read that fails because the mod is offline is still retried on the next run.
+3. **Leaving frees the room's state** (`forgetRoom`, used by `çık` and by rollover). `tx.sync.<id>` holds up to 500 messages and was never removed. A rejoin creates a new record id, so the old state could never be read again.
+4. **Ids are not namespaced by outbox** (`timeline.ts`, `room-page.ts`). The timeline and the page's rows were keyed by message id alone. A peer who reused one of my message ids in their own outbox could replace my message on the room page, or get dropped in the pane. Both are now keyed by author and id. One author's copy in a day doc and in `msgs` still counts as one entry.
+5. **Drafts are capped** (`drafts.ts`, `MAX_DRAFTS_PER_ROOM` = 20). Past the ask budget, every new `ask` became a stored draft. At 60 queries a minute, a collaborator could grow the store without bound. Past the cap a question is dropped, and its asker's wait ends as `pending`.
+6. **A rename onto a secret file** (`ask.ts`). The repo facts given to the model kept a staged `R  notes.txt -> .env` line, because the path check ran on the whole `a -> b` string, so the model was told `.env` exists. Both sides of a rename are now checked.
+7. **Identity on rooms outside the store** (`identity.ts`, found by the E2E walk; see T16).
+8. Two leaks between test files (module state is shared across files). The E2E walk now leaves the pane flagged closed. The retention test no longer advances a whole day, and it sets the flag itself.
+9. A magic `10` in `compact.dayOf` is now named.
+
+Checked and fine: logs carry only the room title and an error name (room loop, retention) or fixed text (`register.tsx`). No message body, tool text or path is logged. Every peer value that reaches a path is validated: uids (`isUid` on `heads`), message and query ids (ULID), repo (`isRepo`), file paths (`pathguard`), artifact URLs (`parseArtifactUrls`). The page builds collection paths from snapshot doc ids, which are single segments. Peer text is fenced for the model, set as `textContent` on the page, and escaped in the page title. Every file is ≤ 300 lines. The functions in the files I own are ≤ 40 lines with ≤ 3 params.
+
+Reported, not fixed (other tasks' files, or a design decision):
+
+- `register.tsx`: `register` is 54 lines; it could split into `onSession`, `onPane` and `onTools` helpers. `pane-bubble.tsx` `bubbleBody` takes 4 params.
+- `responder-wire.ts`: `addDraft` toasts "günlük soru sınırı doldu" for every draft, even when the draft is already there or the room is at the cap. A flood of asks means a flood of toasts. `addDraft` could return whether it added, and the toast fire only then.
+- `budget.ts`: the per-room count is keyed by the room record's id. Two sessions of one person share it, but the same room joined on two machines counts twice. This is per machine by design, but worth knowing.
+- **Room rules**: `{ path: 'outbox', write: 'owner' }` lets the room owner write every member's outbox. That includes a far-future `ts`, which would push a member's cursor for themselves past their own later messages, and forged rows the member's pane shows as their own. A guest gains nothing from it, and the owner deceives only the member's own view. Narrowing it depends on how the platform matches rules (unmeasured). `docs/e2e-checklist.md` 0.4 checks the guest side.
+- The persisted `tx.sync.<id>` keeps up to `KEEP_ENTRIES` (500) full messages and is rewritten on every new message: up to several MB for a room of long answers. Persisting fewer than the pane shows would lose scrollback, so this is left as is.
+- The room page asks `user.profiles` on every snapshot. A per-page cache would save calls.
+- The room page's `update({ head, headTs })` carries no version pin. Whether the page's db client needs one is unmeasured; checklist item 1.6 covers sending from the phone.
+- At the time of this pass, 4 tests in `tests/pane.test.ts` fail on copy the pane redesign changed ("Bağlan ve yazmaya başla"). That work is in progress.

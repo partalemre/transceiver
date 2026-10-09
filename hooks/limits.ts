@@ -106,3 +106,8 @@ export const DEPS_ITEM_CHARS = 100
 export const COMMIT_BODY_CHARS = 2_000
 export const COMMIT_MAX_FILES = 100
 export const COMMIT_SUBJECT_CHARS = 200
+
+// Drafts past the ask limit kept per room: a flood of asks cannot grow the store.
+export const MAX_DRAFTS_PER_ROOM = 20
+// A shared artifact titled like a room but with no room meta is read again only after this long.
+export const NOT_ROOM_RETRY_MS = 10 * 60_000

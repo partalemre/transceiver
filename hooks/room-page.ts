@@ -53,7 +53,8 @@ const SCRIPT = `
     list.scrollTop = list.scrollHeight
   }
   const watched = new Set()
-  const add = (author, id, x) => { if (x && typeof id === "string" && typeof x.text === "string" && typeof x.ts === "number") rows.set(id, { ...x, id, author }) }
+  // Keyed by author and id: a peer reusing someone else's id never hides their message.
+  const add = (author, id, x) => { if (x && typeof id === "string" && typeof x.text === "string" && typeof x.ts === "number") rows.set(author + "/" + id, { ...x, id, author }) }
   db.collection("outbox").onSnapshot(snap => {
     for (const d of snap.docs) {
       if (watched.has(d.id)) continue

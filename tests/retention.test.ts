@@ -4,7 +4,7 @@ import type { CallResult } from '../hooks/host'
 import { COMPACT_AFTER_MS, RETENTION_RETRY_MS, ROLLOVER_DOCS } from '../hooks/limits'
 import type { Message } from '../hooks/protocol'
 import { wireRetention } from '../hooks/retention'
-import { enqueueMessage, startLoop, stopRoom } from '../hooks/room-loop'
+import { enqueueMessage, setViewing, startLoop, stopRoom } from '../hooks/room-loop'
 import { loadRooms, saveRooms, type RoomRecord } from '../hooks/rooms'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, type FakeAgent } from './fake-agent'
@@ -46,6 +46,8 @@ async function world(opts: { id: string; isOwner?: boolean; old?: number; isPubl
     isLive: true, isOwner: opts.isOwner ?? true, peers: [{ uid: PEER, gh: 'alperenx', isGhConfirmed: true }], joinedAt: 0,
   }
   await saveRooms(host, [room])
+  // Module state other test files may leave behind: the pane counts as closed here (5 s polls).
+  setViewing(null, false)
   const off = wireRetention(host)
   await startLoop(host)
   const stop = async () => { off(); for (const r of await loadRooms(host)) stopRoom(r.id) }
@@ -71,7 +73,9 @@ test('compaction waits for the connection, then runs once a day', async () => {
   const runs = olderQueries(w.db)
   await w.host.advance(60_000)
   expect(olderQueries(w.db)).toBe(runs)
-  await w.host.advance(24 * 60 * 60_000)
+  // The next day (the marker names another day): one more run.
+  await w.host.storeSet('tx.compacted.RET1', '2000-01-01')
+  await w.host.advance(5_000)
   expect(olderQueries(w.db)).toBe(runs + 1)
   await w.stop()
 })

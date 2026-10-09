@@ -9,7 +9,9 @@ export type Compacted = { moved: number; isDone: boolean }
 type Opts = { relay: Relay; uid: string; now: number }
 type Group = Opts & { day: string; items: Stored[] }
 
-export const dayOf = (ts: number) => new Date(ts).toISOString().slice(0, 10)
+const ISO_DAY_CHARS = 'yyyy-mm-dd'.length
+
+export const dayOf = (ts: number) => new Date(ts).toISOString().slice(0, ISO_DAY_CHARS)
 export const dayDocId = (day: string, part: number) => (part <= 1 ? day : `${day}.${part}`)
 
 export function groupByDay(items: readonly Stored[]): Map<string, Stored[]> {

@@ -1,7 +1,7 @@
 import { setConnected } from './connection'
 import { parseArtifactUrls } from './dbtext'
 import type { CallResult, Host } from './host'
-import { PROTOCOL_VERSION, SHARED_LIST_LIMIT, TITLE_PREFIX } from './limits'
+import { NOT_ROOM_RETRY_MS, PROTOCOL_VERSION, SHARED_LIST_LIMIT, TITLE_PREFIX } from './limits'
 import type { RoomMeta } from './protocol'
 import { callerOf, relayOf } from './relay'
 import { roomPageHtml } from './room-page'
@@ -116,6 +116,11 @@ export function invitedFrom(opts: { result: unknown; text: string; knownUrls: st
   return [...new Set(urls)].filter(url => !known.has(url))
 }
 
+// Shared artifacts whose meta is missing or does not parse, and when they may be read again: a share made before
+// its meta was written still shows up, without every such artifact being read every minute. A read that failed
+// (offline) is tried again on the next discovery.
+const notRooms = new Map<string, number>()
+
 // A listed title is a hint only; a room is real once its meta doc parses.
 export async function discoverInvites(opts: { host: Host; known: RoomRecord[] }): Promise<RoomRecord[]> {
   const { host } = opts
@@ -123,9 +128,10 @@ export async function discoverInvites(opts: { host: Host; known: RoomRecord[] })
   const urls = invitedFrom({ result: out.result, text: out.text ?? '', knownUrls: opts.known.map(r => r.url) })
   const now = await host.now()
   const found: RoomRecord[] = []
-  for (const url of urls) {
-    const meta = await relayOf(callerOf(host), url).meta().catch(() => null)
-    if (meta === null) continue
+  for (const url of urls.filter(u => (notRooms.get(u) ?? 0) <= now)) {
+    const meta = await relayOf(callerOf(host), url).meta().then(m => m, () => undefined)
+    if (meta === null) notRooms.set(url, now + NOT_ROOM_RETRY_MS)
+    if (meta === null || meta === undefined) continue
     found.push(recordOf({ url, meta, now, status: 'invited' }))
   }
   return found

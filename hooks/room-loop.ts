@@ -23,10 +23,14 @@ const timers = new Map<string, Timer>()
 const active = new Set<string>()
 const errors = new Map<string, number>()
 const used = new Map<string, number>()
+// One poll per room at a time: a poke while one is in flight runs again right after it, never beside it.
+const running = new Set<string>()
+const rerun = new Set<string>()
 const listeners: Listener[] = []
 let viewing: string | null = null
 let isPaneOpen = false
 let discovery: Timer | null = null
+let isDiscovering = false
 
 // Returns the unsubscribe, so a rewiring (or a test) never stacks listeners.
 export function onTick(fn: Listener): () => void {
@@ -79,6 +83,8 @@ async function step(host: Host, room: RoomRecord): Promise<void> {
   // Until the session is connected (spike R1) the loop only reads: no send, no read mark raises an approval.
   const out = await tick({ relay, state: before, isViewing, isReceiptsOn: settings.isReceiptsOn, now: startedAt, canWrite: host.isConnected() })
   const tookMs = (await host.now()) - startedAt
+  // Left while the poll was in flight: nothing of it is kept.
+  if (!active.has(room.id)) return
   const state = carryQueued({ before, during: syncs.get(room.id), after: out.state })
   syncs.set(room.id, state)
   await persist(host, room.id, state)
@@ -92,6 +98,11 @@ async function step(host: Host, room: RoomRecord): Promise<void> {
 
 // Only the room's title and the error's name reach the log, never message text or tool output.
 async function run(host: Host, room: RoomRecord): Promise<void> {
+  if (running.has(room.id)) {
+    rerun.add(room.id)
+    return
+  }
+  running.add(room.id)
   try {
     await step(host, room)
     errors.delete(room.id)
@@ -100,7 +111,10 @@ async function run(host: Host, room: RoomRecord): Promise<void> {
     errors.set(room.id, failures)
     host.log(`transceiver: ${room.title}: ${err instanceof Error ? err.name : 'error'}`)
     schedule(host, room, nextDelay({ isPaneOpen, failures }))
+  } finally {
+    running.delete(room.id)
   }
+  if (rerun.delete(room.id)) schedule(host, room, 0)
 }
 
 function schedule(host: Host, room: RoomRecord, ms: number): void {
@@ -119,6 +133,17 @@ export function stopRoom(roomId: string): void {
   timers.get(roomId)?.cancel()
   timers.delete(roomId)
   used.delete(roomId)
+  rerun.delete(roomId)
+}
+
+// Leaving for good: the poll stops and the room's sync state goes, from memory and from the store (a rejoin
+// starts a new record, so the old state would never be read again).
+export async function forgetRoom(host: Host, roomId: string): Promise<void> {
+  stopRoom(roomId)
+  syncs.delete(roomId)
+  saved.delete(roomId)
+  errors.delete(roomId)
+  await host.storeSet(syncKey(roomId), null)
 }
 
 // Takes the own head a listener wrote (e.g. the `gh` login), so the next send is pinned to its version.
@@ -137,10 +162,19 @@ export function enqueueMessage(opts: { host: Host; room: RoomRecord; message: Me
   return true
 }
 
+// One discovery at a time. The rooms are read again before saving: one joined by link meanwhile is not added twice.
 async function discover(host: Host): Promise<void> {
-  const rooms = await loadRooms(host)
-  const found = await discoverInvites({ host, known: rooms }).catch(() => [])
-  if (found.length > 0) await saveRooms(host, [...(await loadRooms(host)), ...found])
+  if (isDiscovering) return
+  isDiscovering = true
+  try {
+    const found = await discoverInvites({ host, known: await loadRooms(host) }).catch(() => [])
+    const rooms = await loadRooms(host)
+    const urls = new Set(rooms.map(r => r.url))
+    const added = found.filter(r => !urls.has(r.url))
+    if (added.length > 0) await saveRooms(host, [...rooms, ...added])
+  } finally {
+    isDiscovering = false
+  }
 }
 
 export async function startLoop(host: Host): Promise<void> {

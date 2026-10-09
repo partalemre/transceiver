@@ -3,7 +3,7 @@ import type { AgentHost } from './host'
 import { RETENTION_RETRY_MS, ROLLOVER_DOCS } from './limits'
 import { parseMessage, isUnreadable, type Message } from './protocol'
 import { callerOf, relayOf } from './relay'
-import { onTick, pokeRoom, stopRoom, type TickEvent } from './room-loop'
+import { forgetRoom, onTick, pokeRoom, type TickEvent } from './room-loop'
 import { createRoom, loadRooms, saveRooms, type RoomRecord } from './rooms'
 import { newId } from './ulid'
 
@@ -66,7 +66,7 @@ async function moveTo(host: AgentHost, t: Turn & Moving): Promise<void> {
   const rooms = (await loadRooms(host)).filter(r => r.id !== next.id)
   await saveRooms(host, [...rooms.map(r => (r.id === room.id ? { ...r, status: 'left' as const } : r)), next])
   await host.storeSet(movingKey(room.id), null)
-  stopRoom(room.id)
+  await forgetRoom(host, room.id)
   pokeRoom(host, next)
   host.toast(ROLLOVER_TOAST)
 }
