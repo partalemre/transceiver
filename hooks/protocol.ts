@@ -132,4 +132,17 @@ export function parseMeta(raw: unknown): RoomMeta | null {
   return stripUndefined<RoomMeta>({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, createdAt: raw.createdAt })
 }
 
+// A compacted day (T15): `ts` is its newest message's, so readers can ask for the days after a cursor. Messages
+// that do not parse are dropped; the author is the outbox the doc sits in, never a field.
+export type Day = { v: 1; ts: number; msgs: Message[] }
+
+export function parseDay(raw: unknown): Day | null {
+  if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isCount(raw.ts) || !Array.isArray(raw.msgs)) return null
+  const msgs = raw.msgs.flatMap(m => {
+    const parsed = parseMessage(isObj(m) && typeof m.id === 'string' ? m.id : '', m)
+    return isUnreadable(parsed) ? [] : [parsed]
+  })
+  return { v: 1, ts: raw.ts, msgs }
+}
+
 export const emptyHead = (): Head => ({ v: 1, head: '', headTs: 0, seenUpTo: '', readUpTo: '', readTs: 0 })

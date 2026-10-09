@@ -11,8 +11,9 @@ import type { Entry } from './timeline'
 // One timer per active room. The sync state lives here and in `$.store` (a reload drops module state and timers;
 // `session.start` starts the loop again from the store).
 
-// `tookMs`: how long the poll took, the pane's "sinyal" figure.
-export type TickEvent = { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean; tookMs?: number }
+// `tookMs`: how long the poll took, the pane's "sinyal" figure. `docsUsed`: the room's document count from the
+// newest write result that named it (T15 rollover), when one did.
+export type TickEvent = { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean; tookMs?: number; docsUsed?: number }
 type Listener = (ev: TickEvent) => Promise<void>
 
 const syncKey = (id: string) => `tx.sync.${id}`
@@ -21,6 +22,7 @@ const saved = new Map<string, string>()
 const timers = new Map<string, Timer>()
 const active = new Set<string>()
 const errors = new Map<string, number>()
+const used = new Map<string, number>()
 const listeners: Listener[] = []
 let viewing: string | null = null
 let isPaneOpen = false
@@ -80,7 +82,9 @@ async function step(host: Host, room: RoomRecord): Promise<void> {
   const state = carryQueued({ before, during: syncs.get(room.id), after: out.state })
   syncs.set(room.id, state)
   await persist(host, room.id, state)
-  for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, tookMs })
+  const docsUsed = relay.usage() ?? used.get(room.id)
+  if (docsUsed !== undefined) used.set(room.id, docsUsed)
+  for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, tookMs, docsUsed })
   // A listener that queued a message (an answer) gets it sent at once rather than a poll later.
   const isQueued = (syncs.get(room.id)?.pending.length ?? 0) > state.pending.length
   schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen, failures: state.failures }))
@@ -114,6 +118,7 @@ export function stopRoom(roomId: string): void {
   active.delete(roomId)
   timers.get(roomId)?.cancel()
   timers.delete(roomId)
+  used.delete(roomId)
 }
 
 // Takes the own head a listener wrote (e.g. the `gh` login), so the next send is pinned to its version.

@@ -62,7 +62,16 @@ export function parseWriteVersion(text: string, collection: string, docId: strin
 // (spike: "writes[0] (write 1 of 2) targets outbox/<uid>/msgs/<id>, which already exists, …").
 export const alreadyStoredPath = (text: string): string | null => ALREADY_STORED.exec(outsideBlocks(text))?.[1] ?? null
 
-export const parseArtifactUrls = (text: string): string[] => [...new Set(outsideBlocks(text).match(URL_RE) ?? [])]
+// The tool's own line after a write (spike: "6 of 25000 documents used in this artifact's database."). Only a line
+// outside the doc blocks counts, so a peer's text cannot fake a full room.
+const USED = /^(\d+) of \d+ documents used in this artifact's database\.?$/m
+
+export function parseDocsUsed(text: string): number | null {
+  const hit = USED.exec(outsideBlocks(text))
+  return hit === null ? null : Number(hit[1])
+}
+
+export const parseArtifactUrls =(text: string): string[] => [...new Set(outsideBlocks(text).match(URL_RE) ?? [])]
 
 export function errorKind(text: string): 'conflict' | 'missing' | 'failed' {
   const own = outsideBlocks(text)

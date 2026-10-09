@@ -1,4 +1,4 @@
-import { KEEP_ENTRIES, POLL_BACKOFF, POLL_CLOSED_MS, POLL_MAX_MS, POLL_OPEN_MS, SINCE_PAGE } from './limits'
+import { DAYS_PULL_AFTER_MS, KEEP_ENTRIES, POLL_BACKOFF, POLL_CLOSED_MS, POLL_MAX_MS, POLL_OPEN_MS, SINCE_PAGE } from './limits'
 import { emptyHead, isUnreadable } from './protocol'
 import type { Head, Message } from './protocol'
 import { RelayError } from './relay'
@@ -69,21 +69,35 @@ function nextCursor(opts: { cursor: number; head: Head; got: Entry[] }): number 
   return opts.got.length < SINCE_PAGE ? Math.max(lastTs, opts.head.headTs) : lastTs
 }
 
-async function pullOne(relay: Relay, state: RoomSync, entry: HeadEntry): Promise<{ state: RoomSync; got: Entry[] }> {
+type Pull = { relay: Relay; state: RoomSync; now?: number }
+
+// A cursor near the compaction age may have missed messages their author has since moved into day docs (T15):
+// those are read too. A message in both places (a crash between batches) is one entry, merged by id.
+async function compacted(opts: Pull & { uid: string; cursor: number }): Promise<Entry[]> {
+  const isAway = opts.now !== undefined && opts.cursor < opts.now - DAYS_PULL_AFTER_MS
+  if (!isAway) return []
+  return (await opts.relay.days(opts.uid, opts.cursor)).map(message => ({ author: opts.uid, message }))
+}
+
+async function pullOne(opts: Pull, entry: HeadEntry): Promise<{ state: RoomSync; got: Entry[] }> {
   const { uid, head } = entry
+  const { state } = opts
   const s = uid === state.selfUid ? withOwn(state, entry) : { ...state, peers: { ...state.peers, [uid]: head } }
   const cursor = s.cursors[uid] ?? 0
   if (head.head === '' || head.headTs <= cursor) return { state: s, got: [] }
-  const got = (await relay.since(uid, cursor)).map(message => ({ author: uid, message }))
-  const cursors = { ...s.cursors, [uid]: nextCursor({ cursor, head, got }) }
+  const older = await compacted({ ...opts, uid, cursor })
+  const recent = (await opts.relay.since(uid, cursor)).map(message => ({ author: uid, message }))
+  const cursors = { ...s.cursors, [uid]: nextCursor({ cursor, head, got: recent }) }
+  const got = mergeEntries([], [...older, ...recent])
   return { state: { ...s, cursors, entries: mergeEntries(s.entries, got, KEEP_ENTRIES) }, got }
 }
 
-async function pull(relay: Relay, state: RoomSync): Promise<{ state: RoomSync; fresh: Entry[] }> {
-  let s = state
+async function pull(opts: Pull): Promise<{ state: RoomSync; fresh: Entry[] }> {
+  const { relay } = opts
+  let s = opts.state
   const fresh: Entry[] = []
   for (const entry of await relay.heads()) {
-    const out = await pullOne(relay, s, entry)
+    const out = await pullOne({ ...opts, state: s }, entry)
     s = out.state
     if (entry.uid !== s.selfUid) fresh.push(...out.got)
   }
@@ -118,7 +132,7 @@ export async function tick(opts: TickOpts): Promise<TickResult> {
   const canWrite = opts.canWrite !== false
   const sent = canWrite ? await flush(opts.relay, opts.state) : settled(opts.state)
   try {
-    const pulled = await pull(opts.relay, sent.state)
+    const pulled = await pull({ relay: opts.relay, state: sent.state, now: opts.now })
     const acked = sent.isDenied || !canWrite ? settled(pulled.state) : await ackOutcome({ ...opts, state: pulled.state }, pulled.fresh)
     const failures = sent.hasFailed || acked.hasFailed ? opts.state.failures + 1 : 0
     return { state: { ...acked.state, failures }, fresh: pulled.fresh, isDenied: sent.isDenied || acked.isDenied }

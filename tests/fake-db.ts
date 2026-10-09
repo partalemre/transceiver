@@ -2,12 +2,18 @@ import type { CallResult } from '../hooks/relay'
 import * as T from './db-texts'
 
 type Doc = { data: Record<string, unknown>; version: number }
-type Write = { collection: string; doc_id: string; data: Record<string, unknown>; if_version?: number }
+type Write = { op?: string; collection: string; doc_id: string; data?: Record<string, unknown>; if_version?: number }
 
 // `isReplyLost` makes the next write land and then fail on the way back, as a dropped connection would.
+// `beforeWrite` runs just before a write is checked, so a test can move a doc under it (another session's write).
+// `extraUsed` adds documents to the "N of 25000 documents used" line. `owner`, when set, enforces the room's
+// rules (rooms.ts ROOM_CAPABILITIES) for callers made with `callerAs`: everyone writes only `outbox/{self}/**`,
+// the owner also the rest of `outbox` and `meta`.
 export type FakeDb = {
   docs: Map<string, Doc>; calls: Record<string, unknown>[]; self: string
   isDown: boolean; isWriteDenied: boolean; isReplyLost: boolean
+  beforeWrite?: (input: Record<string, unknown>) => void
+  extraUsed: number; owner?: string
 }
 
 const key = (collection: string, id: string) => `${collection}/${id}`
@@ -17,10 +23,10 @@ const ACCESS = "[ran at access level 'view']"
 const WRITES = new Set(['set', 'batch', 'update', 'delete'])
 
 export function fakeDb(self = 'u_AAAAAAAAAAAAAAAAAAAAAA'): FakeDb {
-  return { docs: new Map(), calls: [], self, isDown: false, isWriteDenied: false, isReplyLost: false }
+  return { docs: new Map(), calls: [], self, isDown: false, isWriteDenied: false, isReplyLost: false, extraUsed: 0 }
 }
 
-const resolveMe = (db: FakeDb, collection: string) => collection.replace(/(^|\/)me(\/|$)/, `$1${db.self}$2`)
+const resolveMe = (self: string, collection: string) => collection.replace(/(^|\/)me(\/|$)/, `$1${self}$2`)
 
 function inCollection(db: FakeDb, collection: string): Array<[string, Doc]> {
   const prefix = `${collection}/`
@@ -28,11 +34,22 @@ function inCollection(db: FakeDb, collection: string): Array<[string, Doc]> {
     .map(([k, d]) => [k.slice(prefix.length), d])
 }
 
+type Query = { where?: [string, string, number][]; order_by?: { field: string; direction?: string }; limit?: number }
+const TESTS: Record<string, (a: number, b: number) => boolean> = {
+  '>': (a, b) => a > b, '<': (a, b) => a < b, '>=': (a, b) => a >= b, '<=': (a, b) => a <= b, '==': (a, b) => a === b,
+}
+
+function select(rows: Array<[string, Doc]>, query: Query): Array<[string, Doc]> {
+  let out = rows
+  for (const [f, op, v] of query.where ?? []) out = out.filter(([, d]) => (TESTS[op] ?? (() => false))(d.data[f] as number, v))
+  const field = query.order_by?.field ?? 'ts'
+  const sign = query.order_by?.direction === 'desc' ? -1 : 1
+  out = [...out].sort(([, a], [, b]) => sign * (Number(a.data[field] ?? 0) - Number(b.data[field] ?? 0)))
+  return query.limit === undefined ? out : out.slice(0, query.limit)
+}
+
 function read(db: FakeDb, input: Record<string, unknown>, collection: string): CallResult {
-  let rows = inCollection(db, collection)
-  const where = (input.query as { where?: [string, string, number][] } | undefined)?.where ?? []
-  for (const [f, , v] of where) rows = rows.filter(([, d]) => (d.data[f] as number) > v)
-  rows.sort(([, a], [, b]) => Number(a.data.ts ?? 0) - Number(b.data.ts ?? 0))
+  const rows = select(inCollection(db, collection), (input.query as Query | undefined) ?? {})
   const note = collection.startsWith('data/users/') ? `\n(\`me\` in this path resolved to your user id on this artifact: ${db.self})` : ''
   return { text: `${rows.length} documents from collection "${collection}":\n${block(rows.map(([id, d]) => row(id, d)))}\n${ACCESS}${note}` }
 }
@@ -42,7 +59,9 @@ function get(db: FakeDb, collection: string, docId: string): CallResult {
   return d === undefined ? { isError: true, text: T.MISSING } : { text: `Document "${collection}"/"${docId}":\n${block([row(docId, d)])}\n${ACCESS}` }
 }
 
-// The first write the server would refuse, in the measured wording, or null when every write may land.
+// The first write the server would refuse, in the measured wording, or null when every write may land. A pinned
+// delete of a doc that is gone is refused as a stale pin (unmeasured: the API says a pinned doc that changed
+// refuses the batch).
 function refusal(db: FakeDb, writes: Write[]): string | null {
   for (const [index, w] of writes.entries()) {
     const path = key(w.collection, w.doc_id)
@@ -57,17 +76,20 @@ function refusal(db: FakeDb, writes: Write[]): string | null {
 
 function land(db: FakeDb, w: Write): T.WriteLine {
   const k = key(w.collection, w.doc_id)
+  if (w.op === 'delete') {
+    db.docs.delete(k)
+    return { op: 'delete', collection: w.collection, docId: w.doc_id, version: 0 }
+  }
   const version = (db.docs.get(k)?.version ?? 0) + 1
-  db.docs.set(k, { data: w.data, version })
+  db.docs.set(k, { data: w.data ?? {}, version })
   return { collection: w.collection, docId: w.doc_id, version }
 }
 
-function batch(db: FakeDb, raw: Write[]): CallResult {
-  const writes = raw.map(w => ({ ...w, collection: resolveMe(db, w.collection) }))
+function batch(db: FakeDb, writes: Write[]): CallResult {
   const refused = refusal(db, writes)
   if (refused !== null) return { isError: true, text: refused }
   const lines = writes.map(w => land(db, w))
-  return { text: T.batchCommitted(lines, db.docs.size) }
+  return { text: T.batchCommitted(lines, db.docs.size + db.extraUsed) }
 }
 
 function set(db: FakeDb, w: Write): CallResult {
@@ -79,28 +101,59 @@ function set(db: FakeDb, w: Write): CallResult {
   return { text: T.setCommitted(line.collection, line.docId, line.version) }
 }
 
+const writesIn = (db: FakeDb, input: Record<string, unknown>): Write[] =>
+  (input.action === 'batch' ? (input.writes as Write[]) : [input as unknown as Write])
+    .map(w => ({ ...w, collection: resolveMe(db.self, String(w.collection ?? '')) }))
+
+// The room's rules (R2 unmeasured): a write the rules refuse reads as not found, as the tool says it does when it
+// acts at a lowered access level.
+function isAllowed(db: FakeDb, w: Write): boolean {
+  if (db.owner === undefined) return true
+  const path = key(w.collection, w.doc_id)
+  const isOwn = path === `outbox/${db.self}` || path.startsWith(`outbox/${db.self}/`)
+  const isOwners = db.self === db.owner && (path.startsWith('outbox/') || path.startsWith('meta/'))
+  return isOwn || isOwners
+}
+
 function answer(db: FakeDb, input: Record<string, unknown>): CallResult {
   const action = String(input.action)
-  const collection = resolveMe(db, String(input.collection ?? ''))
+  const collection = resolveMe(db.self, String(input.collection ?? ''))
+  if (WRITES.has(action) && !writesIn(db, input).every(w => isAllowed(db, w))) return { isError: true, text: T.MISSING }
   if (action === 'list' || action === 'query') return read(db, input, collection)
   if (action === 'get') return get(db, collection, String(input.doc_id))
   if (action === 'set') return set(db, { ...(input as unknown as Write), collection })
-  if (action === 'batch') return batch(db, input.writes as Write[])
+  if (action === 'batch') return batch(db, writesIn(db, input))
   return { isError: true, text: 'unsupported' }
 }
 
+async function call(db: FakeDb, input: Record<string, unknown>): Promise<CallResult> {
+  db.calls.push(input)
+  if (db.isDown) throw new Error('offline')
+  const isWrite = WRITES.has(String(input.action))
+  if (isWrite && db.isWriteDenied) return { deny: 'Claude wants to write to this artifact\'s database' }
+  if (isWrite) db.beforeWrite?.(input)
+  const out = answer(db, input)
+  if (isWrite && db.isReplyLost) {
+    db.isReplyLost = false
+    throw new Error('connection reset')
+  }
+  return out
+}
+
 export function callerFor(db: FakeDb) {
-  return async (input: Record<string, unknown>): Promise<CallResult> => {
-    db.calls.push(input)
-    if (db.isDown) throw new Error('offline')
-    const isWrite = WRITES.has(String(input.action))
-    if (isWrite && db.isWriteDenied) return { deny: 'Claude wants to write to this artifact\'s database' }
-    const out = answer(db, input)
-    if (isWrite && db.isReplyLost) {
-      db.isReplyLost = false
-      throw new Error('connection reset')
+  return (input: Record<string, unknown>): Promise<CallResult> => call(db, input)
+}
+
+// One person's view of a shared db: `me` and the rules resolve to `uid`, whoever else uses the same db.
+export function callerAs(db: FakeDb, uid: string) {
+  return (input: Record<string, unknown>): Promise<CallResult> => {
+    const prev = db.self
+    db.self = uid
+    try {
+      return call(db, input)
+    } finally {
+      db.self = prev
     }
-    return out
   }
 }
 

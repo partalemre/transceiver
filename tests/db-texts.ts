@@ -16,12 +16,13 @@ export const BATCH_STALE_PIN = `db batch write failed (version_mismatch): the ba
 
 export const DOC_LIMIT = 25_000
 
-export type WriteLine = { collection: string; docId: string; version: number }
+// A delete's line is unmeasured; it is written like a set's, without a version.
+export type WriteLine = { op?: 'set' | 'delete'; collection: string; docId: string; version: number }
 
 export function batchCommitted(lines: WriteLine[], used: number): string {
   return [
     `Database batch committed atomically — ${lines.length} writes; who can read them follows the page's access rules (by default, everyone who can open the artifact):`,
-    ...lines.map(l => `- set "${l.collection}"/"${l.docId}" (version ${l.version})`),
+    ...lines.map(l => (l.op === 'delete' ? `- delete "${l.collection}"/"${l.docId}"` : `- set "${l.collection}"/"${l.docId}" (version ${l.version})`)),
     `${used} of ${DOC_LIMIT} documents used in this artifact's database.`,
   ].join('\n')
 }

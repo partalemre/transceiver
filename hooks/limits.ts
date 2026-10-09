@@ -29,8 +29,26 @@ export const QUERY_RATE_PER_MIN = 60
 export const COLLAB_CACHE_MS = 600_000
 export const RUN_TIMEOUT_MS = 15_000
 export const COLLAB_PAGE = 100
-export const COMPACT_AFTER_MS = 7 * 24 * 60 * 60 * 1_000
+export const DAY_MS = 24 * 60 * 60 * 1_000
+export const COMPACT_AFTER_MS = 7 * DAY_MS
 export const ROLLOVER_DOCS = 20_000
+
+// Retention (T15). A batch holds at most 50 writes: the day doc and 49 deletes.
+export const BATCH_MAX_WRITES = 50
+export const COMPACT_BATCH_DELETES = BATCH_MAX_WRITES - 1
+// Messages compacted per tick: two batches, so one tick never holds the room's poll for long.
+export const COMPACT_PAGE = 2 * COMPACT_BATCH_DELETES
+// A day doc stays well under the 1 MiB batch body; a busier day goes on in `<day>.2`, `<day>.3`, …
+export const DAY_DOC_MAX_BYTES = 512_000
+export const MAX_DAY_PARTS = 64
+// A failed compaction or rollover is tried again after this long, not on every poll.
+export const RETENTION_RETRY_MS = 10 * 60_000
+// A peer cursor this close to the compaction age may have missed messages moved into day docs.
+export const DAYS_PULL_AFTER_MS = COMPACT_AFTER_MS - DAY_MS
+// The newest day docs read for a peer who was away: the pane keeps KEEP_ENTRIES messages at most.
+export const DAYS_PAGE = 7
+// The compacted days per author the room's web page shows: about a month of history before the last week.
+export const PAGE_DAYS = 30
 
 export const PANE_ID = 'transceiver'
 export const COMMAND = 'transceiver'
@@ -68,3 +86,5 @@ export const GROUP_MS = 5 * 60_000
 // The newest messages the pane draws; older ones stay on the room's web page.
 export const TIMELINE_LINES = 60
 export const ANSWER_PREVIEW_LINES = 12
+// A peer whose head moved (a send or a read mark) this recently shows as here.
+export const PRESENCE_MS = 5 * 60_000

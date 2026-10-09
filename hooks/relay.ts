@@ -1,6 +1,6 @@
-import { alreadyStoredPath, errorKind, parseDocs, parseSelfUid, parseWriteVersion } from './dbtext'
-import { HEADS_PAGE, SINCE_PAGE } from './limits'
-import { emptyHead, isUid, parseHead, parseMessage, parseMeta, paths } from './protocol'
+import { alreadyStoredPath, errorKind, parseDocs, parseDocsUsed, parseSelfUid, parseWriteVersion } from './dbtext'
+import { COMPACT_PAGE, DAYS_PAGE, HEADS_PAGE, SINCE_PAGE } from './limits'
+import { emptyHead, isUid, isUnreadable, parseDay, parseHead, parseMessage, parseMeta, paths } from './protocol'
 import type { Head, Message, RoomMeta, Unreadable } from './protocol'
 import type { CallResult, ToolHost } from './host'
 
@@ -20,6 +20,11 @@ export type HeadPatch = HeadFields | ((current: Head) => HeadFields)
 export type HeadWrite = { uid: string; patch: HeadPatch; known?: HeadState }
 export type SendOpts = { uid: string; message: Message; known?: HeadState }
 export type ReadMark = { uid: string; seenUpTo: string; readUpTo?: string; readTs?: number; known?: HeadState }
+// Retention (T15): own messages past the compaction age, with the versions their deletes are pinned to.
+export type Stored = { message: Message; version: number }
+export type Older = { items: Stored[]; isFull: boolean }
+export type DayState = { msgs: Message[]; version: number }
+export type CompactWrite = { uid: string; docId: string; msgs: Message[]; dayVersion?: number; deletes: Array<{ id: string; version: number }> }
 
 export class RelayError extends Error {
   constructor(readonly kind: RelayErrorKind, message: string, options?: { cause?: unknown }) {
@@ -38,9 +43,15 @@ export type Relay = {
   markRead(opts: ReadMark): Promise<HeadState>
   writeHead(opts: HeadWrite): Promise<HeadState>
   claim(opts: { uid: string; qid: string; now: number }): Promise<boolean>
+  older(uid: string, beforeTs: number): Promise<Older>
+  day(uid: string, docId: string): Promise<DayState | null>
+  compactDay(opts: CompactWrite): Promise<void>
+  days(uid: string, afterTs: number): Promise<Message[]>
+  // The room's document count from the last write result that named it, or null before any.
+  usage(): number | null
 }
 
-type Ctx = { call: ToolCaller; url: string }
+type Ctx = { call: ToolCaller; url: string; used: number | null }
 type Merge = HeadWrite & { extra: Record<string, unknown>[] }
 
 // `consent` is the person's own words for the press that raised a write (the spike showed the first write of a
@@ -64,7 +75,11 @@ function textOf(out: CallResult): string {
   return text
 }
 
-const exec = async (ctx: Ctx, input: Record<string, unknown>) => textOf(await invoke(ctx.call, { url: ctx.url, ...input }))
+async function exec(ctx: Ctx, input: Record<string, unknown>): Promise<string> {
+  const text = textOf(await invoke(ctx.call, { url: ctx.url, ...input }))
+  ctx.used = parseDocsUsed(text) ?? ctx.used
+  return text
+}
 const isKind = (err: unknown, kind: RelayErrorKind): err is RelayError => err instanceof RelayError && err.kind === kind
 const maxId = (a: string, b: string) => (a >= b ? a : b)
 
@@ -184,8 +199,42 @@ async function claim(ctx: Ctx, opts: { uid: string; qid: string; now: number }):
   }
 }
 
+async function older(ctx: Ctx, uid: string, beforeTs: number): Promise<Older> {
+  const query = { where: [['ts', '<', beforeTs]], order_by: { field: 'ts', direction: 'asc' }, limit: COMPACT_PAGE }
+  const docs = parseDocs(await exec(ctx, { action: 'query', collection: paths.msgs(uid), query }))
+  const items = docs.flatMap(d => {
+    const message = parseMessage(d.id, d.data)
+    return isUnreadable(message) ? [] : [{ message, version: d.version }]
+  })
+  return { items, isFull: docs.length >= COMPACT_PAGE }
+}
+
+async function day(ctx: Ctx, uid: string, docId: string): Promise<DayState | null> {
+  const doc = await getDoc(ctx, paths.days(uid), docId)
+  if (doc === null) return null
+  // A day doc that no longer parses is rewritten from what is moved now, at its version.
+  return { msgs: parseDay(doc.data)?.msgs ?? [], version: doc.version }
+}
+
+// One atomic batch: the day doc (pinned once it exists) and the deletes of the messages it now holds, each pinned
+// to the version it was read at. Any doc that moved meanwhile refuses the whole batch.
+async function compactDay(ctx: Ctx, w: CompactWrite): Promise<void> {
+  const ts = w.msgs.reduce((max, m) => Math.max(max, m.ts), 0)
+  const pin = w.dayVersion === undefined ? {} : { if_version: w.dayVersion }
+  const dayWrite = { op: 'set', collection: paths.days(w.uid), doc_id: w.docId, data: { v: 1, ts, msgs: w.msgs }, ...pin }
+  const dels = w.deletes.map(d => ({ op: 'delete', collection: paths.msgs(w.uid), doc_id: d.id, if_version: d.version }))
+  await exec(ctx, { action: 'batch', writes: [dayWrite, ...dels] })
+}
+
+// The messages a peer moved into day docs after `afterTs`, from their newest days.
+async function days(ctx: Ctx, uid: string, afterTs: number): Promise<Message[]> {
+  const query = { where: [['ts', '>', afterTs]], order_by: { field: 'ts', direction: 'desc' }, limit: DAYS_PAGE }
+  const docs = parseDocs(await exec(ctx, { action: 'query', collection: paths.days(uid), query }))
+  return docs.flatMap(d => parseDay(d.data)?.msgs ?? []).filter(m => m.ts > afterTs)
+}
+
 export function relayOf(call: ToolCaller, url: string): Relay {
-  const ctx: Ctx = { call, url }
+  const ctx: Ctx = { call, url, used: null }
   return {
     whoami: () => whoami(ctx),
     meta: async () => parseMeta((await getDoc(ctx, paths.meta, 'room'))?.data),
@@ -196,5 +245,10 @@ export function relayOf(call: ToolCaller, url: string): Relay {
     markRead: mark => writeMerged(ctx, { uid: mark.uid, patch: readPatch(mark), known: mark.known, extra: [] }),
     writeHead: opts => writeMerged(ctx, { ...opts, extra: [] }),
     claim: opts => claim(ctx, opts),
+    older: (uid, beforeTs) => older(ctx, uid, beforeTs),
+    day: (uid, docId) => day(ctx, uid, docId),
+    compactDay: w => compactDay(ctx, w),
+    days: (uid, afterTs) => days(ctx, uid, afterTs),
+    usage: () => ctx.used,
   }
 }

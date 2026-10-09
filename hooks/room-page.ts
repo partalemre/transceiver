@@ -1,9 +1,10 @@
 // The room's web page, published as the artifact itself: a live chat for the browser and the phone. It holds no
 // data of its own; everything comes from the room's db through `onSnapshot`, and it writes only to the viewer's
-// own `outbox/{uid}`. The page cannot batch, so it writes the message first and then moves the head forward
-// with `update` (a merge), which never drops the read cursors or `gh` the mod keeps on the same head.
+// own `outbox/{uid}`; it also shows each author's newest compacted days (T15). The page cannot batch, so it writes
+// the message first and then moves the head forward with `update` (a merge), which never drops the read cursors
+// or `gh` the mod keeps on the same head.
 
-import { KEEP_ENTRIES, PAGE_MAX_CHARS } from './limits'
+import { KEEP_ENTRIES, PAGE_DAYS, PAGE_MAX_CHARS } from './limits'
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
 
@@ -52,12 +53,18 @@ const SCRIPT = `
     list.scrollTop = list.scrollHeight
   }
   const watched = new Set()
+  const add = (author, id, x) => { if (x && typeof id === "string" && typeof x.text === "string" && typeof x.ts === "number") rows.set(id, { ...x, id, author }) }
   db.collection("outbox").onSnapshot(snap => {
     for (const d of snap.docs) {
       if (watched.has(d.id)) continue
       watched.add(d.id)
       db.collection("outbox/" + d.id + "/msgs").orderBy("ts", "desc").limit(${KEEP_ENTRIES}).onSnapshot(ms => {
-        for (const m of ms.docs) { const x = m.data(); if (x && typeof x.text === "string" && typeof x.ts === "number") rows.set(m.id, { ...x, id: m.id, author: d.id }) }
+        for (const m of ms.docs) add(d.id, m.id, m.data())
+        render()
+      })
+      // Week-old messages are compacted into one doc per day; a message in both places is one row (keyed by id).
+      db.collection("outbox/" + d.id + "/days").orderBy("ts", "desc").limit(${PAGE_DAYS}).onSnapshot(ds => {
+        for (const day of ds.docs) { const x = day.data(); for (const m of (x && Array.isArray(x.msgs) ? x.msgs : [])) add(d.id, m && m.id, m) }
         render()
       })
     }
