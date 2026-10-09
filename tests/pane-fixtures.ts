@@ -18,7 +18,8 @@ export const NOW = new Date(2026, 9, 9, 14, 30).getTime()
 const at = (minutesAgo: number) => NOW - minutesAgo * MIN
 export const idAt = (minutesAgo: number) => newId(at(minutesAgo), () => 0)
 
-const human = (minutesAgo: number, text: string): Message => ({ v: 1, id: idAt(minutesAgo), ts: at(minutesAgo), kind: 'human', text })
+const human = (minutesAgo: number, text: string, replyTo?: string): Message =>
+  ({ v: 1, id: idAt(minutesAgo), ts: at(minutesAgo), kind: 'human', text, ...(replyTo === undefined ? {} : { replyTo }) })
 const said = (author: string, message: Message, isPending = false): Entry => ({ author, message, ...(isPending ? { isPending } : {}) })
 
 export const room = (o: Partial<RoomRecord> & { id: string }): RoomRecord => ({
@@ -44,12 +45,15 @@ export function dmAlperen(opts: { isPending?: boolean } = {}): RoomSync {
     said(ME, human(20 * 60 - 3, 'Tabii, sabah ilk iş.')),
     said(ME, human(95, 'Baktım, iki küçük yorum bıraktım. Gerisi temiz 👍')),
     said(ALPEREN, human(80, 'Süper, düzelttim bile.')),
+    said(ALPEREN, human(79, 'İkincisine katılmıyorum ama sorun değil, bırakalım.', idAt(95))),
     said(ME, human(42, 'Akşam maça geliyor musun?')),
     said(ALPEREN, human(12, 'Gelirim! Saat kaçta?')),
     said(ALPEREN, human(11, 'Bu arada yeni branch\'i pushladım, eliti odasından agent\'ına sorabilirsin.')),
   ]
   if (opts.isPending === true) entries.push(said(ME, human(1, 'Sekizde stadyum önünde.'), true))
-  return sync({ peers: { [ALPEREN]: head({ seenUpTo: idAt(42), readUpTo: idAt(80) }) }, entries, readUpTo: idAt(42) })
+  // Alperen read a minute ago: here, "1 dk önce okudu".
+  const peer = head({ seenUpTo: idAt(42), readUpTo: idAt(80), readTs: at(1), headTs: at(11) })
+  return sync({ peers: { [ALPEREN]: peer }, entries, readUpTo: idAt(42) })
 }
 
 export function dmZeynep(): RoomSync {
@@ -59,23 +63,48 @@ export function dmZeynep(): RoomSync {
 
 const REPO = 'partalemre/eliti'
 
-// The person asks Alperen's agent; it answers. Alperen's agent asks for .env and is refused.
-export function projectEliti(): RoomSync {
+// A diff of three files: 41 lines in, 12 out.
+function diffBody(): string {
+  const file = (name: string, added: number, removed: number) => [
+    `diff --git a/${name} b/${name}`, `--- a/${name}`, `+++ b/${name}`, '@@ -1,1 +1,1 @@',
+    ...Array.from({ length: added }, (_, i) => `+line ${i}`), ...Array.from({ length: removed }, (_, i) => `-old ${i}`),
+  ]
+  return [...file('lib/checkout.dart', 25, 8), ...file('lib/stripe.dart', 12, 4), ...file('test/checkout_test.dart', 4, 0)].join('\n')
+}
+
+// The person asks Alperen's agent; it answers. Alperen's agent asks for the diff (answered here, no model) and
+// for .env, refused (`isDenied: false` leaves that query for the responder to answer live).
+export function projectEliti(o: { isDenied?: boolean } = {}): RoomSync {
   const ask: Message = {
     v: 1, id: idAt(30), ts: at(30), kind: 'query', text: 'Yeni branch neyi değiştiriyor?',
     query: { type: 'ask', repo: REPO, question: 'Yeni branch neyi değiştiriyor? Test durumu ne?' },
   }
   const answer: Message = {
-    v: 1, id: idAt(29), ts: at(29), kind: 'answer', text: '',
-    answer: { qid: idAt(30), ok: true, tokens: 312, body: 'feat/odeme-akisi: ödeme adımı tek ekrana indi, Stripe webhook\'u kuyruktan geçiyor.\nTestler: 128 geçti, 0 kaldı.' },
+    v: 1, id: idAt(29), ts: at(29) + 2_100 - MIN, kind: 'answer', text: '',
+    answer: { qid: idAt(30), ok: true, tokens: 312, body: 'feat/odeme-akisi: ödeme adımı tek ekrana indi, Stripe webhook\'u kuyruktan geçiyor.' },
   }
-  const status: Message = { v: 1, id: idAt(9), ts: at(9), kind: 'query', text: '.env', query: { type: 'file', repo: REPO, path: '.env' } }
+  const diff: Message = { v: 1, id: idAt(18), ts: at(18), kind: 'query', text: 'diff', query: { type: 'diff', repo: REPO } }
+  const diffed: Message = { v: 1, id: idAt(17), ts: at(18) + 400, kind: 'answer', text: '', answer: { qid: idAt(18), ok: true, body: diffBody(), tokens: 0 } }
+  const env: Message = { v: 1, id: idAt(9), ts: at(9), kind: 'query', text: '.env', query: { type: 'file', repo: REPO, path: '.env' } }
   const denied: Message = { v: 1, id: idAt(8), ts: at(8), kind: 'answer', text: '', answer: { qid: idAt(9), ok: false, body: 'erişim yok', tokens: 0 } }
   const entries = [
     said(ALPEREN, human(35, 'Ödeme akışını ayrı branch\'e aldım.')),
-    said(ME, ask), said(ALPEREN, answer), said(ALPEREN, status), said(ME, denied),
+    said(ME, ask), said(ALPEREN, answer), said(ALPEREN, diff), said(ME, diffed), said(ALPEREN, env),
+    ...(o.isDenied === false ? [] : [said(ME, denied)]),
   ]
-  return sync({ peers: { [ALPEREN]: head({ seenUpTo: idAt(8), readUpTo: idAt(8), gh: 'alperenx' }) }, entries, readUpTo: idAt(8) })
+  return sync({ peers: { [ALPEREN]: head({ seenUpTo: idAt(9), readUpTo: idAt(9), gh: 'alperenx', readTs: at(9), headTs: at(9) }) }, entries, readUpTo: idAt(9) })
+}
+
+// The person's agent searched Alperen's repo: seven hits, the first two shown.
+export function grepTraffic(): Entry[] {
+  const hits = [
+    'lib/auth/session_store.dart:42: write(key, refreshToken)', 'lib/auth/interceptor.dart:18: final refreshToken = await storage.read()',
+    'lib/auth/interceptor.dart:31: refreshToken ??= await login()', 'lib/auth/login.dart:12: return refreshToken', 'lib/auth/login.dart:40: save(refreshToken)',
+    'test/auth_test.dart:8: expect(refreshToken, isNotNull)', 'test/auth_test.dart:20: refreshToken = null',
+  ]
+  const query: Message = { v: 1, id: idAt(0.5), ts: at(0.5), kind: 'query', text: 'refreshToken', query: { type: 'grep', repo: REPO, text: 'refreshToken' } }
+  const answer: Message = { v: 1, id: idAt(0.4), ts: at(0.5) + 300, kind: 'answer', text: '', answer: { qid: idAt(0.5), ok: true, tokens: 0, body: hits.join('\n') } }
+  return [said(ME, query), said(ALPEREN, answer)]
 }
 
 export const ROOMS = {

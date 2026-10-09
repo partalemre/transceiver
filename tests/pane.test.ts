@@ -63,7 +63,7 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'connect' })
     const tree = await drawn(ui)
     expect(tree).toContain('Onay verilmedi')
-    expect(tree).toContain('Bağlan ve yazmaya başla')
+    expect(tree).toContain('Okumak serbest')
   })
 
   test(`${surface}: invites are accepted or refused, and the GitHub question is answered once`, async ($: any, on: any) => {
@@ -86,7 +86,7 @@ for (const surface of SURFACES) {
     await startSession($, w, { surface, isBypass: true })
     const ui = await mountPane($, { surface, columns: NARROW })
     await ui.press({ key: 'open-re' })
-    expect(await drawn(ui)).toContain('canlı kapalı')
+    expect((roomsIn(w)).find(r => r.id === 're')?.isLive).toBe(false)
     await ui.press({ key: 'live-re' })
     expect((roomsIn(w)).find(r => r.id === 're')?.isLive).toBe(true)
     await ui.press({ key: 'back' })
@@ -100,7 +100,7 @@ test('a session started with permissions bypassed is connected: no card, writes 
   const w = paneWorld(on, { rooms: ALL, syncs: SYNCS() })
   await startSession($, w, { isBypass: true })
   const ui = await mountPane($, { surface: 'desktop', columns: NARROW })
-  expect(await drawn(ui)).not.toContain('Bağlan ve yazmaya başla')
+  expect(await drawn(ui)).not.toContain('Okumak serbest')
   await ui.press({ key: 'open-ra' })
   await w.clock.advance(1_000)
   const head = w.dbOf(ROOMS.alperen.url).docs.get(`outbox/${ME}`)?.data as { readUpTo: string }

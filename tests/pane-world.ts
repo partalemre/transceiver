@@ -17,6 +17,10 @@ export type WorldOpts = {
   artifact?: (input: Record<string, unknown>) => CallResult
   // More store entries, as other parts of the mod keep them (drafts, settings).
   extra?: Record<string, unknown>
+  // The session's git `origin` (`git remote get-url origin`); absent, the session has no repo.
+  remote?: string
+  // How long reading a room's heads takes on the test clock: the poll's measured round trip.
+  latencyMs?: number
 }
 
 export type World = {
@@ -65,6 +69,12 @@ function roomDbs(o: WorldOpts): Map<string, FakeDb> {
   return dbs
 }
 
+// Every command succeeds with no output, but `git remote get-url origin`, which names the session's repo if any.
+function runAnswer(argv: string[], remote: string | undefined) {
+  if (!argv.includes('get-url')) return { exitCode: 0, stdout: '', stderr: '' }
+  return { exitCode: remote === undefined ? 2 : 0, stdout: remote === undefined ? '' : `${remote}\n`, stderr: '' }
+}
+
 export function paneWorld(on: any, o: WorldOpts = {}): World {
   const dbs = roomDbs(o)
   const db = fakeDb(ME)
@@ -95,11 +105,12 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
   on('ui.copy', (_$: unknown, e: { text: string }) => { world.copies.push(e.text); return { value: { isCopied: true } } })
   on('fs.write', () => ({ value: undefined }))
   on('fs.stat', (_$: unknown, e: { path: string }) => ({ value: { kind: e.path.endsWith('.html') ? 'file' : 'dir', size: 0, mtimeMs: 0, isLink: false } }))
-  on('process.run', (_$: unknown, e: { argv: string[] }) => { world.runs.push(e.argv); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
+  on('process.run', (_$: unknown, e: { argv: string[] }) => { world.runs.push(e.argv); return { value: runAnswer(e.argv, o.remote) } })
   on('tool.call', async (_$: unknown, e: Record<string, unknown>) => {
     world.calls.push(e)
     if (e.tool === 'Artifact') return asToolResult((o.artifact ?? publishAnswer)(e))
     if (e.action === 'profiles') return asToolResult(profiles(e))
+    if (o.latencyMs !== undefined && e.action === 'list' && e.collection === 'outbox') await clock.advance(o.latencyMs)
     return asToolResult(await callerFor(dbOf(e.url))(e))
   })
   return world

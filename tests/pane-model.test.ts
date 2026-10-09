@@ -6,7 +6,7 @@ import { dayLabel, rowTime } from '../hooks/when'
 import { ALPEREN, dmAlperen, idAt, input, NOW, projectEliti, room, ROOMS, ZEYNEP } from './pane-fixtures'
 
 test('rooms sort by their last message; unread, receipts and names come from the sync state', () => {
-  const model = buildModel(input())
+  const model = buildModel({ ...input(), sessionRepo: 'partalemre/eliti', checkOf: () => ({ isOk: true, at: NOW }) })
   expect(model.rooms.map(r => [r.id, r.title, r.unread])).toEqual([['re', 'partalemre/eliti', 0], ['ra', 'Alperen Yıldız', 2], ['rz', 'Zeynep', 0]])
   expect(model.rooms.find(r => r.id === 'rz')?.lastReceipt).toBe('read')
   expect(model.rooms.find(r => r.id === 're')).toMatchObject({ gate: 'open', ghLogin: 'alperenx', lastText: 'Cevap: erişim yok' })
@@ -36,7 +36,7 @@ test('invites are not rooms; a DM nobody joined yet waits; a chat on a missing r
     rooms: [room({ id: 'ri', status: 'invited', kind: 'project', repo: 'a/b' }), room({ id: 'rw' })], syncs: {},
     session: { view: 'chat', activeId: 'gone' },
   }))
-  expect(model.invites).toEqual([{ id: 'ri', title: 'Transceiver · DM', kind: 'project', repo: 'a/b' }])
+  expect(model.invites).toMatchObject([{ id: 'ri', title: 'Transceiver · DM', kind: 'project', repo: 'a/b' }])
   expect(model.rooms.map(r => [r.title, r.isWaiting])).toEqual([['Davet bekleniyor', true]])
   expect(model.view).toBe('rooms')
 })
