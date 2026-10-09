@@ -10,12 +10,12 @@ The pane matches the design canvas (https://claude.ai/artifact/QJAYV1gwXXsEhX9cY
 - Test: `tests/view.test.ts`, `tests/pane.test.tsx`
 
 **Interfaces:**
-- Consumes: `PaneModel`, `EMPTY_PANE`, `Line`, `RoomView` (T1). `RoomSync` (T5). `receiptOf`, `unreadCount` (T5). `RoomRecord`, `Settings`, `loadRooms`, `saveRooms`, `loadSettings`, `saveSettings` (T6). `pokeRoom`, `onTick`, `setViewing`, `syncOf`, `putSync` (T6). `enqueue` (T5). `newId` (T2). `allowRule` (T7). `resolveLight` from `hooks/kit/tokens` (T1).
+- Consumes: `PaneModel`, `EMPTY_PANE`, `Line`, `RoomView` (T1). `RoomSync` (T5). `receiptOf`, `unreadCount` (T5). `RoomRecord`, `Settings`, `loadRooms`, `saveRooms`, `loadSettings`, `saveSettings` (T6). `pokeRoom`, `onTick`, `setViewing`, `syncOf`, `putSync` (T6). `enqueue` (T5). `newId` (T2). `relayOf`, `callerOf` (T4). `resolveLight` from `hooks/kit/tokens` (T1).
 - Produces:
   - `paneAtom`, `refreshPane($)` (`state.ts`)
   - `buildModel(opts)` (`view.ts`, pure)
   - `colors(isLight)` (`theme.ts`)
-  - actions: `sendText`, `selectRoom`, `acceptInvite`, `rejectInvite`, `confirmGh`, `addAllowRule`, `toggleLive`, `approveDraft`, `dropDraft`
+  - actions: `sendText`, `selectRoom`, `acceptInvite`, `rejectInvite`, `confirmGh`, `connectSession`, `toggleLive`, `approveDraft`, `dropDraft`
   - `wirePane(on)`
 
 - [ ] **Step 1: Theme tokens from the canvas**
@@ -240,7 +240,7 @@ import { MAX_TEXT_BYTES } from './limits'
 import { isRepo, utf8Bytes, type Message } from './protocol'
 import { pokeRoom, putSync, setViewing, syncOf } from './room-loop'
 import { loadRooms, saveRooms, type RoomRecord } from './rooms'
-import { allowRule } from './setup'
+import { callerOf, relayOf } from './relay'
 import { draftsNow, refreshPane, setActive, setDrafts, setError, setNeedsSetup } from './state'
 import { enqueue } from './sync'
 import { newId } from './ulid'
@@ -307,12 +307,27 @@ export async function confirmGh($: EngineInterface, opts: { roomId: string; uid:
   await refreshPane($)
 }
 
-export async function addAllowRule($: EngineInterface): Promise<void> {
-  const path = `${(await $.env.get('HOME')) ?? ''}/.claude/settings.json`
-  const current = (await $.fs.exists(path)) ? ((await $.fs.read(path)) as string) : ''
-  const next = allowRule(current)
-  if (next !== null) await $.fs.write(path, next)
-  setNeedsSetup(false)
+const CONNECT_CONSENT = 'The user pressed "Bağlan" on the Transceiver pane to send messages from this session.'
+
+// The first artifact write of a session needs the person's approval (spike R1). It is raised here, by their press,
+// as a no-op rewrite of their own head in one active room; every later write in the session passes without asking.
+export async function connectSession($: EngineInterface): Promise<void> {
+  const room = (await loadRooms($)).find(r => r.status === 'active')
+  const sync = room === undefined ? undefined : syncOf(room.id)
+  if (room === undefined || sync === undefined) return
+  try {
+    const head = sync.ownHead
+    const version = await relayOf(callerOf($, CONNECT_CONSENT), room.url).writeHead({
+      uid: sync.selfUid, version: sync.ownVersion || undefined, nextHead: prev => (prev.head === '' ? head : prev),
+    })
+    putSync(room.id, { ...sync, ownVersion: version })
+    setNeedsSetup(false)
+    setError(null)
+  } catch {
+    // Declined or offline: the card stays, and nothing was written.
+    setError('Bağlanılamadı; onay verilmedi ya da bağlantı yok.')
+  }
+  for (const r of await loadRooms($)) if (r.status === 'active') pokeRoom($, r)
   await refreshPane($)
 }
 
@@ -442,7 +457,7 @@ export type CardsOpts = {
 export function Cards(o: CardsOpts): RenderElement[] {
   const { ui, c } = o
   const cards: RenderElement[] = []
-  if (o.needsSetup) cards.push(CardBox({ ui, c, key: 'setup', title: 'Mesajları izin sormadan taşı', body: 'Ayarlarına permissions.allow: ["ArtifactData", "Artifact"] eklenecek.', yes: 'Ekle', no: 'Şimdi değil', onYes: () => o.on.setup(true), onNo: () => o.on.setup(false) }))
+  if (o.needsSetup) cards.push(CardBox({ ui, c, key: 'setup', title: 'Bu oturumda bağlan', body: 'Mesaj göndermek için Claude bu oturumda bir kez onay ister. Okuma onaysız çalışır; gönderilenler onaya kadar sırada bekler.', yes: 'Bağlan', no: 'Şimdi değil', onYes: () => o.on.setup(true), onNo: () => o.on.setup(false) }))
   for (const inv of o.invites) cards.push(CardBox({ ui, c, key: `inv-${inv.id}`, title: 'Seni Transceiver\'a eklediler', body: `${inv.title}. Kabul edersen yazışabilirsiniz; projelerin ve oturumların hakkında hiçbir bilgi paylaşılmaz.`, yes: 'Kabul et', no: 'Reddet', onYes: () => o.on.accept(inv.id), onNo: () => o.on.reject(inv.id) }))
   if (o.ghAsk !== null) cards.push(CardBox({ ui, c, key: 'gh', title: `${o.ghAsk.name} GitHub'da ${o.ghAsk.gh} mı?`, body: 'Onaylarsan ortak repolarınızda agent\'larınız konuşabilir. Collaborator olmadığı repolar kapalı kalır.', yes: 'Evet, o', no: 'Hayır', onYes: () => o.on.gh(true), onNo: () => o.on.gh(false) }))
   // Past the daily limit nothing is generated until the person says so: the card holds the question, not a paid-for answer.
@@ -456,7 +471,7 @@ export function Cards(o: CardsOpts): RenderElement[] {
 import { read } from 'claude-code'
 import type { ElementTable, EngineInterface, On, RenderElement } from 'claude-code'
 
-import { acceptInvite, addAllowRule, confirmGh, dropDraft, rejectInvite, selectRoom, sendText, toggleLive } from './actions'
+import { acceptInvite, connectSession, confirmGh, dropDraft, rejectInvite, selectRoom, sendText, toggleLive } from './actions'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID } from './limits'
 import { Cards } from './pane-cards'
@@ -488,7 +503,7 @@ export function wirePane(on: On, approve: ($: EngineInterface, qid: string) => P
       on: {
         accept: id => run(() => acceptInvite($, id))(), reject: id => run(() => rejectInvite($, id))(),
         gh: isYes => run(() => (model.ghAsk === null ? Promise.resolve() : confirmGh($, { ...model.ghAsk, isYes })))(),
-        setup: isYes => run(() => (isYes ? addAllowRule($) : (setNeedsSetup(false), refreshPane($))))(),
+        setup: isYes => run(() => (isYes ? connectSession($) : (setNeedsSetup(false), refreshPane($))))(),
         approve: qid => run(() => approve($, qid))(), drop: qid => run(() => dropDraft($, qid))(),
       },
     })
@@ -566,14 +581,17 @@ import type { Register } from 'claude-code'
 import { wireCommands } from './commands'
 import { wirePane } from './pane'
 import { onLatency, onTick, startLoop } from './room-loop'
-import { refreshPane, setLatency } from './state'
+import { refreshPane, setLatency, setNeedsSetup } from './state'
 
 export const register: Register = on => {
   wireCommands(on)
   wirePane(on, async () => undefined)
   on('session.start', async ($, e, next) => {
     onLatency(setLatency)
-    onTick(() => refreshPane($))
+    onTick(async ({ isDenied }) => {
+      if (isDenied) setNeedsSetup(true)
+      await refreshPane($)
+    })
     await startLoop($)
     await refreshPane($)
     return next(e)

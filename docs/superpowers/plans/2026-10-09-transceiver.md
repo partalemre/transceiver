@@ -45,7 +45,7 @@
 | `hooks/state.ts` | atoms and their contract types |
 | `hooks/pane.tsx`, `hooks/pane-list.tsx`, `hooks/pane-chat.tsx`, `hooks/pane-cards.tsx` | the pane |
 | `hooks/notify.ts` | status entry and toast |
-| `hooks/commands.ts` | `/transceiver` subcommands, permission-rule setup |
+| `hooks/commands.ts`, `hooks/join.ts` | `/transceiver` subcommands, joining by link |
 | `hooks/secrets/detect.ts`, `hooks/secrets/jwt.ts` | vendored from MODZ `mods/secret-guard/hooks` |
 | `hooks/pathguard.ts` | repo-relative path policy |
 | `hooks/github.ts` | collaborator check (MCP, then `gh`) |
@@ -66,7 +66,7 @@
 | --- | --- | --- |
 | 0 · Spike | T0 | [phase-0-spike.md](2026-10-09-transceiver/phase-0-spike.md) |
 | 1 · Core | T1 scaffold · T2 protocol + ulid · T3 dbtext · T4 relay | [phase-1-core.md](2026-10-09-transceiver/phase-1-core.md) |
-| 2 · Sync and rooms | T5 timeline + sync · T6 rooms + room page · T7 commands + setup | [phase-2-sync-rooms.md](2026-10-09-transceiver/phase-2-sync-rooms.md) |
+| 2 · Sync and rooms | T5 timeline + sync · T6 rooms + room page · T7 commands + join | [phase-2-sync-rooms.md](2026-10-09-transceiver/phase-2-sync-rooms.md) |
 | 3 · Pane | T8 pane · T9 notify | [phase-3-pane.md](2026-10-09-transceiver/phase-3-pane.md) |
 | 4 · Agents | T10 secrets + pathguard · T11 github + gate · T12 queries · T13 budget + responder · T14 agent tools + live | [phase-4-agents.md](2026-10-09-transceiver/phase-4-agents.md) |
 | 5 · Ship | T15 compaction · T16 two-account E2E + release | [phase-5-ship.md](2026-10-09-transceiver/phase-5-ship.md) |

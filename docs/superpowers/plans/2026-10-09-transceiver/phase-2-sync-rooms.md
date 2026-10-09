@@ -22,7 +22,8 @@
   }
   function initialSync(selfUid: string): RoomSync
   function enqueue(state: RoomSync, message: Message): RoomSync
-  function tick(opts: { relay: Relay; state: RoomSync; isViewing: boolean; isReceiptsOn: boolean }): Promise<{ state: RoomSync; fresh: Entry[] }>
+  type TickResult = { state: RoomSync; fresh: Entry[]; isDenied: boolean }
+  function tick(opts: { relay: Relay; state: RoomSync; isViewing: boolean; isReceiptsOn: boolean }): Promise<TickResult>
   function nextDelay(opts: { isPaneOpen: boolean; failures: number }): number
   ```
 
@@ -150,6 +151,18 @@ test('a failed send stays queued and counts a failure', async () => {
   expect(out.state.failures).toBe(1)
 })
 
+test('unapproved writes keep messages queued but still pull what peers sent', async () => {
+  const db = fakeDb(PEER)
+  await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(PEER), { v: 1, id: A, ts: 1, kind: 'human', text: 'a' }), isViewing: false, isReceiptsOn: true })
+  db.self = ME
+  db.isWriteDenied = true
+  const out = await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(ME), { v: 1, id: B, ts: 2, kind: 'human', text: 'b' }), isViewing: true, isReceiptsOn: true })
+  expect(out.isDenied).toBe(true)
+  expect(out.state.pending.map(m => m.id)).toEqual([B])
+  expect(out.fresh.map(e => e.message.id)).toEqual([A])
+  expect(out.state.failures).toBe(0)
+})
+
 test('read receipts off: readUpTo is never written', async () => {
   const db = fakeDb(ME)
   await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(ME), { v: 1, id: A, ts: 1, kind: 'human', text: 'a' }), isViewing: false, isReceiptsOn: true })
@@ -254,15 +267,28 @@ async function acknowledge(opts: TickOpts & { fresh: Entry[] }): Promise<RoomSyn
   return { ...state, ownHead: head, ownVersion: version }
 }
 
-export async function tick(opts: TickOpts): Promise<{ state: RoomSync; fresh: Entry[] }> {
+export type TickResult = { state: RoomSync; fresh: Entry[]; isDenied: boolean }
+
+// A write the session has not approved yet (spike R1) must not stop reading: pull still runs, sends wait.
+export async function tick(opts: TickOpts): Promise<TickResult> {
+  let isDenied = false
+  const guard = async (fn: () => Promise<RoomSync>, fallback: RoomSync): Promise<RoomSync> => {
+    try {
+      return await fn()
+    } catch (err) {
+      if (!(err instanceof RelayError && err.kind === 'denied')) throw err
+      isDenied = true
+      return fallback
+    }
+  }
   try {
-    const sent = await flush(opts.relay, opts.state)
+    const sent = await guard(() => flush(opts.relay, opts.state), opts.state)
     const pulled = await pull(opts.relay, sent, await opts.relay.heads())
-    const state = await acknowledge({ ...opts, state: pulled.state, fresh: pulled.fresh })
-    return { state: { ...state, failures: 0 }, fresh: pulled.fresh }
+    const state = isDenied ? pulled.state : await guard(() => acknowledge({ ...opts, state: pulled.state, fresh: pulled.fresh }), pulled.state)
+    return { state: { ...state, failures: 0 }, fresh: pulled.fresh, isDenied }
   } catch (err) {
     if (!(err instanceof RelayError)) throw err
-    return { state: { ...opts.state, failures: opts.state.failures + 1 }, fresh: [] }
+    return { state: { ...opts.state, failures: opts.state.failures + 1 }, fresh: [], isDenied }
   }
 }
 ```
@@ -322,12 +348,17 @@ test('room titles carry the prefix discovery looks for', () => {
 })
 
 test('only unknown Transceiver urls from the shared list become invites', () => {
-  const text = [
-    '- Transceiver · DM — https://claude.ai/artifact/AAA111 (shared with you)',
-    '- Quarterly plan — https://claude.ai/artifact/BBB222',
-    '- Transceiver · DM — https://claude.ai/artifact/CCC333',
-  ].join('\n')
-  expect(invitedFrom({ text, knownUrls: ['https://claude.ai/artifact/CCC333'] })).toEqual(['https://claude.ai/artifact/AAA111'])
+  const result = { artifacts: [
+    { title: 'Transceiver · DM', url: 'https://claude.ai/artifact/AAA111', rel: 'shared' },
+    { title: 'Quarterly plan', url: 'https://claude.ai/artifact/BBB222', rel: 'shared' },
+    { title: 'Transceiver · DM', url: 'https://claude.ai/artifact/CCC333', rel: 'shared' },
+  ] }
+  expect(invitedFrom({ result, text: '', knownUrls: ['https://claude.ai/artifact/CCC333'] })).toEqual(['https://claude.ai/artifact/AAA111'])
+})
+
+test('without a structured result the text lines are read', () => {
+  const text = '- (shared) Transceiver · DM — https://claude.ai/artifact/AAA111\n- (shared) Brain Vault — https://claude.ai/artifact/BBB222'
+  expect(invitedFrom({ result: undefined, text, knownUrls: [] })).toEqual(['https://claude.ai/artifact/AAA111'])
 })
 
 test('the room page declares its title first and never embeds data', () => {
@@ -366,7 +397,7 @@ const SETTINGS_KEY = 'tx.settings'
 const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
 const ROOM_CAPABILITIES = {
   db: { rules: [{ path: 'outbox', read: 'view', write: 'owner' }, { path: 'outbox/{self}', write: 'interact' }] },
-  user: {},
+  user: { scopes: ['profile'] },
 }
 
 export const roomTitle = (opts: { kind: 'dm' | 'project'; repo?: string }) =>
@@ -410,19 +441,23 @@ export async function createRoom(opts: { $: EngineInterface; kind: 'dm' | 'proje
   return { id, url, kind: opts.kind, repo: opts.repo, title, status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: now }
 }
 
-export function invitedFrom(opts: { text: string; knownUrls: string[] }): string[] {
+type Listed = { title?: unknown; url?: unknown }
+
+// The tool's structured result lists `{ title, url }` (spike R3); the text is only a fallback.
+export function invitedFrom(opts: { result: unknown; text: string; knownUrls: string[] }): string[] {
   const known = new Set(opts.knownUrls)
-  return opts.text.split('\n')
-    .filter(line => line.includes(TITLE_PREFIX.trim()))
-    .flatMap(parseArtifactUrls)
-    .filter(url => !known.has(url))
+  const listed = (opts.result as { artifacts?: Listed[] } | undefined)?.artifacts
+  const urls = Array.isArray(listed)
+    ? listed.filter(a => typeof a.title === 'string' && a.title.startsWith(TITLE_PREFIX) && typeof a.url === 'string').map(a => a.url as string)
+    : opts.text.split('\n').filter(line => line.includes(TITLE_PREFIX.trim())).flatMap(parseArtifactUrls)
+  return [...new Set(urls)].filter(url => !known.has(url))
 }
 
 // A listed title is a hint only; a room is real once its meta doc parses.
 export async function discoverInvites(opts: { $: EngineInterface; known: RoomRecord[] }): Promise<RoomRecord[]> {
   const { $ } = opts
-  const out = (await $.tool.call({ tool: 'Artifact', action: 'list', scope: 'shared', limit: 100 } as never)) as { text?: string }
-  const urls = invitedFrom({ text: out.text ?? '', knownUrls: opts.known.map(r => r.url) })
+  const out = (await $.tool.call({ tool: 'Artifact', action: 'list', scope: 'shared', limit: 100 } as never)) as { text?: string; result?: unknown }
+  const urls = invitedFrom({ result: out.result, text: out.text ?? '', knownUrls: opts.known.map(r => r.url) })
   const now = await $.clock.now()
   const found: RoomRecord[] = []
   for (const url of urls) {
@@ -532,7 +567,7 @@ import { initialSync, nextDelay, tick, type RoomSync } from './sync'
 import type { Entry } from './timeline'
 
 const SYNC_KEY = (id: string) => `tx.sync.${id}`
-type Listener = (opts: { room: RoomRecord; state: RoomSync; fresh: Entry[] }) => Promise<void>
+type Listener = (opts: { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean }) => Promise<void>
 
 const syncs = new Map<string, RoomSync>()
 const timers = new Map<string, { cancel(): void }>()
@@ -558,7 +593,7 @@ async function step($: EngineInterface, room: RoomRecord): Promise<void> {
   const out = await tick({ relay, state, isViewing: isPaneOpen && viewing === room.id, isReceiptsOn: settings.isReceiptsOn })
   syncs.set(room.id, out.state)
   await $.store.set(SYNC_KEY(room.id), out.state)
-  for (const fn of listeners) await fn({ room, state: out.state, fresh: out.fresh })
+  for (const fn of listeners) await fn({ room, state: out.state, fresh: out.fresh, isDenied: out.isDenied })
   schedule($, room, nextDelay({ isPaneOpen, failures: out.state.failures }))
 }
 
@@ -612,19 +647,23 @@ git commit -m "feat(rooms): publish room artifacts, discover invites, run the po
 
 ---
 
-### Task 7: `/transceiver` commands and first-run setup
+### Task 7: `/transceiver` commands and joining by link
+
+The spike (`docs/spike-results.md`) showed two things. A settings allow rule cannot skip the per-session write approval, so there is no allow-rule setup; T8's "Bağlan" card handles the approval instead. And invites from another organization are not listed, so `katıl <link>` is required.
 
 **Files:**
-- Create: `hooks/commands.ts`, `hooks/setup.ts`
+- Create: `hooks/commands.ts`, `hooks/join.ts`
 - Modify: `hooks/register.tsx`
 - Test: `tests/commands.test.ts`
 
 **Interfaces:**
-- Consumes: `createRoom`, `loadRooms`, `saveRooms`, `loadSettings`, `saveSettings` (T6). `pokeRoom`, `stopRoom` (T6). `PANE_ID`, `COMMAND` (T1).
+- Consumes: `createRoom`, `loadRooms`, `saveRooms`, `roomTitle`, `RoomRecord` (T6). `pokeRoom`, `stopRoom` (T6). `relayOf`, `callerOf` (T4). `parseArtifactUrls` (T3). `newId` (T2). `PANE_ID`, `COMMAND` (T1).
 - Produces:
   - `parseCommand(args): Cmd` (pure), where `Cmd = { verb: 'open' | 'ekle' | 'proje' | 'katil' | 'cik' | 'kur' | 'ayarlar' | 'yardim'; arg: string }`
-  - `wireCommands(on)`.
-  - `allowRule(settingsText): string | null` (pure): adds `"ArtifactData"` and `"Artifact"` to `permissions.allow`. Returns `null` when they are already present.
+  - `joinUrlOf(text): string | null` (pure)
+  - `joinRoom($, url): Promise<string>`
+  - `openPane($)`
+  - `wireCommands(on)`
 
 - [ ] **Step 1: Failing tests**
 
@@ -632,7 +671,7 @@ git commit -m "feat(rooms): publish room artifacts, discover invites, run the po
 ```ts
 import { expect, test } from 'claude-code/testing'
 import { parseCommand } from '../hooks/commands'
-import { allowRule } from '../hooks/setup'
+import { joinUrlOf } from '../hooks/join'
 
 test('no args opens the pane; Turkish verbs parse with or without diacritics', () => {
   expect(parseCommand('')).toEqual({ verb: 'open', arg: '' })
@@ -643,39 +682,42 @@ test('no args opens the pane; Turkish verbs parse with or without diacritics', (
   expect(parseCommand('bilinmeyen')).toEqual({ verb: 'yardim', arg: 'bilinmeyen' })
 })
 
-test('allow rule is added once and keeps other settings', () => {
-  const before = JSON.stringify({ theme: 'dark', permissions: { allow: ['Bash(git status)'] } })
-  const after = allowRule(before)
-  expect(after).not.toBe(null)
-  const parsed = JSON.parse(after as string)
-  expect(parsed.theme).toBe('dark')
-  expect(parsed.permissions.allow).toEqual(['Bash(git status)', 'ArtifactData', 'Artifact'])
-  expect(allowRule(after as string)).toBe(null)
-})
-
-test('settings that are not JSON are left alone', () => {
-  expect(allowRule('{ not json')).toBe(null)
+test('only a claude.ai artifact link is accepted for joining', () => {
+  expect(joinUrlOf(' https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb ')).toBe('https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb')
+  expect(joinUrlOf('https://evil.example/artifact/AAA')).toBe(null)
+  expect(joinUrlOf('')).toBe(null)
 })
 ```
 
-- [ ] **Step 2: Implement `hooks/setup.ts`**
+- [ ] **Step 2: Implement `hooks/join.ts`**
 
 ```ts
-const RULES = ['ArtifactData', 'Artifact']
+import type { EngineInterface } from 'claude-code'
 
-// Pure: the new settings text, or null when nothing should change (already there, or unreadable JSON we must not clobber).
-export function allowRule(settingsText: string): string | null {
-  let settings: Record<string, unknown>
-  try {
-    settings = JSON.parse(settingsText === '' ? '{}' : settingsText) as Record<string, unknown>
-  } catch {
-    return null
-  }
-  const permissions = (settings.permissions ?? {}) as { allow?: string[] }
-  const allow = Array.isArray(permissions.allow) ? permissions.allow : []
-  const missing = RULES.filter(r => !allow.includes(r))
-  if (missing.length === 0) return null
-  return `${JSON.stringify({ ...settings, permissions: { ...permissions, allow: [...allow, ...missing] } }, null, 2)}\n`
+import { parseArtifactUrls } from './dbtext'
+import { callerOf, relayOf } from './relay'
+import { pokeRoom } from './room-loop'
+import { loadRooms, roomTitle, saveRooms } from './rooms'
+import { newId } from './ulid'
+
+export function joinUrlOf(text: string): string | null {
+  const urls = parseArtifactUrls(text.trim())
+  return urls.length === 1 && text.trim() === urls[0] ? urls[0] : null
+}
+
+// A link is a room only if its meta doc parses; the person typed the link, so joining needs no extra yes.
+export async function joinRoom($: EngineInterface, text: string): Promise<string> {
+  const url = joinUrlOf(text)
+  if (url === null) return 'Kullanım: /transceiver katıl <https://claude.ai/artifact/…>'
+  const rooms = await loadRooms($)
+  if (rooms.some(r => r.url === url && r.status === 'active')) return 'Bu odaya zaten katıldın.'
+  const meta = await relayOf(callerOf($), url).meta().catch(() => null)
+  if (meta === null) return 'Bu link bir Transceiver odası değil ya da sana paylaşılmamış.'
+  const now = await $.clock.now()
+  const room = { id: newId(now), url, kind: meta.kind, repo: meta.repo, title: roomTitle(meta), status: 'active' as const, isLive: false, isOwner: false, peers: [], joinedAt: now }
+  await saveRooms($, [...rooms.filter(r => r.url !== url), room])
+  pokeRoom($, room)
+  return `${room.title} odasına katıldın.`
 }
 ```
 
@@ -684,6 +726,7 @@ export function allowRule(settingsText: string): string | null {
 ```ts
 import type { EngineInterface, On } from 'claude-code'
 
+import { joinRoom } from './join'
 import { COMMAND, PANE_ID } from './limits'
 import { isRepo } from './protocol'
 import { pokeRoom, stopRoom } from './room-loop'
@@ -699,9 +742,9 @@ const HELP = [
   '/transceiver — pencereyi aç',
   '/transceiver ekle — arkadaş için DM odası aç',
   '/transceiver proje <sahip/repo> — ortak proje odası aç',
-  '/transceiver katıl <link> — davet linkiyle katıl',
+  '/transceiver katıl <link> — davet linkiyle katıl (başka organizasyondan davetler listede görünmez)',
   '/transceiver çık <oda> — odadan çık',
-  '/transceiver kur — izin kuralını göster ve ekle',
+  '/transceiver kur — bu oturumda bağlan (ilk mesaj için tek onay)',
   '/transceiver ayarlar — okundu bilgisi, bildirimler, GitHub adın',
 ].join('\n')
 
@@ -713,14 +756,14 @@ export function parseCommand(args: string): Cmd {
   return VERBS.has(verb) ? { verb, arg } : { verb: 'yardim', arg: head }
 }
 
-const openPane = ($: EngineInterface) => $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true, closeOnEscape: true } as never)
+export const openPane = ($: EngineInterface) => $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true, closeOnEscape: true } as never)
 
 async function addRoom($: EngineInterface, kind: 'dm' | 'project', repo?: string): Promise<string> {
   const room = await createRoom({ $, kind, repo })
   await saveRooms($, [...(await loadRooms($)), room])
   pokeRoom($, room)
   await openPane($)
-  return `Oda hazır: ${room.url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla davet et.`
+  return `Oda hazır: ${room.url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla davet et; sonra linki ona gönder (/transceiver katıl <link>).`
 }
 
 async function leave($: EngineInterface, name: string): Promise<string> {
@@ -729,7 +772,7 @@ async function leave($: EngineInterface, name: string): Promise<string> {
   if (room === undefined) return `Oda bulunamadı: ${name}`
   stopRoom(room.id)
   await saveRooms($, rooms.map(r => (r.id === room.id ? { ...r, status: 'left' as const } : r)))
-  return `${room.title} odasından çıkıldı. Mesajlarını silmek için pencerede odayı seçip "Mesajlarımı sil"e bas.`
+  return `${room.title} odasından çıkıldı.`
 }
 
 async function run($: EngineInterface, cmd: Cmd): Promise<string | null> {
@@ -740,13 +783,13 @@ async function run($: EngineInterface, cmd: Cmd): Promise<string | null> {
   if (cmd.verb === 'ekle') return addRoom($, 'dm')
   if (cmd.verb === 'proje') return isRepo(cmd.arg) ? addRoom($, 'project', cmd.arg) : 'Kullanım: /transceiver proje <sahip/repo>'
   if (cmd.verb === 'cik') return leave($, cmd.arg)
-  if (cmd.verb === 'katil') return 'Davetler pencerede kendiliğinden görünür; görünmüyorsa linki Paylaş ile yeniden gönderin.'
+  if (cmd.verb === 'katil') return joinRoom($, cmd.arg)
   return HELP
 }
 
 export function wireCommands(on: On): void {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: COMMAND, description: 'Arkadaşlarınla ve agent\'larla Claude içinde yazış', argumentHint: '[ekle | proje <repo> | çık <oda> | kur | ayarlar]', immediate: true })
+    await $.command.register({ name: COMMAND, description: 'Arkadaşlarınla ve agent\'larla Claude içinde yazış', argumentHint: '[ekle | proje <repo> | katıl <link> | çık <oda> | kur | ayarlar]', immediate: true })
     return next(e)
   })
   on('command.run', { command: COMMAND }, async ($, e) => {
@@ -755,10 +798,6 @@ export function wireCommands(on: On): void {
   })
 }
 ```
-
-`kur` and `ayarlar` open the pane. The setup card and the settings card live there (T8). When the user presses "Ekle" on the setup card, it reads `~/.claude/settings.json`, calls `allowRule`, and writes the result back. When `allowRule` returns `null`, nothing is written.
-
-If T0 found that `katıl <url>` is needed (R3), replace the `katil` line with code that calls `relayOf(callerOf($), cmd.arg).meta()`. If the meta doc parses, push a `status: 'active'` record and call `pokeRoom`. If it does not, answer `Bu link bir Transceiver odası değil.`
 
 - [ ] **Step 4: Wire in `register.tsx`**
 
@@ -781,6 +820,6 @@ export const register: Register = on => {
 Run: `claude plugin test . && claude plugin validate .`
 Expected: PASS.
 ```bash
-git add hooks/commands.ts hooks/setup.ts hooks/register.tsx tests/commands.test.ts
-git commit -m "feat(commands): add /transceiver with room and setup verbs" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add hooks/commands.ts hooks/join.ts hooks/register.tsx tests/commands.test.ts
+git commit -m "feat(commands): add /transceiver with room, join and leave verbs" -m "Joining by link covers friends in another organization, whose invites the shared list omits." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```

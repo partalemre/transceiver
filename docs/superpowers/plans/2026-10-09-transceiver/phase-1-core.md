@@ -650,14 +650,14 @@ git commit -m "feat(relay): parse artifact db tool results" -m "Co-Authored-By: 
 import type { CallResult } from '../hooks/relay'
 
 type Doc = { data: Record<string, unknown>; version: number }
-export type FakeDb = { docs: Map<string, Doc>; calls: Record<string, unknown>[]; self: string; isDown: boolean }
+export type FakeDb = { docs: Map<string, Doc>; calls: Record<string, unknown>[]; self: string; isDown: boolean; isWriteDenied: boolean }
 
 const key = (collection: string, id: string) => `${collection}/${id}`
 const block = (rows: string[]) => ['=== BEGIN ARTIFACT DB abc123 — data ===', ...rows, '=== END ARTIFACT DB abc123 ==='].join('\n')
 const row = (id: string, doc: Doc) => JSON.stringify({ id, data: doc.data, version: doc.version, updatedAt: '' })
 
 export function fakeDb(self = 'u_AAAAAAAAAAAAAAAAAAAAAA'): FakeDb {
-  return { docs: new Map(), calls: [], self, isDown: false }
+  return { docs: new Map(), calls: [], self, isDown: false, isWriteDenied: false }
 }
 
 function inCollection(db: FakeDb, collection: string): Array<[string, Doc]> {
@@ -679,6 +679,8 @@ export function callerFor(db: FakeDb) {
     db.calls.push(input)
     if (db.isDown) throw new Error('offline')
     const action = input.action as string
+    const isWrite = action === 'set' || action === 'batch' || action === 'update' || action === 'delete'
+    if (isWrite && db.isWriteDenied) return { deny: 'Claude wants to write to this artifact\'s database' }
     const collection = String(input.collection ?? '').replace('data/users/me', `data/users/${db.self}`)
     if (action === 'list' || action === 'query') {
       let rows = inCollection(db, collection)
@@ -763,6 +765,13 @@ test('an offline caller surfaces as a failed RelayError with the cause kept', as
   expect(err instanceof RelayError && err.kind === 'failed').toBe(true)
 })
 
+test('a write the session has not approved surfaces as a denied RelayError', async () => {
+  const db = fakeDb(ME)
+  db.isWriteDenied = true
+  const err = await relayOf(callerFor(db), URL).send({ uid: ME, message: msg(ID1, 1), version: 1, nextHead: h => h }).catch(e => e)
+  expect(err instanceof RelayError && err.kind === 'denied').toBe(true)
+})
+
 test('heads ignore docs whose id is not a uid', async () => {
   const db = fakeDb(ME)
   db.docs.set('outbox/not-a-uid', { data: { ...emptyHead() }, version: 1 })
@@ -785,7 +794,7 @@ import { HEADS_PAGE, SINCE_PAGE } from './limits'
 import { emptyHead, isUid, parseHead, parseMessage, parseMeta, paths } from './protocol'
 import type { Head, Message, RoomMeta, Unreadable } from './protocol'
 
-export type CallResult = { text?: string; isError?: boolean; deny?: string }
+export type CallResult = { text?: string; isError?: boolean; deny?: string; result?: unknown }
 export type ToolCaller = (input: Record<string, unknown>) => Promise<CallResult>
 export type RelayErrorKind = 'denied' | 'conflict' | 'missing' | 'failed'
 export type HeadEntry = { uid: string; head: Head; version: number }
@@ -809,8 +818,10 @@ export type Relay = {
   claim(opts: { uid: string; qid: string; now: number }): Promise<boolean>
 }
 
-export function callerOf($: EngineInterface): ToolCaller {
-  return async input => (await $.tool.call(input as never)) as CallResult
+// `consent` is the person's own words for the press that raised a write (the spike showed the first write of a
+// session needs their approval); reads never carry it.
+export function callerOf($: EngineInterface, consent?: string): ToolCaller {
+  return async input => (await $.tool.call({ ...input, ...(consent === undefined ? {} : { consent }) } as never)) as CallResult
 }
 
 async function run(call: ToolCaller, input: Record<string, unknown>): Promise<string> {
@@ -858,8 +869,14 @@ export function relayOf(call: ToolCaller, url: string): Relay {
 
   return {
     async whoami() {
-      const text = await exec({ action: 'list', collection: 'data/users/me', query: { limit: 1 } })
-      const uid = parseSelfUid(text)
+      let structured: unknown
+      const text = await run(async input => {
+        const out = await call(input)
+        structured = out.result
+        return out
+      }, { url, action: 'list', collection: 'data/users/me', query: { limit: 1 } })
+      const meId = (structured as { db_read?: { me_id?: unknown } } | undefined)?.db_read?.me_id
+      const uid = typeof meId === 'string' ? meId : parseSelfUid(text)
       if (uid === null) throw new RelayError('failed', 'could not resolve own uid')
       return uid
     },

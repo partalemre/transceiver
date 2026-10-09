@@ -171,7 +171,8 @@ Expected: no errors, all tests pass.
 Copy this into `docs/e2e.md` and tick each item with the observed result:
 ```markdown
 - [ ] A: `/transceiver` opens the pane on terminal and on the desktop Code tab; other mods' bands and panes unchanged
-- [ ] A: `/transceiver kur` card → Ekle → `~/.claude/settings.json` gains the two allow rules, nothing else changes
+- [ ] A (not in bypass mode): first send shows the "Bu oturumda bağlan" card → Bağlan → one approval dialog → queued message goes out; later sends in the session ask nothing
+- [ ] B (other organization): invite not listed → `/transceiver katıl <link>` joins
 - [ ] A: `/transceiver ekle` → room artifact published, link shown; A shares it with B by email
 - [ ] B: invite card appears within 60 s → Kabul et
 - [ ] A↔B: messages arrive in ≤ 2 s with the pane open; ✓ → ✓✓ → blue ✓✓
@@ -193,7 +194,7 @@ Copy this into `docs/e2e.md` and tick each item with the observed result:
 
 - [ ] **Step 3: README**
 
-Replace `README.md` with: what it does (3 lines). Install (`/plugin install transceiver --marketplace partalemre/transceiver`, then `/transceiver kur`). Commands (the HELP text from `commands.ts`). Agent tools (`send`, `inbox`, `ask` and the query types). Privacy (what is stored where, what is never stored, the gate, `erişim yok`). Costs (transport and typed queries 0 tokens, `ask` Haiku ≤ 10/day/room, live mode wakes cost tokens). Limits (polling, 25,000 docs, compaction). Copy the privacy and costs wording from the spec.
+Replace `README.md` with: what it does (3 lines). Install (`/plugin install transceiver --marketplace partalemre/transceiver`, then `/transceiver`). Explain the one approval per session for sending and `katıl <link>` for friends in another organization. Commands (the HELP text from `commands.ts`). Agent tools (`send`, `inbox`, `ask` and the query types). Privacy (what is stored where, what is never stored, the gate, `erişim yok`). Costs (transport and typed queries 0 tokens, `ask` Haiku ≤ 10/day/room, live mode wakes cost tokens). Limits (polling, 25,000 docs, compaction). Copy the privacy and costs wording from the spec.
 
 - [ ] **Step 4: Commit, then publish (ask first)**
 
