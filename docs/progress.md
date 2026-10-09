@@ -20,7 +20,7 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T15 compaction + rollover | done | `0ea0835` | 289 |
 | T16 simulated E2E | done (real run pending) | `957acf0` | 309 |
 | Release polish | done | `4937999` | 309 |
-| Review pass | done | see git log | 352 of 356 (4 failing are the pane redesign in progress) |
+| Review pass | done | `cb5e13c` | 356 (all pass at the final check) |
 
 ## T4 review fixes
 
@@ -221,4 +221,4 @@ Reported, not fixed (other tasks' files, or a design decision):
 - The persisted `tx.sync.<id>` keeps up to `KEEP_ENTRIES` (500) full messages and is rewritten on every new message: up to several MB for a room of long answers. Persisting fewer than the pane shows would lose scrollback, so this is left as is.
 - The room page asks `user.profiles` on every snapshot. A per-page cache would save calls.
 - The room page's `update({ head, headTs })` carries no version pin. Whether the page's db client needs one is unmeasured; checklist item 1.6 covers sending from the phone.
-- At the time of this pass, 4 tests in `tests/pane.test.ts` fail on copy the pane redesign changed ("Bağlan ve yazmaya başla"). That work is in progress.
+- During this pass, 4 tests in `tests/pane.test.ts` failed on copy that the pane redesign was changing. At the final check all 356 tests pass, `tsc` is clean, and `claude plugin validate .` passes with no warnings.
