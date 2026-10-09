@@ -35,6 +35,31 @@ for (const surface of SURFACES) {
     expect(w.copies).toEqual(['https://claude.ai/artifact/NEWROOM1x'])
   })
 
+  test(`${surface}: the empty state offers every first step; the project form starts with the session's repo`, async ($: any, on: any) => {
+    const w = paneWorld(on, { rooms: [], syncs: {}, remote: 'git@github.com:partalemre/eliti.git' })
+    await startSession($, w, { surface, isBypass: true })
+    await $.command.run({ command: 'transceiver', args: '' })
+    const ui = await mountPane($, { surface, columns: NARROW })
+    for (const key of ['add-dm', 'open-add', 'open-join', 'open-settings']) expect(await ui.findAll({ type: 'Button', key })).toHaveLength(1)
+    await ui.press({ key: 'open-settings' })
+    expect(await drawn(ui)).toContain('Okundu bilgisi')
+    await ui.press({ key: 'back' })
+    await ui.press({ key: 'open-add' })
+    expect(await ui.findAll({ type: 'Input', key: 'add-repo', text: 'partalemre/eliti' })).toHaveLength(1)
+    await ui.input({ key: 'add-repo', text: 'partalemre/eliti' })
+    expect(roomsIn(w).map(r => [r.kind, r.repo])).toEqual([['project', 'partalemre/eliti']])
+  })
+
+  test(`${surface}: outside a GitHub repo the project form starts empty`, async ($: any, on: any) => {
+    const w = paneWorld(on, { rooms: [], syncs: {}, remote: 'git@gitlab.com:someone/thing.git' })
+    await startSession($, w, { surface, isBypass: true })
+    const ui = await mountPane($, { surface, columns: NARROW })
+    await ui.press({ key: 'open-join' })
+    const [field] = await ui.findAll({ type: 'Input', key: 'add-repo' })
+    expect(field).toBeDefined()
+    expect(await ui.findAll({ type: 'Input', key: 'add-repo', text: /\w/ })).toHaveLength(0)
+  })
+
   test(`${surface}: until "Bağlan" a message waits on screen and nothing is written`, async ($: any, on: any) => {
     const w = paneWorld(on, { rooms: ALL, syncs: SYNCS() })
     await startSession($, w, { surface })

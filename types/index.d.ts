@@ -96,6 +96,8 @@ export type PaneModel = {
   composeMode: string | null
   isSheetOpen: boolean
   hint: string | null
+  // The session's GitHub repo (its git origin), offered as a new project room's name; null outside one.
+  sessionRepo: string | null
 }
 
 declare module 'claude-code' {

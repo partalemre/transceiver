@@ -60,6 +60,18 @@ function Words(ctx: Ctx, o: { key: string; part: Part; text?: string; color?: st
 const ONBOARD = 'Arkadaşlarınla Claude\'un içinden yazış. Ortak bir GitHub reposunda agent\'larınız da konuşur, taşıma token harcamaz.'
 const STEPS = ['Oda aç', 'Linki e-postayla paylaş', 'Yazış']
 
+// Every first step is a button: no command needs typing. The project and link forms live in "Yeni sohbet".
+function startButtons(ctx: Ctx): Btn[] {
+  const forms: Btn[] = 'Input' in ctx.ui
+    ? [{ key: 'open-add', label: 'Proje odası', onPress: () => ctx.on.openView('add') }, { key: 'open-join', label: 'Linkle katıl', onPress: () => ctx.on.openView('add') }]
+    : []
+  return [
+    { key: 'add-dm', label: 'Arkadaş ekle', variant: 'primary', onPress: () => ctx.on.addDm() },
+    ...forms,
+    { key: 'open-settings', label: 'Ayarlar', variant: 'plain', onPress: () => ctx.on.openView('settings') },
+  ]
+}
+
 export function EmptyCard(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
   const isRow = innerOf(ctx) >= ROW_MIN_PX
@@ -68,10 +80,7 @@ export function EmptyCard(ctx: Ctx): RenderElement {
     Words(ctx, { key: 'empty-head', part: cardHeadPart({ width: textW, eyebrow: 'Başla', paint: 'signal', title: 'Telsizini aç', titleSize: 20 }), text: 'BAŞLA · Telsizini aç', color: ctx.look.signal.fg }),
     Words(ctx, { key: 'empty-body', part: body(ctx, ONBOARD, textW), text: ONBOARD }),
     Words(ctx, { key: 'empty-steps', part: stepsPart({ width: textW, steps: STEPS }), text: STEPS.map((s, i) => `${i + 1} ${s}`).join('  ') }),
-    Buttons(ctx, [
-      { key: 'add-dm', label: 'Arkadaş ekle', variant: 'primary', onPress: () => ctx.on.addDm() },
-      ...('Input' in ctx.ui ? [{ key: 'open-add', label: 'Proje odası', onPress: () => ctx.on.openView('add') }, { key: 'open-join', label: 'Linkle katıl', variant: 'plain' as const, onPress: () => ctx.on.openView('add') }] : []),
-    ]),
+    Buttons(ctx, startButtons(ctx)),
   ]
   const art = isText(ctx) ? null : Pic(ctx, radioArtPart({ width: isRow ? ART_W : innerOf(ctx), height: isRow ? ART_H : ART_STACK_H, isLive: true }), 'radio-art')
   return Card(ctx, {

@@ -9,19 +9,21 @@ Claude Code'un içinden, ek bir servis kurmadan arkadaşlarınla yazışırsın.
 /transceiver
 ```
 
-`/transceiver` sohbet penceresini açar. Repo gizliyse arkadaşının da repoyu okuma izni olmalı, yoksa kurulum onda çalışmaz.
+`/transceiver` yazıp Enter'a bas: sohbet penceresi açılır ve her adım orada bir düğmedir. Repo gizliyse arkadaşının da repoyu okuma izni olmalı, yoksa kurulum onda çalışmaz.
 
 ## Nasıl çalışır
 
-1. **Oda aç.** `/transceiver ekle` bir DM odası açar. `/transceiver proje sahip/repo` o repo için ortak bir proje odası açar. Her oda claude.ai'de senin olan özel bir artifact'tir. Komut, linki ve sonraki adımı gösterir.
+1. **Oda aç.** Penceredeki **Arkadaş ekle** bir DM odası açar. **Proje odası** ortak bir repo için oda açar; alan, oturumun GitHub reposuyla dolu gelir, istersen değiştirirsin. Her oda claude.ai'de senin olan özel bir artifact'tir. Pencere linki ve sonraki adımı gösterir.
 2. **Davet et.** Linki claude.ai'de aç, sayfanın **Paylaş** menüsünden arkadaşının e-postasını ekle. Bu adımı elle yapman gerekiyor, çünkü platformun paylaşım API'si yok.
-3. **Katıl.** Aynı organizasyondaysanız arkadaşının penceresinde en geç bir dakika içinde bir davet kartı çıkar ve **Kabul et**'e basar. Başka bir organizasyondan gelen davetler bu listede görünmez. O durumda arkadaşın `/transceiver katıl <link>` yazar.
+3. **Katıl.** Aynı organizasyondaysanız arkadaşının penceresinde en geç bir dakika içinde bir davet kartı çıkar ve **Kabul et**'e basar. Başka bir organizasyondan gelen davetler bu listede görünmez. O durumda arkadaşın penceresindeki **Linkle katıl** alanına linki yapıştırır.
 4. **Bağlan.** Bir oturumda ilk mesajı yazdığında pencerede **Bağlan** kartı çıkar. Claude, odaya yazmak için bu oturumda bir kez onay ister. Onay verdikten sonra o oturumda başka bir şey sorulmaz. Bağlanmadan önce gelen mesajları okursun ama yazamazsın. `bypassPermissions` ile açılan bir oturum baştan bağlıdır.
 5. **Proje odasında GitHub eşleşmesi.** Her iki taraf da GitHub adını kendi kutusuna yazar. Pencere bir kez "X GitHub'da Y mi?" diye sorar. **Evet** dersen o kişinin agent'ı repo hakkında soru sorabilir.
 
 Mesajlar pencere açıkken yaklaşık 1 saniyede gelir. Pencere kapalıysa durum satırında okunmamış sayısı görünür ve bir bildirim çıkar. Mesajın altındaki işaretlerin anlamı: ◷ gönderiliyor, ✓ yazıldı, ✓✓ karşıya ulaştı, mavi ✓✓ okundu. Okundu bilgisini kapatırsan WhatsApp'taki gibi iki yönde de kapanır. Oda linki telefonda ve tarayıcıda da canlı bir sohbet sayfası olarak açılır.
 
 ## Komutlar
+
+Hepsi pencerede bir düğme olarak da var; komutlar kısayoldur. Yanlış bir alt komut bu listeyi gösterir.
 
 | Komut | Ne yapar |
 | --- | --- |

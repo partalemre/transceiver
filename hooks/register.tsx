@@ -2,7 +2,7 @@ import type { EngineInterface, On, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
-import { ARGUMENT_HINT, DESCRIPTION, parseCommand, runCommand } from './commands'
+import { DESCRIPTION, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
@@ -104,7 +104,7 @@ async function openPane($: EngineInterface): Promise<void> {
 function onSession(on: On): void {
   on('session.start', async ($, e, next) => {
     // A refused registration must not keep the rooms from polling.
-    await $.command.register({ name: 'transceiver', description: DESCRIPTION, argumentHint: ARGUMENT_HINT, immediate: true })
+    await $.command.register({ name: 'transceiver', description: DESCRIPTION, immediate: true })
       .catch(() => $.ui.log('transceiver: /transceiver could not be registered'))
     const agents = agentHostOf($)
     // The pane listens first, so a failing agent-side listener never keeps it from redrawing.

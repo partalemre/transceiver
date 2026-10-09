@@ -15,8 +15,9 @@ const fold = (s: string) => s.toLocaleLowerCase('tr').replace(/[çığöşü]/g,
 const VERBS = new Set<Verb>(['ekle', 'proje', 'katil', 'cik', 'kur', 'ayarlar'])
 const PANE_VERBS = new Set<Verb>(['open', 'kur', 'ayarlar'])
 
-export const DESCRIPTION = 'Arkadaşlarınla ve agent\'larla Claude içinde yazış'
-export const ARGUMENT_HINT = '[ekle | proje <repo> | katıl <link> | çık <oda> | kur | ayarlar]'
+// No argument hint: a bare /transceiver opens the pane, where every step is a button. The verbs below still work
+// when typed, and a wrong one answers with HELP.
+export const DESCRIPTION = 'Arkadaşlarınla ve agent\'larla yazış: pencereyi açar'
 export const HELP = [
   `/${COMMAND} — pencereyi aç`,
   `/${COMMAND} ekle — arkadaş için DM odası aç`,
