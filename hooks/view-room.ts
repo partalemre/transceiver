@@ -35,30 +35,26 @@ export function gateBadge(c: GateChecks): GateBadge {
   return c.isCollaborator === true && c.isSessionRepo === true ? 'open' : 'unknown'
 }
 
-type Today = { counts: DayCounts; queries: number }
-
-// Today's agent traffic: every query in the room, and the answers this machine wrote (a split answer once).
-export function todayOf(sync: RoomSync | undefined, now: number): Today {
+// Today's answers this machine wrote in the room (a split answer once): how many, with no model, refused.
+export function todayOf(sync: RoomSync | undefined, now: number): DayCounts {
   const start = dayKey(now)
-  const today: Today = { counts: { answered: 0, modelless: 0, denied: 0 }, queries: 0 }
+  const today: DayCounts = { answered: 0, modelless: 0, denied: 0 }
   for (const e of sync?.entries ?? []) {
     const m = e.message
     if (isUnreadable(m) || m.ts < start) continue
-    if (m.kind === 'query') today.queries += 1
     const isOwnAnswer = m.kind === 'answer' && e.author === sync?.selfUid && (m.answer?.part ?? 1) === 1
     if (!isOwnAnswer) continue
-    today.counts.answered += 1
-    if (m.answer?.ok === false) today.counts.denied += 1
-    else if (m.answer?.tokens === 0) today.counts.modelless += 1
+    today.answered += 1
+    if (m.answer?.ok === false) today.denied += 1
+    else if (m.answer?.tokens === 0) today.modelless += 1
   }
   return today
 }
 
 export function projectInfo(o: { room: RoomRecord; sync: RoomSync | undefined; src: RoomSources; now: number }): ProjectInfo {
-  const today = todayOf(o.sync, o.now)
   return {
     checks: gateChecks(o.room, o.sync, o.src), askUsed: o.src.askUsed?.[o.room.id] ?? 0, askLimit: ASK_DAILY_LIMIT,
-    today: today.counts, queriesToday: today.queries,
+    today: todayOf(o.sync, o.now),
   }
 }
 

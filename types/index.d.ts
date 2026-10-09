@@ -27,7 +27,7 @@ export type GateChecks = {
 }
 // What this machine answered in the room today: every answer, those with no model, and the refusals.
 export type DayCounts = { answered: number; modelless: number; denied: number }
-export type ProjectInfo = { checks: GateChecks; askUsed: number; askLimit: number; today: DayCounts; queriesToday: number }
+export type ProjectInfo = { checks: GateChecks; askUsed: number; askLimit: number; today: DayCounts }
 
 export type RoomView = {
   id: string
@@ -62,6 +62,7 @@ export type RoomView = {
 export type Draft = { roomId: string; qid: string; question: string; asker: string }
 export type Invite = { id: string; title: string; kind?: 'dm' | 'project'; repo?: string; url?: string; joinedAt?: number }
 export type PaneView = 'rooms' | 'chat' | 'add' | 'settings'
+export type EmptyForm = 'join' | 'project'
 export type PaneSettings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean }
 // A room this session just opened, shown with the steps to invite the friend.
 export type Created = { url: string; title: string }
@@ -72,7 +73,6 @@ export type PaneModel = {
   rooms: RoomView[]
   activeId: string | null
   lines: Line[]
-  latencyMs: number | null
   error: string | null
   invites: Invite[]
   ghAsk: GhAsk | null
@@ -103,6 +103,10 @@ export type PaneModel = {
   hint: string | null
   // The session's GitHub repo (its git origin), offered as a new project room's name; null outside one.
   sessionRepo: string | null
+  // Disclosed on request only: the empty state's one open field ("Linkim var", "Proje odası") and the open room's
+  // details (gate, budget, today's counts, live mode).
+  emptyForm: EmptyForm | null
+  isInfoOpen: boolean
 }
 
 // The one-line card the MODZ hub collects from every mod (MODZ DESIGN.md §9), and the hub's open request.

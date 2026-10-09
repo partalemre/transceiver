@@ -1,5 +1,6 @@
-// The wide pane's right side for a project room: the gate's four conditions as the gate last saw them, the day's
-// ask budget as a segmented meter, what this machine answered today, and the live-mode switch with its warning.
+// A project room's details, shown only when the person asks ("Ayrıntılar", "Neden?"): the gate's four conditions
+// as the gate last saw them, the day's ask budget, what this machine answered today, and the live-mode switch with
+// its warning. Inline under the head when narrow, a column beside the chat when wide.
 import type { RenderElement } from 'claude-code'
 
 import { isText, Pic, Rule, SvgOf, type Ctx } from './pane-kit'
@@ -40,7 +41,7 @@ function TextAside(ctx: Ctx, room: RoomView): RenderElement {
   const rows = checkRows(room)
   const word = GATE_WORD[room.gate]
   return (
-    <Box key="aside" flexDirection="column">
+    <Box key="info" flexDirection="column">
       <Text color={ctx.look.role[word.paint as 'ok'].fg} bold>{`${word.glyph} ${word.label} · ${passedOf(rows)}/${rows.length}`}</Text>
       {rows.map((r, i) => <Text key={`check-${i}`} color={r.state === false ? ctx.look.role.danger.fg : undefined}>{`${markOf(r.state)} ${r.text}`}</Text>)}
       <Text color={ctx.look.lo}>{checkedText(room, ctx.model.now)}</Text>
@@ -54,7 +55,7 @@ function TextAside(ctx: Ctx, room: RoomView): RenderElement {
   )
 }
 
-export function Aside(ctx: Ctx, room: RoomView): RenderElement | null {
+export function RoomInfo(ctx: Ctx, room: RoomView): RenderElement | null {
   const { Box } = ctx.ui
   const p = room.project
   if (p === undefined) return null
@@ -68,7 +69,7 @@ export function Aside(ctx: Ctx, room: RoomView): RenderElement | null {
     { value: p.today.denied, label: 'reddedildi', paint: 'danger' },
   ]
   return (
-    <Box key="aside" flexDirection="column" gap={2}>
+    <Box key="info" flexDirection="column" gap={2}>
       {Pic(ctx, checklistPart({ width: ctx.px, tone, checks: rows, meta: checkedText(room, ctx.model.now) }), 'aside-gate')}
       {Rule(ctx, 'aside-rule-1')}
       {Pic(ctx, budgetPart({ width: ctx.px, used: p.askUsed, limit: p.askLimit, note: BUDGET_NOTE }), 'aside-budget')}

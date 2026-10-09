@@ -1,28 +1,16 @@
-// The cards above the rooms: the empty state ("Telsizini aç"), connect this session (with what waits), invites,
-// the GitHub question (with what the gate heard per repo), a room just opened, drafts past the day's limit and
-// errors. Desktop cards are Box frames with an Svg head; the terminal draws the same words as lines.
+// The cards above the rooms, each one thing to decide: connect this session, an invite, the GitHub question, a
+// mailbox just opened, drafts past the day's limit and errors. A card is a title or a sentence and its buttons;
+// the long explanations live in Ayarlar. The terminal draws the same words as lines.
 import type { RenderElement } from 'claude-code'
 
 import { DraftCard } from './pane-agent'
 import { isText, Pic, PX_PER_CELL, type Ctx } from './pane-kit'
-import { radioArtPart, repoPillsPart, stepsPart, cardHeadPart, metaLinePart, tilePart } from './sig-states'
-import { linesPart } from './kit/svg-text'
-import type { Part } from './kit/svg-core'
+import { Sentence, Title } from './pane-type'
+import { repoPillsPart } from './sig-states'
 import type { Invite } from './state-types'
-import { agoText } from './when'
 
 const CARD_PAD = 2
 const CARD_CHROME_PX = (CARD_PAD * 2) * PX_PER_CELL + 2
-const TILE = 36
-const ART_W = 132
-const ART_H = 216
-const ART_STACK_H = 120
-// Below this many px a card stacks the radio over its words.
-const ROW_MIN_PX = 420
-const MAX_WAITING = 3
-const URL_TAIL = 4
-// Svg type is measured, not laid out: wrapped lines keep this much px in hand.
-const WRAP_SLACK = 28
 
 type Btn = { key: string; label: string; variant?: 'primary' | 'secondary' | 'plain'; onPress: () => void }
 
@@ -48,107 +36,35 @@ function Card(ctx: Ctx, o: { key: string; line?: string; children: Array<RenderE
 }
 
 const innerOf = (ctx: Ctx) => ctx.px - CARD_CHROME_PX
-const body = (ctx: Ctx, text: string, width = innerOf(ctx)): Part => linesPart({ text, width: width - WRAP_SLACK, size: 13.5, weight: 400, lineHeight: 20, paint: 'mid', maxLines: 4 })
 
-// Words as Svg on the desktop, as wrapped text on the terminal.
-function Words(ctx: Ctx, o: { key: string; part: Part; text?: string; color?: string }): RenderElement {
-  const { Text } = ctx.ui
-  if (isText(ctx)) return <Text key={o.key} color={o.color ?? ctx.look.mid} wrap="wrap">{o.text ?? o.part.alt}</Text>
-  return Pic(ctx, o.part, o.key)
-}
-
-const ONBOARD = 'Arkadaşlarınla Claude\'un içinden yazış. Ortak bir GitHub reposunda agent\'larınız da konuşur, taşıma token harcamaz.'
-const STEPS = ['Oda aç', 'Linki e-postayla paylaş', 'Yazış']
-
-// Every first step is a button: no command needs typing. The project and link forms live in "Yeni sohbet".
-function startButtons(ctx: Ctx): Btn[] {
-  const forms: Btn[] = 'Input' in ctx.ui
-    ? [{ key: 'open-add', label: 'Proje odası', onPress: () => ctx.on.openView('add') }, { key: 'open-join', label: 'Linkle katıl', onPress: () => ctx.on.openView('add') }]
-    : []
-  return [
-    { key: 'add-dm', label: 'Arkadaş ekle', variant: 'primary', onPress: () => ctx.on.addDm() },
-    ...forms,
-    { key: 'open-settings', label: 'Ayarlar', variant: 'plain', onPress: () => ctx.on.openView('settings') },
-  ]
-}
-
-export function EmptyCard(ctx: Ctx): RenderElement {
-  const { Box } = ctx.ui
-  const isRow = innerOf(ctx) >= ROW_MIN_PX
-  const textW = isRow ? innerOf(ctx) - ART_W - 2 * PX_PER_CELL : innerOf(ctx)
-  const words = [
-    Words(ctx, { key: 'empty-head', part: cardHeadPart({ width: textW, eyebrow: 'Başla', paint: 'signal', title: 'Telsizini aç', titleSize: 20 }), text: 'BAŞLA · Telsizini aç', color: ctx.look.signal.fg }),
-    Words(ctx, { key: 'empty-body', part: body(ctx, ONBOARD, textW), text: ONBOARD }),
-    Words(ctx, { key: 'empty-steps', part: stepsPart({ width: textW, steps: STEPS }), text: STEPS.map((s, i) => `${i + 1} ${s}`).join('  ') }),
-    Buttons(ctx, startButtons(ctx)),
-  ]
-  const art = isText(ctx) ? null : Pic(ctx, radioArtPart({ width: isRow ? ART_W : innerOf(ctx), height: isRow ? ART_H : ART_STACK_H, isLive: true }), 'radio-art')
-  return Card(ctx, {
-    key: 'empty',
-    children: [<Box key="empty-row" flexDirection={isRow ? 'row' : 'column'} gap={2}>{art}<Box flexDirection="column" gap={1} flexGrow={1}>{words}</Box></Box>],
-  })
-}
-
-const CONNECT = 'Okumak serbest. Yazmak için Claude oturum başına bir kez izin ister; Bağlan\'a basınca o soru gelir, sonra bu oturum boyunca sormaz.'
-
-function WaitingList(ctx: Ctx): RenderElement | null {
-  const { Box, Text } = ctx.ui
-  const waiting = ctx.model.waiting
-  if (waiting.length === 0) return null
-  const shown = waiting.slice(-MAX_WAITING)
-  const rest = waiting.length - shown.length
-  return (
-    <Box key="waiting" flexDirection="column" borderStyle="dashed" borderColor={ctx.look.signal.line} backgroundColor={ctx.look.inset} paddingX={1}>
-      {rest > 0 ? <Text key="rest" color={ctx.look.lo}>{`+${rest} mesaj daha`}</Text> : null}
-      {shown.map((text, i) => (
-        <Box key={`wait-${i}`} flexDirection="row" justifyContent="space-between" gap={1}>
-          <Text color={ctx.look.hi} wrap="truncate-end">{text}</Text>
-          <Text color={ctx.look.lo}>bekliyor</Text>
-        </Box>
-      ))}
-    </Box>
-  )
-}
-
-function connectLabel(busy: string | null, waiting: number): string {
-  if (busy !== null) return 'Bağlanıyor…'
-  return waiting > 0 ? 'Bağlan ve gönder' : 'Bağlan'
-}
+const CONNECT = 'Yazmak için bu oturumda bir kez izin ver.'
+const CONNECT_WAITING = 'Yazdıkların bekliyor; göndermek için bu oturumda bir kez izin ver.'
 
 export function ConnectCard(ctx: Ctx): RenderElement {
-  const n = ctx.model.waiting.length
-  const busy = ctx.model.busy
-  const head = cardHeadPart({ width: innerOf(ctx), lead: tilePart({ glyph: 'link', paint: 'signal', size: TILE }), eyebrow: 'Bu oturum', paint: 'signal', title: 'Bağlan', meta: busy ?? (n > 0 ? `${n} mesaj bekliyor` : undefined) })
+  const text = ctx.model.waiting.length > 0 ? CONNECT_WAITING : CONNECT
   return Card(ctx, {
     key: 'connect', line: ctx.look.signal.line,
     children: [
-      Words(ctx, { key: 'connect-head', part: head, text: `BU OTURUM · Bağlan${n > 0 ? ` · ${n} mesaj bekliyor` : ''}`, color: ctx.look.signal.fg }),
-      Words(ctx, { key: 'connect-body', part: body(ctx, CONNECT), text: CONNECT }),
-      WaitingList(ctx),
+      Sentence(ctx, { key: 'connect-body', text, width: innerOf(ctx) }),
       Buttons(ctx, [
-        { key: 'connect', label: connectLabel(busy, n), variant: 'primary', onPress: () => ctx.on.connect() },
+        { key: 'connect', label: ctx.model.busy === null ? 'Bağlan' : 'Bağlanıyor…', variant: 'primary', onPress: () => ctx.on.connect() },
         { key: 'connect-later', label: 'Şimdi değil', variant: 'plain', onPress: () => ctx.on.dismissConnect() },
       ]),
     ],
   })
 }
 
-const shortUrl = (url: string | undefined) => (url === undefined ? '' : `claude.ai/artifact/…${(url.replace(/\/+$/, '').split('/').at(-1) ?? '').slice(-URL_TAIL)}`)
-const INVITE_DM = 'Kabul edersen birbirinize buradan yazarsınız. Projelerin, oturumların ve klasörlerin hakkında hiçbir şey paylaşılmaz.'
-const INVITE_PROJECT = 'Kabul edersen bu reponun odasına katılırsın. Agent\'lar yalnızca ikiniz de collaborator iseniz ve GitHub adını onaylarsan konuşur.'
+const INVITE_DM = 'Kabul edersen birbirinize buradan yazarsınız.'
+const INVITE_PROJECT = 'Agent\'lar yalnızca ikiniz de collaborator iseniz konuşur.'
 
 export function InviteCard(ctx: Ctx, inv: Invite): RenderElement {
   const isProject = inv.kind === 'project'
   const title = isProject ? `${inv.repo ?? 'Bir proje'} odasına davet edildin` : 'Biri seninle yazışmak istiyor'
-  const lead = tilePart({ glyph: isProject ? 'branch' : 'person', paint: 'read', size: TILE })
-  const meta = [shortUrl(inv.url), isProject ? 'Proje odası' : 'Doğrudan mesaj', inv.joinedAt === undefined ? '' : agoText(inv.joinedAt, ctx.model.now)].filter(Boolean).join(' · ')
-  const words = isProject ? INVITE_PROJECT : INVITE_DM
   return Card(ctx, {
     key: `invite-${inv.id}`,
     children: [
-      Words(ctx, { key: 'invite-head', part: cardHeadPart({ width: innerOf(ctx), lead, eyebrow: 'Yeni davet', paint: 'read', title }), text: `YENİ DAVET · ${title}`, color: ctx.look.role.read.fg }),
-      Words(ctx, { key: 'invite-body', part: body(ctx, words), text: words }),
-      Words(ctx, { key: 'invite-meta', part: metaLinePart({ width: innerOf(ctx), glyph: 'doc', text: meta }), text: meta, color: ctx.look.lo }),
+      Title(ctx, { key: 'invite-title', text: title, isCard: true, width: innerOf(ctx) }),
+      Sentence(ctx, { key: 'invite-body', text: isProject ? INVITE_PROJECT : INVITE_DM, width: innerOf(ctx) }),
       Buttons(ctx, [
         { key: `accept-${inv.id}`, label: 'Kabul et', variant: 'primary', onPress: () => ctx.on.accept(inv.id) },
         { key: `reject-${inv.id}`, label: 'Reddet', onPress: () => ctx.on.reject(inv.id) },
@@ -157,20 +73,20 @@ export function InviteCard(ctx: Ctx, inv: Invite): RenderElement {
   })
 }
 
-const GH_BODY = 'Evet dersen ortak repolarınızda agent\'larınız konuşabilir. Collaborator olmadığı repolar kapalı kalır.'
+const GH_BODY = 'Evet dersen ortak repolarınızda agent\'larınız konuşabilir.'
 
 export function GhCard(ctx: Ctx): RenderElement | null {
   const ask = ctx.model.ghAsk
   if (ask === null) return null
-  const title = `${ask.name} GitHub'da @${ask.gh} mı?`
-  const lead = tilePart({ glyph: 'person', paint: 'mid', tint: 'track', line: 'line', size: TILE })
   const repos = ask.repos ?? []
+  // What GitHub already said about this login, where the gate asked: a fact to decide on, not decoration.
+  const pills = repos.length === 0 || isText(ctx) ? null : Pic(ctx, repoPillsPart({ width: innerOf(ctx), repos }), 'gh-repos')
   return Card(ctx, {
     key: 'gh',
     children: [
-      Words(ctx, { key: 'gh-head', part: cardHeadPart({ width: innerOf(ctx), lead, eyebrow: 'GITHUB EŞLEŞMESİ · BİR KEZ', paint: 'lo', title }), text: `GITHUB EŞLEŞMESİ · ${title}` }),
-      Words(ctx, { key: 'gh-body', part: body(ctx, GH_BODY), text: GH_BODY }),
-      repos.length === 0 ? null : Words(ctx, { key: 'gh-repos', part: repoPillsPart({ width: innerOf(ctx), repos }) }),
+      Title(ctx, { key: 'gh-title', text: `${ask.name} GitHub'da @${ask.gh} mı?`, isCard: true, width: innerOf(ctx) }),
+      Sentence(ctx, { key: 'gh-body', text: GH_BODY, width: innerOf(ctx) }),
+      pills,
       Buttons(ctx, [
         { key: 'gh-yes', label: 'Evet, o', variant: 'primary', onPress: () => ctx.on.answerGh(true) },
         { key: 'gh-no', label: 'Hayır', onPress: () => ctx.on.answerGh(false) },
@@ -179,18 +95,14 @@ export function GhCard(ctx: Ctx): RenderElement | null {
   })
 }
 
-const CREATED = '1 · Bu senin kutun. Linki claude.ai\'de aç, Paylaş\'a bas, arkadaşının e-postasını yaz (Viewer yeter). 2 · Linki ona gönder. Aynı organizasyondaysanız kutular kendiliğinden bağlanır; değilse ikiniz de karşı tarafın linkini Linkle katıl\'a yapıştırın.'
-
 export function CreatedCard(ctx: Ctx): RenderElement | null {
   const created = ctx.model.created
   if (created === null) return null
   const { Text } = ctx.ui
-  const head = cardHeadPart({ width: innerOf(ctx), lead: tilePart({ glyph: 'signal', paint: 'signal', size: TILE }), eyebrow: 'Kutun hazır', paint: 'signal', title: 'Şimdi kutunu paylaş' })
   return Card(ctx, {
     key: 'created', line: ctx.look.signal.line,
     children: [
-      Words(ctx, { key: 'created-head', part: head, text: 'KUTUN HAZIR · Şimdi kutunu paylaş', color: ctx.look.signal.fg }),
-      Words(ctx, { key: 'created-body', part: body(ctx, CREATED), text: CREATED }),
+      Title(ctx, { key: 'created-title', text: 'Kutun hazır.', isCard: true, width: innerOf(ctx) }),
       <Text key="created-url" color={ctx.look.signal.fg} wrap="truncate-middle">{created.url}</Text>,
       Buttons(ctx, [
         { key: 'copy-link', label: 'Linki kopyala', variant: 'primary', onPress: () => ctx.on.copy(created.url, ctx.surface) },

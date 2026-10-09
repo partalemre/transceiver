@@ -1,14 +1,15 @@
 // The `transceiver` pane: one view at a time when narrow (rooms → chat, "Yeni sohbet", "Ayarlar"); when wide the
-// rooms rail, the chat and, for a project room, the aside with its gate, budget and today's counts. Pure:
+// rooms rail and the chat, and a project room's details beside it once asked for. Pure:
 // register.tsx's render hook hands in the element table, the model and the handlers.
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
-import { Aside } from './pane-aside'
+import { RoomInfo } from './pane-aside'
 import { ChatView } from './pane-chat'
 import { AddView, SettingsView } from './pane-forms'
-import { Head, Meta, pxOf, type Ctx } from './pane-kit'
+import { Meta, pxOf, type Ctx } from './pane-kit'
 import { RoomsColumn } from './pane-list'
+import { Sentence, Title } from './pane-type'
 import type { PaneModel } from './state-types'
 import { lookOf } from './theme'
 
@@ -42,10 +43,8 @@ function Placeholder(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
   return (
     <Box key="placeholder" flexDirection="column" gap={1} paddingTop={2}>
-      {Head(ctx, {
-        glyph: 'radio', tone: 'signal', eyebrow: 'Kanal açık', headline: 'Bir sohbet seç',
-        sub: 'Soldan bir odaya gir; mesajlar anında burada akar.', width: pxOf(ctx.columns),
-      })}
+      {Title(ctx, { key: 'placeholder-title', text: 'Bir sohbet seç' })}
+      {Sentence(ctx, { key: 'placeholder-body', text: 'Soldaki listeden bir oda aç.', paint: 'lo' })}
     </Box>
   )
 }
@@ -55,7 +54,7 @@ const sized = (ctx: Ctx, columns: number): Ctx => ({ ...ctx, columns, px: pxOf(c
 function Wide(ctx: Ctx, pad: number): RenderElement {
   const { Box } = ctx.ui
   const room = ctx.model.view === 'chat' ? ctx.model.rooms.find(r => r.id === ctx.model.activeId) : undefined
-  const hasAside = room?.kind === 'project'
+  const hasAside = room?.kind === 'project' && ctx.model.isInfoOpen
   const asideColumns = hasAside ? ASIDE_COLUMNS : 0
   const main = sized(ctx, Math.max(MIN_COLUMNS, ctx.columns - RAIL_COLUMNS - asideColumns - pad * 2 - (hasAside ? pad * 2 : 0)))
   const rail = sized(ctx, RAIL_COLUMNS - pad)
@@ -66,7 +65,7 @@ function Wide(ctx: Ctx, pad: number): RenderElement {
       </Box>
       <Box key="main" flexDirection="column" flexGrow={1} paddingX={pad} paddingY={pad / 2}>{MainView(main) ?? Placeholder(main)}</Box>
       {hasAside && room !== undefined
-        ? <Box key="aside-col" flexDirection="column" width={ASIDE_COLUMNS} flexShrink={0} paddingX={pad} paddingY={pad}>{Aside(sized(ctx, ASIDE_COLUMNS - pad * 2), room)}</Box>
+        ? <Box key="aside-col" flexDirection="column" width={ASIDE_COLUMNS} flexShrink={0} paddingX={pad} paddingY={pad}>{RoomInfo(sized(ctx, ASIDE_COLUMNS - pad * 2), room)}</Box>
         : null}
     </Box>
   )

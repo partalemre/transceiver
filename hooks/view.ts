@@ -3,7 +3,7 @@
 import { lastCheck } from './gate'
 import { isUnreadable } from './protocol'
 import type { RoomRecord, Settings } from './rooms'
-import type { Created, Draft, GhAsk, PaneModel, PaneView, RoomView } from './state-types'
+import type { Created, Draft, EmptyForm, GhAsk, PaneModel, PaneView, RoomView } from './state-types'
 import { EMPTY_PANE } from './state-types'
 import type { RoomSync } from './sync'
 import { unreadCount } from './timeline'
@@ -22,7 +22,6 @@ export type SessionUi = {
   created: Created | null
   composerKey: number
   isConnectDismissed: boolean
-  latencyMs: number | null
   // The newest message id the person has had on screen per room, so a room they read shows no unread count
   // even before this session may write its read mark.
   localRead: Record<string, string>
@@ -33,12 +32,15 @@ export type SessionUi = {
   composeMode: { roomId: string; type: string } | null
   sheetRoom: string | null
   hint: string | null
+  // What the person asked to see beyond the default: one of the empty state's fields, a room's details.
+  emptyForm: EmptyForm | null
+  infoRoom: string | null
 }
 
 export const EMPTY_SESSION: SessionUi = {
   activeId: null, view: 'rooms', error: null, busy: null, created: null, composerKey: 0,
-  isConnectDismissed: false, latencyMs: null, localRead: {}, openedMark: null, expanded: [],
-  composeMode: null, sheetRoom: null, hint: null,
+  isConnectDismissed: false, localRead: {}, openedMark: null, expanded: [],
+  composeMode: null, sheetRoom: null, hint: null, emptyForm: null, infoRoom: null,
 }
 
 export type ModelInput = RoomSources & {
@@ -136,11 +138,11 @@ function chatOf(input: ModelInput, activeId: string | null): Pick<PaneModel, 'li
   return { lines, divider: dividerOf(sync, mark) }
 }
 
-function composerOf(session: SessionUi, activeId: string | null): Pick<PaneModel, 'composeMode' | 'isSheetOpen' | 'hint'> {
+function composerOf(session: SessionUi, activeId: string | null): Pick<PaneModel, 'composeMode' | 'isSheetOpen' | 'hint' | 'isInfoOpen'> {
   const isHere = (roomId: string | undefined) => activeId !== null && roomId === activeId
   return {
     composeMode: isHere(session.composeMode?.roomId) ? session.composeMode?.type ?? null : null,
-    isSheetOpen: isHere(session.sheetRoom ?? undefined), hint: session.hint,
+    isSheetOpen: isHere(session.sheetRoom ?? undefined), hint: session.hint, isInfoOpen: isHere(session.infoRoom ?? undefined),
   }
 }
 
@@ -162,10 +164,10 @@ export function buildModel(input: ModelInput): PaneModel {
     needsSetup: !input.isConnected && !input.session.isConnectDismissed && hasSynced,
     settings: { isReceiptsOn: input.settings.isReceiptsOn, isToastOn: input.settings.isToastOn, isStatusOn: input.settings.isStatusOn },
     isReceiptsOn: input.settings.isReceiptsOn,
-    latencyMs: input.session.latencyMs, error: input.session.error, busy: input.session.busy,
+    error: input.session.error, busy: input.session.busy,
     created: input.session.created, composerKey: input.session.composerKey,
     waiting: input.isConnected ? [] : waitingOf(active, input.syncs), expanded: input.session.expanded,
     ...composerOf(input.session, activeId),
-    sessionRepo: input.sessionRepo ?? null,
+    sessionRepo: input.sessionRepo ?? null, emptyForm: input.session.emptyForm,
   }
 }

@@ -1,6 +1,6 @@
-// Asking the other side's agent from the pane, on the terminal and the desktop: a chip sends its typed query, the
-// sheet puts the field in a query's mode, slash commands send the same, an unknown one only hints, the send
-// button sends what was typed, and "Göster" opens an answer.
+// Asking the other side's agent from the pane, on the terminal and the desktop: "Agent'a sor" opens the sheet, a
+// row sends its typed query or puts the field in its mode, slash commands send the same, an unknown one only
+// hints, the send button sends what was typed, and an exchange opens on press.
 import { expect, test } from 'claude-code/testing'
 
 import { paths } from '../hooks/protocol'
@@ -45,9 +45,11 @@ async function openProject($: any, on: any, surface: (typeof SURFACES)[number]) 
 }
 
 for (const surface of SURFACES) {
-  test(`${surface}: a chip sends its typed query to the other side's agent`, async ($: any, on: any) => {
+  test(`${surface}: "Agent'a sor" opens the sheet; a row without a value sends its typed query at once`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
-    await ui.press({ key: 'ask-status' })
+    expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
+    await ui.press({ key: 'ask-more-re' })
+    await ui.press({ key: 'sheet-status' })
     await w.clock.advance(1_000)
     expect(sentIn(w).at(-1)).toMatchObject({ kind: 'query', text: 'status', query: { type: 'status', repo: 'partalemre/eliti' } })
   })
@@ -95,16 +97,20 @@ for (const surface of SURFACES) {
     expect(sentIn(w).at(-1)).toMatchObject({ kind: 'human', text: 'Selam' })
   })
 
-  test(`${surface}: a search answer shows its count and first hits; Göster opens the rest`, async ($: any, on: any) => {
+  test(`${surface}: a search is one line; Göster opens its count and first hits, Tamamı the rest`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
     const before = await drawn(ui)
-    expect(before).toContain('7 eşleşme')
-    expect(before).toContain('lib/auth/session_store.dart:42')
-    expect(before).not.toContain('test/auth_test.dart:20')
-    // The search is the room's newest transmission: its button is the last "more-" in the drawing.
-    const key = [...before.matchAll(/"key":"(more-[0-9A-Z]+)"/g)].at(-1)?.[1] ?? ''
-    expect(key).not.toBe('')
-    await pressKey({ ui, w }, key)
+    expect(before).toContain('Senin agent\'ın grep refreshToken sordu · cevaplandı · 0 token')
+    expect(before).not.toContain('lib/auth/session_store.dart:42')
+    // The search is the room's newest exchange: its button is the last "open-tx-" in the drawing.
+    const id = [...before.matchAll(/"key":"open-tx-([0-9A-Z]+)"/g)].at(-1)?.[1] ?? ''
+    expect(id).not.toBe('')
+    await pressKey({ ui, w }, `open-tx-${id}`)
+    const opened = await drawn(ui)
+    expect(opened).toContain('7 eşleşme')
+    expect(opened).toContain('lib/auth/session_store.dart:42')
+    expect(opened).not.toContain('test/auth_test.dart:20')
+    await pressKey({ ui, w }, `more-${id}`)
     expect(await drawn(ui)).toContain('test/auth_test.dart:20')
   })
 }

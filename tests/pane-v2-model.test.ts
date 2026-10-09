@@ -4,7 +4,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { commitOf, compactOf, diffStat, hitsOf, tagsOf, testCounts } from '../hooks/answers'
-import { checkRows, gateDetail, passedOf, projectLine, statusOf } from '../hooks/pane-words'
+import { checkRows, gateDetail, noticeOf, passedOf, statusOf } from '../hooks/pane-words'
 import { emptyHead } from '../hooks/protocol'
 import { composeOf, isModeType, queryMessage, supportedSpecs } from '../hooks/query-menu'
 import { dative, genitive } from '../hooks/tr'
@@ -54,13 +54,18 @@ test('the gate shows its four conditions: open, closed by the first that fails, 
   const elsewhere = gateOf({ sessionRepo: 'a/b', isOk: true })
   expect(elsewhere && gateDetail(elsewhere)).toBe('bu oturum başka bir repoda')
   const unconfirmed = buildModel({ ...input({ rooms: [{ ...ROOMS.eliti, peers: [] }] }), sessionRepo: ELITI, checkOf: yes }).rooms[0]
-  expect(unconfirmed && [unconfirmed.gate, projectLine(unconfirmed)]).toEqual(['closed', 'kapı kapalı · GitHub eşleşmesi yok'])
+  expect(unconfirmed && [unconfirmed.gate, noticeOf(unconfirmed)]).toEqual(['closed', { text: 'Agent\'lar kapalı: GitHub eşleşmesi yok.', paint: 'danger', hasWhy: true }])
+  // An open gate, or one GitHub has not been asked about yet, says nothing.
+  expect(open && noticeOf(open)).toBe(null)
+  expect(noticeOf(gateOf({ sessionRepo: ELITI }) as never)).toBe(null)
 })
 
 test('a project room counts the asks spent today and what this machine answered today', () => {
   const room = buildModel({ ...input(), askUsed: { re: 3 }, sessionRepo: ELITI, checkOf: yes }).rooms.find(r => r.id === 're')
-  expect(room?.project).toMatchObject({ askUsed: 3, askLimit: 10, today: { answered: 2, modelless: 1, denied: 1 }, queriesToday: 3 })
-  expect(room && projectLine(room)).toBe('kapı açık · 3 agent sorusu')
+  expect(room?.project).toMatchObject({ askUsed: 3, askLimit: 10, today: { answered: 2, modelless: 1, denied: 1 } })
+  expect(room && noticeOf(room)).toBe(null)
+  const spent = buildModel({ ...input(), askUsed: { re: 10 }, sessionRepo: ELITI, checkOf: yes }).rooms.find(r => r.id === 're')
+  expect(spent && noticeOf(spent)?.text).toBe('Agent\'ının bugünkü 10 cevap hakkı doldu; yeni sorular onayını bekler.')
 })
 
 test('messages waiting for "Bağlan" are listed, oldest first, only while not connected', () => {

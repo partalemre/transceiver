@@ -35,26 +35,26 @@ for (const surface of SURFACES) {
     expect(w.copies).toEqual(['https://claude.ai/artifact/NEWROOM1x'])
   })
 
-  test(`${surface}: the empty state offers every first step; the project form starts with the session's repo`, async ($: any, on: any) => {
+  test(`${surface}: the empty state offers every first step; the project field starts with the session's repo`, async ($: any, on: any) => {
     const w = paneWorld(on, { rooms: [], syncs: {}, remote: 'git@github.com:partalemre/eliti.git' })
     await startSession($, w, { surface, isBypass: true })
     await $.command.run({ command: 'transceiver', args: '' })
     const ui = await mountPane($, { surface, columns: NARROW })
-    for (const key of ['add-dm', 'open-add', 'open-join', 'open-settings']) expect(await ui.findAll({ type: 'Button', key })).toHaveLength(1)
+    for (const key of ['add-dm', 'open-join', 'open-project', 'open-settings']) expect(await ui.findAll({ type: 'Button', key })).toHaveLength(1)
     await ui.press({ key: 'open-settings' })
     expect(await drawn(ui)).toContain('Okundu bilgisi')
     await ui.press({ key: 'back' })
-    await ui.press({ key: 'open-add' })
+    await ui.press({ key: 'open-project' })
     expect(await ui.findAll({ type: 'Input', key: 'add-repo', text: 'partalemre/eliti' })).toHaveLength(1)
     await ui.input({ key: 'add-repo', text: 'partalemre/eliti' })
     expect(roomsIn(w).map(r => [r.kind, r.repo])).toEqual([['project', 'partalemre/eliti']])
   })
 
-  test(`${surface}: outside a GitHub repo the project form starts empty`, async ($: any, on: any) => {
-    const w = paneWorld(on, { rooms: [], syncs: {}, remote: 'git@gitlab.com:someone/thing.git' })
+  test(`${surface}: outside a GitHub repo the "Yeni sohbet" project field starts empty`, async ($: any, on: any) => {
+    const w = paneWorld(on, { rooms: ALL, syncs: SYNCS(), remote: 'git@gitlab.com:someone/thing.git' })
     await startSession($, w, { surface, isBypass: true })
     const ui = await mountPane($, { surface, columns: NARROW })
-    await ui.press({ key: 'open-join' })
+    await ui.press({ key: 'open-add' })
     const [field] = await ui.findAll({ type: 'Input', key: 'add-repo' })
     expect(field).toBeDefined()
     expect(await ui.findAll({ type: 'Input', key: 'add-repo', text: /\w/ })).toHaveLength(0)
@@ -88,7 +88,7 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'connect' })
     const tree = await drawn(ui)
     expect(tree).toContain('Onay verilmedi')
-    expect(tree).toContain('Okumak serbest')
+    expect(tree).toContain('bu oturumda bir kez izin ver')
   })
 
   test(`${surface}: invites are accepted or refused, and the GitHub question is answered once`, async ($: any, on: any) => {
@@ -113,6 +113,9 @@ for (const surface of SURFACES) {
     const ui = await mountPane($, { surface, columns: NARROW })
     await ui.press({ key: 'open-re' })
     expect((roomsIn(w)).find(r => r.id === 're')?.isLive).toBe(false)
+    // Live mode is a detail of the room: not on the default view, one press away.
+    expect(await ui.findAll({ type: 'Button', key: 'live-re' })).toHaveLength(0)
+    await ui.press({ key: 'info-re' })
     await ui.press({ key: 'live-re' })
     expect((roomsIn(w)).find(r => r.id === 're')?.isLive).toBe(true)
     await ui.press({ key: 'back' })
@@ -126,7 +129,7 @@ test('a session started with permissions bypassed is connected: no card, writes 
   const w = paneWorld(on, { rooms: ALL, syncs: SYNCS() })
   await startSession($, w, { isBypass: true })
   const ui = await mountPane($, { surface: 'desktop', columns: NARROW })
-  expect(await drawn(ui)).not.toContain('Okumak serbest')
+  expect(await drawn(ui)).not.toContain('bir kez izin ver')
   await ui.press({ key: 'open-ra' })
   await w.clock.advance(1_000)
   const head = w.dbOf(ROOMS.alperen.url).docs.get(`outbox/${ME}`)?.data as { readUpTo: string }

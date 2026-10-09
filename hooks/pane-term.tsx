@@ -1,60 +1,53 @@
-// One room on the terminal, as V2-Terminal lays it: an eyebrow line and a status line, day rules, people's lines
-// with their time, each transmission as a ◆ block with │ └ rails, a refusal as one ✕ line, a draft as a TASLAK
-// block with its hotkeys, then the prompt line and the chips' hotkeys (the sheet as a numbered list).
+// One room on the terminal, the conversation first: the name and presence, one notice line only when something is
+// wrong, the room's details only when asked, day rules, people's lines with their time, each agent exchange as one
+// ◆ line that opens on press (a refusal as one ✕ line), a draft with its hotkeys, then the prompt line and its
+// keys: the sheet of queries, the details and the way back.
 import type { RenderElement } from 'claude-code'
 
 import { compactOf, FIRST_ROWS, type Compact } from './answers'
-import { POLL_OPEN_MS, TIMELINE_LINES } from './limits'
+import { TIMELINE_LINES } from './limits'
+import { fullIdOf } from './pane-agent'
+import { RoomInfo } from './pane-aside'
 import { firstLineOf, idsOf, isSameRun } from './pane-chat'
 import { placeholderOf } from './pane-compose'
 import { isHere, receiptTone, type Ctx } from './pane-kit'
-import { checkRows, GATE_WORD, passedOf, statusOf } from './pane-words'
-import { CHIP_TYPES, isModeType, supportedSpecs } from './query-menu'
+import { noticeOf, statusOf } from './pane-words'
+import { isModeType, supportedSpecs } from './query-menu'
 import type { Draft, Line, RoomView } from './state-types'
 import { avatarRole } from './theme'
 import { firstName, genitive } from './tr'
 import { askedArg, itemsOf, joined, messageOf, queryType, type Item, type Tx } from './traffic'
-import { clockText, dayKey, dayLabel, secondsText } from './when'
+import { agentOf, txSummary } from './tx-words'
+import { clockText, dayKey, dayLabel } from './when'
 
-const CHIP_KEYS: Record<string, string> = { status: 's', diff: 'd', tests: 't', log: 'l', branch: 'b' }
 const SHEET_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'w', 'y', 'z']
 
-function agentOf(line: Line | undefined, noun = 'agent\'ı'): string {
-  if (line === undefined) return `karşı tarafın ${noun}`
-  return line.isMine ? 'senin agent\'ın' : `${genitive(firstName(line.authorName))} ${noun}`
-}
-
-type Joined = ReturnType<typeof joined>
-
-// Who answered: this machine, the peer's agent (or, at 0 tokens, their machine), or nobody yet.
-function answererOf(a: Joined): string {
-  if (a === null) return 'cevap bekleniyor…'
+// Who answered: this machine, the peer's agent (or, at 0 tokens, their machine).
+function answererOf(a: NonNullable<ReturnType<typeof joined>>): string {
   return a.line.isMine ? 'bu makine' : agentOf(a.line, a.tokens > 0 ? 'agent\'ı' : 'makinesi')
 }
 
-function tokensOf(a: Joined): string {
-  if (a === null) return ''
-  return a.tokens > 0 ? ` · ${a.tokens} token` : ' · 0 token'
+// What is wrong, in one line, and "neden?" when the room's details explain it.
+function NoticeLine(ctx: Ctx, room: RoomView): RenderElement | null {
+  const { Box, Button, Text } = ctx.ui
+  const notice = noticeOf(room)
+  if (notice === null) return null
+  return (
+    <Box key="notice" flexDirection="row" gap={1}>
+      <Text color={ctx.look.role[notice.paint].fg} wrap="wrap">{notice.text}</Text>
+      {notice.hasWhy && !ctx.model.isInfoOpen ? <Button key={`why-${room.id}`} label="neden?" plain onPress={() => ctx.on.toggleInfo(room.id)} /> : null}
+    </Box>
+  )
 }
 
 function Top(ctx: Ctx, room: RoomView): RenderElement {
-  const { Box, Button, Text } = ctx.ui
+  const { Box, Text } = ctx.ui
   const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })
-  const link = ctx.model.isConnected ? `bağlı, ${secondsText(POLL_OPEN_MS).replace(',0', '')}` : 'bağlantı bekleniyor'
-  const p = room.project
-  const rows = checkRows(room)
-  const word = GATE_WORD[room.gate]
-  const second = p === undefined
-    ? [ctx.model.latencyMs === null ? '' : `sinyal ${secondsText(ctx.model.latencyMs)}`, `okundu bilgisi ${ctx.model.settings.isReceiptsOn ? 'açık' : 'kapalı'}`, link]
-    : [`ask ${p.askUsed}/${p.askLimit}`, link]
   return (
     <Box key="term-top" flexDirection="column">
-      <Text><Text color={ctx.look.signal.fg}>● TRANSCEIVER</Text>{'  '}<Text bold>{room.title}</Text>{'  '}<Text color={ctx.look.lo}>{status?.text.toLocaleLowerCase('tr') ?? ''}</Text></Text>
-      <Text>
-        {p === undefined ? null : <Text color={ctx.look.role[word.paint as 'ok'].fg ?? ctx.look.lo}>{`${word.glyph} ${word.label.toLocaleLowerCase('tr')} ${passedOf(rows)}/${rows.length}  ·  `}</Text>}
-        <Text color={ctx.look.lo}>{second.filter(Boolean).join('  ·  ')}</Text>
-      </Text>
-      {p === undefined ? null : <Box flexDirection="row"><Button key={`live-${room.id}`} hotkey="c" label={`canlı ${room.isLive ? 'açık' : 'kapalı'}`} plain onPress={() => ctx.on.toggleLive(room.id)} /></Box>}
+      <Text><Text bold>{room.title}</Text>{status === null ? '' : '  '}<Text color={status?.isHere === true ? ctx.look.role.ok.fg : ctx.look.lo}>{status?.text ?? ''}</Text></Text>
+      {NoticeLine(ctx, room)}
+      {ctx.model.isInfoOpen ? RoomInfo(ctx, room) : null}
     </Box>
   )
 }
@@ -99,38 +92,49 @@ function compactText(c: Compact): string {
   return c.text.split('\n').find(r => r.trim() !== '')?.trim() ?? ''
 }
 
-// "göster" opens the whole answer under its block; "gizle" folds it again.
+// "tamamı" opens the whole answer under its exchange; "gizle" folds it again.
 function More(ctx: Ctx, o: { tx: Tx; body: string }): RenderElement {
   const { Box, Button, Text } = ctx.ui
-  const isOpen = ctx.model.expanded.includes(o.tx.id)
+  const id = fullIdOf(o.tx.id)
+  const isOpen = ctx.model.expanded.includes(id)
   return (
     <Box key="more" flexDirection="column" alignItems="flex-start" paddingLeft={2}>
       {isOpen ? <Text wrap="wrap">{o.body}</Text> : null}
-      <Button key={`more-${o.tx.id}`} label={isOpen ? 'gizle' : 'göster'} plain onPress={() => ctx.on.toggleExpanded(o.tx.id)} />
+      <Button key={`more-${o.tx.id}`} label={isOpen ? 'gizle' : 'tamamı'} plain onPress={() => ctx.on.toggleExpanded(id)} />
     </Box>
   )
 }
 
-function TxBlock(ctx: Ctx, tx: Tx): RenderElement {
-  const { Box, Text } = ctx.ui
+// An opened exchange: the question, who answered at what cost, the compact answer and its whole text.
+function TxDetail(ctx: Ctx, tx: Tx): RenderElement[] {
+  const { Text } = ctx.ui
   const a = joined(tx)
-  const q = tx.query === undefined ? null : messageOf(tx.query)
-  const type = queryType(tx)
-  const arg = askedArg(tx)
-  if (a?.isDenied === true) {
-    const what = type === 'ask' ? 'soru sordu' : `${arg ?? type} istedi`
-    return <Box key={`tx-${tx.id}`} flexDirection="row" gap={1}><Text color={ctx.look.role.danger.fg}>{`✕ ${agentOf(tx.query)} ${what} → erişim yok`}</Text><Box flexGrow={1} /><Text color={ctx.look.lo}>{clockText(a.ts)}</Text></Box>
-  }
   const rail = a?.line.isMine === true ? ctx.look.signal.line : ctx.look.role.run.line
-  const who = answererOf(a)
-  const tokens = tokensOf(a)
+  const arg = askedArg(tx)
+  const question = arg === undefined ? [] : [<Text key="question"><Text color={rail}>│ </Text>{arg}</Text>]
+  if (a === null) return [...question, <Text key="waiting" color={ctx.look.lo}>{'└ cevap bekleniyor…'}</Text>]
+  return [
+    ...question,
+    <Text key="who"><Text color={rail}>└ </Text>{answererOf(a)}<Text color={a.tokens === 0 ? ctx.look.signal.fg : ctx.look.lo}>{` · ${a.tokens} token`}</Text></Text>,
+    <Text key="compact" wrap="truncate-end">{`  ${compactText(compactOf(queryType(tx), a.body))}`}</Text>,
+    More(ctx, { tx, body: a.body }),
+  ]
+}
+
+function TxBlock(ctx: Ctx, tx: Tx): RenderElement {
+  const { Box, Button, Text } = ctx.ui
+  const s = txSummary(tx)
+  const isDenied = s.outcome === 'denied'
+  const isOpen = !isDenied && ctx.model.expanded.includes(tx.id)
   return (
     <Box key={`tx-${tx.id}`} flexDirection="column">
-      <Box flexDirection="row" gap={1}><Text color={ctx.look.role.run.fg}>{`◆ ${agentOf(tx.query)} sordu`}</Text><Text color={ctx.look.lo}>{`[${type}]`}</Text><Box flexGrow={1} /><Text color={ctx.look.lo}>{q === null ? '' : clockText(q.ts)}</Text></Box>
-      {arg === undefined ? null : <Text><Text color={rail}>│ </Text>{arg}</Text>}
-      <Text><Text color={rail}>└ </Text>{who}<Text color={a !== null && a.tokens === 0 ? ctx.look.signal.fg : ctx.look.lo}>{tokens}</Text></Text>
-      {a === null ? null : <Text wrap="truncate-end">{`  ${compactText(compactOf(type, a.body))}`}</Text>}
-      {a === null ? null : More(ctx, { tx, body: a.body })}
+      <Box flexDirection="row" gap={1}>
+        <Box flexGrow={1} flexShrink={1}>
+          <Text color={isDenied ? ctx.look.role.danger.fg : ctx.look.role.run.fg} wrap="truncate-end">{`${isDenied ? '✕' : '◆'} ${s.text}`}</Text>
+        </Box>
+        {isDenied ? null : <Button key={`open-tx-${tx.id}`} label={isOpen ? 'gizle' : 'göster'} plain onPress={() => ctx.on.toggleExpanded(tx.id)} />}
+      </Box>
+      {isOpen ? TxDetail(ctx, tx) : null}
     </Box>
   )
 }
@@ -139,12 +143,12 @@ function DraftBlock(ctx: Ctx, draft: Draft): RenderElement {
   const { Box, Button, Text } = ctx.ui
   return (
     <Box key={`draft-${draft.qid}`} flexDirection="column">
-      <Text><Text color={ctx.look.role.warn.fg}>● TASLAK</Text>{` ${draft.question}`}</Text>
-      <Text color={ctx.look.lo}>{`  ${genitive(firstName(draft.asker))} agent'ı soruyor; Gönder bir kez, limitin dışında cevaplar.`}</Text>
+      <Text color={ctx.look.role.warn.fg}>{`● ${genitive(firstName(draft.asker))} agent'ı soruyor · onayını bekliyor`}</Text>
+      <Text wrap="wrap">{`  ${draft.question}`}</Text>
       {ctx.model.canSettleDrafts
         ? <Box flexDirection="row" gap={2} paddingLeft={2}>
           <Button key={`draft-yes-${draft.qid}`} hotkey="g" label="Gönder" variant="primary" onPress={() => ctx.on.settleDraft(draft.qid, true)} />
-          <Button key={`draft-no-${draft.qid}`} hotkey="v" label="Vazgeç" onPress={() => ctx.on.settleDraft(draft.qid, false)} />
+          <Button key={`draft-no-${draft.qid}`} hotkey="v" label="Vazgeç" plain onPress={() => ctx.on.settleDraft(draft.qid, false)} />
         </Box>
         : null}
     </Box>
@@ -184,11 +188,10 @@ function Prompt(ctx: Ctx, room: RoomView): RenderElement {
 
 function Keys(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
-  const chips = room.kind !== 'project' ? [] : supportedSpecs().filter(s => CHIP_TYPES.includes(s.type))
-  const sheet = room.kind === 'project' && ctx.model.isSheetOpen ? supportedSpecs() : []
+  const isProject = room.kind === 'project'
+  const sheet = isProject && ctx.model.isSheetOpen ? supportedSpecs() : []
   return (
     <Box key="keys" flexDirection="column">
-      {sheet.length === 0 ? null : <Text key="sheet-head" color={ctx.look.role.run.fg} bold>{`${room.peerName === undefined ? 'KARŞI TARAFIN' : genitive(room.peerName).toLocaleUpperCase('tr')} AGENT'INA SOR  ·  ${sheet.filter(s => s.type !== 'ask').length} hazır sorgu · 0 token`}</Text>}
       {sheet.map((s, i) => (
         <Box key={`sheet-row-${s.type}`} flexDirection="row" gap={1}>
           <Button key={`sheet-${s.type}`} hotkey={SHEET_KEYS[i]} label={`${s.type}${isModeType(s.type) ? ' …' : ''}`} plain onPress={() => ctx.on.askAgent(room.id, s.type)} />
@@ -196,8 +199,8 @@ function Keys(ctx: Ctx, room: RoomView): RenderElement {
         </Box>
       ))}
       <Box flexDirection="row" gap={2} flexWrap="wrap">
-        {chips.map(s => <Button key={`ask-${s.type}`} hotkey={CHIP_KEYS[s.type]} label={s.type} plain onPress={() => ctx.on.askAgent(room.id, s.type)} />)}
-        {room.kind === 'project' ? <Button key={`ask-more-${room.id}`} hotkey="m" label={ctx.model.isSheetOpen ? 'kapat' : 'daha fazla'} plain onPress={() => ctx.on.toggleSheet(room.id)} /> : null}
+        {isProject ? <Button key={`ask-more-${room.id}`} hotkey="a" label={ctx.model.isSheetOpen ? 'kapat' : 'agent\'a sor'} plain onPress={() => ctx.on.toggleSheet(room.id)} /> : null}
+        {isProject ? <Button key={`info-${room.id}`} hotkey="i" label={ctx.model.isInfoOpen ? 'ayrıntıları kapat' : 'ayrıntılar'} plain onPress={() => ctx.on.toggleInfo(room.id)} /> : null}
         <Button key="back" hotkey="o" label="‹ odalar" plain onPress={() => ctx.on.back()} />
       </Box>
       {ctx.model.hint === null ? null : <Text color={ctx.look.role.warn.fg} wrap="wrap">{ctx.model.hint}</Text>}
@@ -216,7 +219,7 @@ export function TermChat(ctx: Ctx, room: RoomView): RenderElement {
       {itemsEls(ctx, items)}
       {ctx.model.drafts.filter(d => d.roomId === room.id).map(d => DraftBlock(ctx, d))}
       {ctx.model.error === null ? null : <Text key="error" color={ctx.look.role.danger.fg} wrap="wrap">{`✕ ${ctx.model.error}`}</Text>}
-      {ctx.model.isConnected ? null : <Box key="connect-banner" flexDirection="row" gap={1}><Text color={ctx.look.role.warn.fg}>◷ bağlantı bekleniyor; yazdıkların sırada.</Text><Button key="connect-inline" label={ctx.model.waiting.length > 0 ? 'Bağlan ve gönder' : 'Bağlan'} variant="primary" onPress={() => ctx.on.connect()} /></Box>}
+      {ctx.model.isConnected ? null : <Box key="connect-banner" flexDirection="row" gap={1}><Text color={ctx.look.role.warn.fg}>◷ bağlantı bekleniyor; yazdıkların sırada.</Text><Button key="connect-inline" label="Bağlan" variant="primary" onPress={() => ctx.on.connect()} /></Box>}
       {rule}
       {Prompt(ctx, room)}
       {Keys(ctx, room)}

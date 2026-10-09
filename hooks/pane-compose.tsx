@@ -1,10 +1,11 @@
-// The composer on the desktop: in a project room the "Agent'ına sor" chips and their sheet (every query the
-// protocol takes, two to a row, the free `ask` apart in Amber), then the field (a removable mode chip when it is
-// set to a query, a placeholder addressed to the room), the send button and a hint row.
+// The composer on the desktop: the field (a placeholder addressed to the room) and "Gönder". A project room adds
+// one "Agent'a sor" button that opens the sheet of every query the protocol takes (two to a row, the free `ask`
+// apart in Amber) and a removable mode chip once the field is set to one. A hint line shows only when it has
+// something to say (an unknown command, a missing value).
 import type { RenderElement } from 'claude-code'
 
 import { Pic, PX_PER_CELL, type Ctx } from './pane-kit'
-import { CHIP_TYPES, isModeType, specOf, supportedSpecs, type QuerySpec } from './query-menu'
+import { isModeType, specOf, supportedSpecs, type QuerySpec } from './query-menu'
 import { sheetHeadPart } from './sig-agent'
 import { glyphPiece, rowPart, rulePart, textPiece } from './sig-ui'
 import type { RoomView } from './state-types'
@@ -16,37 +17,13 @@ const ASK_TYPE = 'ask'
 export function placeholderOf(room: RoomView, mode: string | null): string {
   const arg = mode === null ? undefined : specOf(mode)?.arg
   if (arg !== undefined) return arg.placeholder
-  if (room.kind === 'project') return 'Odaya yaz, /ask ile agent\'a sor'
+  if (room.kind === 'project') return 'Odaya yaz'
   return room.peerName === undefined ? 'Mesaj yaz' : `${dative(room.peerName)} yaz`
 }
 
-export function hintOf(ctx: Ctx, room: RoomView): { left: string; right: string } {
-  if (ctx.model.composeMode !== null) return { left: 'Enter sorar · × normal mesaja döner', right: '/grep /file /ask …' }
-  if (room.kind === 'project') return { left: 'Enter gönderir', right: '/status /diff /ask …' }
-  return { left: 'Enter gönderir', right: `okundu bilgisi ${ctx.model.settings.isReceiptsOn ? 'açık' : 'kapalı'}` }
-}
-
-function Chip(ctx: Ctx, o: { key: string; label: string; onPress: () => void; isOn?: boolean }): RenderElement {
-  const { Box, Button } = ctx.ui
-  const run = ctx.look.role.run
-  return (
-    <Box key={`${o.key}-chip`} borderStyle="round" borderColor={run.line} backgroundColor={o.isOn === true ? run.line : run.tint} flexShrink={0}>
-      <Button key={o.key} label={o.label} plain onPress={() => o.onPress()} />
-    </Box>
-  )
-}
-
-function Chips(ctx: Ctx, room: RoomView): RenderElement {
-  const { Box } = ctx.ui
-  const types = supportedSpecs().filter(s => CHIP_TYPES.includes(s.type))
-  const label = textPiece('Agent\'ına sor', { size: 11.5, paint: 'lo' })
-  return (
-    <Box key="chips" flexDirection="row" alignItems="center" gap={1} flexWrap="wrap">
-      {Pic(ctx, rowPart({ width: label.width, height: 18, left: [label], alt: 'Agent\'ına sor' }), 'chips-label')}
-      {types.map(s => Chip(ctx, { key: `ask-${s.type}`, label: s.type, onPress: () => ctx.on.askAgent(room.id, s.type) }))}
-      {Chip(ctx, { key: `ask-more-${room.id}`, label: ctx.model.isSheetOpen ? 'Kapat' : 'Daha fazla', isOn: ctx.model.isSheetOpen, onPress: () => ctx.on.toggleSheet(room.id) })}
-    </Box>
-  )
+function AskButton(ctx: Ctx, room: RoomView): RenderElement {
+  const { Button } = ctx.ui
+  return <Button key={`ask-more-${room.id}`} label={ctx.model.isSheetOpen ? 'Kapat' : 'Agent\'a sor'} variant="secondary" onPress={() => ctx.on.toggleSheet(room.id)} />
 }
 
 function Cell(ctx: Ctx, o: { room: RoomView; spec: QuerySpec; cellPx: number }): RenderElement {
@@ -109,13 +86,10 @@ function ModeChip(ctx: Ctx): RenderElement | null {
   )
 }
 
-function HintRow(ctx: Ctx, room: RoomView): RenderElement {
+function HintRow(ctx: Ctx): RenderElement | null {
   const hint = ctx.model.hint
-  const words = hintOf(ctx, room)
-  const part = hint !== null
-    ? rowPart({ width: ctx.px, height: 16, left: [textPiece(hint, { size: 11.5, paint: 'warn', max: ctx.px })], alt: hint })
-    : rowPart({ width: ctx.px, height: 16, left: [textPiece(words.left, { size: 11.5, paint: 'lo' })], right: [textPiece(words.right, { size: 11.5, paint: 'lo', isMono: room.kind === 'project' })], alt: `${words.left} · ${words.right}` })
-  return Pic(ctx, part, 'hint')
+  if (hint === null) return null
+  return Pic(ctx, rowPart({ width: ctx.px, height: 16, left: [textPiece(hint, { size: 11.5, paint: 'warn', max: ctx.px })], alt: hint }), 'hint')
 }
 
 export function Composer(ctx: Ctx, room: RoomView): RenderElement {
@@ -127,8 +101,8 @@ export function Composer(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="composer" flexDirection="column" gap={1}>
       {isProject ? Sheet(ctx, room) : null}
-      {isProject ? Chips(ctx, room) : null}
       <Box key="field-row" flexDirection="row" alignItems="center" gap={1}>
+        {isProject && mode === null ? AskButton(ctx, room) : null}
         {ModeChip(ctx)}
         <Box flexGrow={1} flexDirection="column">
           <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? 'Gönder' : 'Sor'}
@@ -136,7 +110,7 @@ export function Composer(ctx: Ctx, room: RoomView): RenderElement {
         </Box>
         <Button key={`send-${room.id}`} variant="primary" label={mode === null ? 'Gönder' : 'Sor'} onPress={() => ctx.on.sendTyped(room.id)} />
       </Box>
-      {HintRow(ctx, room)}
+      {HintRow(ctx)}
     </Box>
   )
 }

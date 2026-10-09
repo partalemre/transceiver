@@ -19,8 +19,6 @@ export type WorldOpts = {
   extra?: Record<string, unknown>
   // The session's git `origin` (`git remote get-url origin`); absent, the session has no repo.
   remote?: string
-  // How long reading a room's heads takes on the test clock: the poll's measured round trip.
-  latencyMs?: number
 }
 
 export type World = {
@@ -108,7 +106,6 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
     world.calls.push(e)
     if (e.tool === 'Artifact') return asToolResult((o.artifact ?? publishAnswer)(e))
     if (e.action === 'profiles') return asToolResult(profiles(e))
-    if (o.latencyMs !== undefined && e.action === 'list' && e.collection === 'outbox') await clock.advance(o.latencyMs)
     return asToolResult(await callerFor(dbOf(e.url))(e))
   })
   return world

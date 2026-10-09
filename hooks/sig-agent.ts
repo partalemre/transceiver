@@ -1,30 +1,23 @@
-// Agent traffic in Svg: a transmission's head (who asked, the type chip, what), the answer's meta (who answered,
-// tokens, how long), the compact bodies (a diff's stat, test pills, search hits, lists, TODO tags, a commit) and
-// the one-line refusal.
-import { num, outlineEl, place, rectEl } from './kit/svg-core'
+// Agent traffic in Svg: an exchange folded to one line, the answer's meta (who answered, tokens, how long) and
+// the compact bodies (a diff's stat, test pills, search hits, lists, TODO tags, a commit).
+import { num, place, rectEl } from './kit/svg-core'
 import type { Part } from './kit/svg-core'
 import type { Compact, DiffStat, Hit } from './answers'
-import { dotPiece, eyebrowPiece, glyphPiece, pillPiece, rowPart, spanOf, stackPart, textPiece, type Piece } from './sig-ui'
+import { dotPiece, eyebrowPiece, pillPiece, rowPart, stackPart, textPiece, type Piece } from './sig-ui'
 
 const HEAD_H = 20
 const META_H = 18
 const SMALL = { size: 11.5 }
 const MONO = { size: 12, isMono: true }
 const TIME = { size: 11, paint: 'lo' }
-const CHIP = { paint: 'run', isMono: true, size: 11 }
-const ARG_GAP = 8
-const ARG_SIZE = 11.5
-const MIN_ARG_PX = 24
+// What a row puts between the lead and the words, kept in hand when fitting them.
+const LINE_GAP_PX = 12
 
-export type TxHeadOpts = { width: number; lead: Piece; eyebrow: string; type: string; arg?: string; time: string }
-
-// [robot] SENİN AGENT'IN SORDU [grep] "refreshToken" ··· 14:30
-export function txHeadPart(o: TxHeadOpts): Part {
-  const time = textPiece(o.time, TIME)
-  const fixed = [o.lead, eyebrowPiece(o.eyebrow, { paint: 'run' }), pillPiece(o.type, CHIP)]
-  const room = o.width - spanOf(fixed) - time.width - 2 * ARG_GAP
-  const left = o.arg === undefined || room < MIN_ARG_PX ? fixed : [...fixed, textPiece(`"${o.arg}"`, { size: ARG_SIZE, isMono: true, paint: 'hi', max: room })]
-  return rowPart({ width: o.width, height: HEAD_H, left, right: [time], alt: [o.eyebrow, o.type, o.arg, o.time].filter(Boolean).join(' · ') })
+// [face] Alperen'in agent'ı diff sordu · cevaplandı · 0 token: one exchange, folded to a line. Its time is in the
+// opened answer; the line keeps its width for the words.
+export function txLinePart(o: { width: number; lead: Piece; text: string; paint: string }): Part {
+  const text = textPiece(o.text, { size: 12, paint: o.paint, max: o.width - o.lead.width - LINE_GAP_PX })
+  return rowPart({ width: o.width, height: HEAD_H, left: [o.lead, text], alt: o.text })
 }
 
 export type MetaOpts = { width: number; who: string; tokens: number; extra?: string; right?: string }
@@ -96,30 +89,6 @@ export function compactPart(c: Compact, o: { width: number; shown: number }): Pa
     return stackPart([subject, c.stat === null ? null : row(statPieces(c.stat), 'stat')], { width: o.width, gap: LINE_GAP })
   }
   return null
-}
-
-const DENY_H = 36
-const DENY_PAD = 12
-const DENY_R = 10
-
-// 🔒 Alperen'in agent'ı .env istedi ··· erişim yok 14:21, on Flare.
-export function denialPart(o: { width: number; who: string; what?: string; time: string }): Part {
-  const right = [textPiece('erişim yok', { size: 12, weight: 600, paint: 'danger' }), textPiece(o.time, TIME)]
-  const lock = glyphPiece('lock', { size: 15, paint: 'danger' })
-  const who = textPiece(o.who, { size: 12.5, paint: 'hi' })
-  const what = o.what === undefined ? [] : [textPiece(o.what, { size: 12.5, isMono: true, paint: 'danger', max: 120 }), textPiece('istedi', { size: 12.5, paint: 'hi' })]
-  const inner = rowPart({ width: o.width - DENY_PAD * 2, height: DENY_H, left: [lock, who, ...what], right, gap: 6, alt: '' })
-  const box = { x: 0, y: 0, width: o.width, height: DENY_H, radius: DENY_R }
-  const body = [rectEl({ ...box, paint: 'danger-tint' }), outlineEl({ ...box, paint: 'danger-line' }), place(inner.body, DENY_PAD, 0)]
-  return { body: body.join(''), width: o.width, height: DENY_H, alt: `${o.who}${o.what === undefined ? '' : ` ${o.what} istedi`}: erişim yok, ${o.time}` }
-}
-
-// TASLAK · ONAYINI BEKLİYOR ··· ask 10/10 doldu
-export function draftHeadPart(o: { width: number; meta: string }): Part {
-  return rowPart({
-    width: o.width, height: HEAD_H, left: [eyebrowPiece('Taslak · onayını bekliyor', { paint: 'warn' })],
-    right: [textPiece(o.meta, { size: 11, paint: 'mid' })], alt: `Taslak, onayını bekliyor · ${o.meta}`,
-  })
 }
 
 // The sheet's lead: ALPEREN'İN AGENT'INA SOR ··· 12 hazır sorgu · 0 token

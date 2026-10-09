@@ -120,6 +120,6 @@ export function input(o: { rooms?: RoomRecord[]; syncs?: Record<string, RoomSync
   const syncs = o.syncs ?? { ra: dmAlperen(), re: projectEliti(), rz: dmZeynep() }
   return {
     rooms, syncs, names: NAMES, settings: SETTINGS, now: NOW, isConnected: o.isConnected ?? true,
-    session: { ...EMPTY_SESSION, latencyMs: 680, ...o.session },
+    session: { ...EMPTY_SESSION, ...o.session },
   }
 }

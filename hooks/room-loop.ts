@@ -11,9 +11,8 @@ import type { Entry } from './timeline'
 // One timer per active room. The sync state lives here and in `$.store` (a reload drops module state and timers;
 // `session.start` starts the loop again from the store).
 
-// `tookMs`: how long the poll took, the pane's "sinyal" figure. `docsUsed`: the room's document count from the
-// newest write result that named it (T15 rollover), when one did.
-export type TickEvent = { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean; tookMs?: number; docsUsed?: number }
+// `docsUsed`: the room's document count from the newest write result that named it (T15 rollover), when one did.
+export type TickEvent = { room: RoomRecord; state: RoomSync; fresh: Entry[]; isDenied: boolean; docsUsed?: number }
 type Listener = (ev: TickEvent) => Promise<void>
 
 const syncKey = (id: string) => `tx.sync.${id}`
@@ -88,7 +87,6 @@ async function step(host: Host, scheduled: RoomRecord): Promise<void> {
   const startedAt = await host.now()
   // Until the session is connected (spike R1) the loop only reads: no send, no read mark raises an approval.
   const out = await tick({ relay, boxes, state: before, isViewing, isReceiptsOn: settings.isReceiptsOn, now: startedAt, canWrite: host.isConnected() })
-  const tookMs = (await host.now()) - startedAt
   // Left while the poll was in flight: nothing of it is kept.
   if (!active.has(room.id)) return
   const state = carryQueued({ before, during: syncs.get(room.id), after: out.state })
@@ -96,7 +94,7 @@ async function step(host: Host, scheduled: RoomRecord): Promise<void> {
   await persist(host, room.id, state)
   const docsUsed = relay.usage() ?? used.get(room.id)
   if (docsUsed !== undefined) used.set(room.id, docsUsed)
-  for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, tookMs, docsUsed })
+  for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, docsUsed })
   // A listener that queued a message (an answer) gets it sent at once rather than a poll later.
   const isQueued = (syncs.get(room.id)?.pending.length ?? 0) > state.pending.length
   schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen, failures: state.failures }))

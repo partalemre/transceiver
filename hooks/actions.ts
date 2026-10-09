@@ -9,7 +9,7 @@ import { isRepo, paths } from './protocol'
 import { pokeRoom, syncOf } from './room-loop'
 import { createRoom, loadRooms, loadSettings, saveRooms, saveSettings, type RoomKind, type RoomRecord } from './rooms'
 import { draftSettlerNow, modelNow, patchSession, portNow, refreshPane, sessionNow, type PanePort } from './state'
-import type { PaneSettings, PaneView } from './state-types'
+import type { EmptyForm, PaneSettings, PaneView } from './state-types'
 import { readMarkOf } from './view'
 
 const CONNECT_CONSENT = 'The user pressed "Bağlan" on the Transceiver pane to send messages from this session.'
@@ -152,6 +152,8 @@ export type PaneHandlers = {
   sendTyped(roomId: string): void
   toggleExpanded(id: string): void
   toggleSheet(roomId: string): void
+  toggleInfo(roomId: string): void
+  toggleForm(form: EmptyForm): void
   clearMode(): void
 }
 
@@ -186,6 +188,8 @@ export const paneHandlers: PaneHandlers = {
   type: (roomId, text) => setTyped(roomId, text),
   sendTyped: roomId => run(p => sendComposed(p, { roomId, text: typedOf(roomId) })),
   toggleSheet: roomId => run(async () => patchSession({ sheetRoom: sessionNow().sheetRoom === roomId ? null : roomId, hint: null })),
+  toggleInfo: roomId => run(async () => patchSession({ infoRoom: sessionNow().infoRoom === roomId ? null : roomId })),
+  toggleForm: form => run(async () => patchSession({ emptyForm: sessionNow().emptyForm === form ? null : form, error: null })),
   clearMode: () => run(async () => patchSession({ composeMode: null, hint: null })),
   toggleExpanded: id => run(async () => {
     const open = sessionNow().expanded
