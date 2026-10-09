@@ -12,6 +12,9 @@ export type GateRoom = {
 // claims another (a collaborator's, say) does not inherit it.
 export type GateInput = {
   room: GateRoom; peerUid: string; query: Query; sessionRepo: string | null; headGh: string | undefined; now: number
+  // How many other people have an outbox in the room. The owner can write any member's outbox, so with three or
+  // more a query could pass for another member's: agent traffic runs only between two.
+  otherMembers: number
 }
 
 // GitHub owner, repo and login names are case-insensitive.
@@ -23,7 +26,8 @@ function confirmedLogin(input: GateInput): string | null {
   const isProject = room.kind === 'project' && sameName(room.repo, query.repo)
   const isSameRepo = sameName(input.sessionRepo, query.repo)
   const peer = room.peers.find(p => p.uid === input.peerUid)
-  if (!isProject || !isSameRepo || peer?.isGhConfirmed !== true || peer.gh === undefined) return null
+  const isPair = input.otherMembers === 1
+  if (!isPair || !isProject || !isSameRepo || peer?.isGhConfirmed !== true || peer.gh === undefined) return null
   return sameName(peer.gh, input.headGh) ? peer.gh : null
 }
 

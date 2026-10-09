@@ -25,12 +25,13 @@ export function gateChecks(room: RoomRecord, sync: RoomSync | undefined, src: Ro
   return {
     isConfirmed, login, isCollaborator: hit?.isOk ?? null, checkedAt: hit?.at ?? null,
     isSessionRepo: src.sessionRepo === undefined ? null : sameName(src.sessionRepo, room.repo),
+    isPair: peerUids(sync).length <= 1,
   }
 }
 
-// Open only when all four hold, closed when one fails, unknown while GitHub or the session's repo is not known.
+// Open only when all hold (two people, confirmed, collaborator, this session's repo), closed when one fails, unknown while GitHub or the session's repo is not known.
 export function gateBadge(c: GateChecks): GateBadge {
-  if (!c.isConfirmed || c.isCollaborator === false || c.isSessionRepo === false) return 'closed'
+  if (!c.isConfirmed || c.isCollaborator === false || c.isSessionRepo === false || c.isPair === false) return 'closed'
   return c.isCollaborator === true && c.isSessionRepo === true ? 'open' : 'unknown'
 }
 

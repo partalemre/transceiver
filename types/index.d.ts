@@ -21,6 +21,9 @@ export type GateChecks = {
   isCollaborator: boolean | null
   checkedAt: number | null
   isSessionRepo: boolean | null
+  /** False once a third member shows up: agent traffic runs only between two people (a room owner can write any
+   *  member's outbox, so with three or more a message could pass for another member's). */
+  isPair?: boolean
 }
 // What this machine answered in the room today: every answer, those with no model, and the refusals.
 export type DayCounts = { answered: number; modelless: number; denied: number }
