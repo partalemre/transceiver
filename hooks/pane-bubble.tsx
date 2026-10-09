@@ -49,7 +49,7 @@ function RoomChip(ctx: Ctx, o: { line: Line; maxPx: number }): RenderElement | n
   )
 }
 
-function bubbleBody(ctx: Ctx, o: BubbleOpts, text: string, ts: number): RenderElement {
+function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): RenderElement {
   const { Box, Text } = ctx.ui
   const { line } = o
   const tone = line.isMine ? ctx.look.signal : { tint: ctx.look.card, line: ctx.look.line }
@@ -58,9 +58,9 @@ function bubbleBody(ctx: Ctx, o: BubbleOpts, text: string, ts: number): RenderEl
   return (
     <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>
       {line.replyTo === undefined ? null : Pic(ctx, quotePart({ ...line.replyTo, maxWidth: maxPx }), 'quote')}
-      <Text key="text" color={ctx.look.hi} wrap="wrap">{text}</Text>
+      <Text key="text" color={ctx.look.hi} wrap="wrap">{o.text}</Text>
       {RoomChip(ctx, { line, maxPx })}
-      {o.isLast || isPending ? Stamp(ctx, line, ts) : null}
+      {o.isLast || isPending ? Stamp(ctx, line, o.ts) : null}
     </Box>
   )
 }
@@ -90,5 +90,5 @@ export function Bubble(ctx: Ctx, o: BubbleOpts): RenderElement {
   if (m.kind === 'system' || isText(ctx)) {
     return <Box key={`msg-${o.line.id}`} justifyContent="center"><Text color={ctx.look.lo} italic wrap="wrap">{m.text}</Text></Box>
   }
-  return Side(ctx, { ...o, body: bubbleBody(ctx, o, m.text, m.ts) })
+  return Side(ctx, { ...o, body: bubbleBody(ctx, { ...o, text: m.text, ts: m.ts }) })
 }
