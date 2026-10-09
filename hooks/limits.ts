@@ -11,6 +11,8 @@ export const POLL_OPEN_MS = 1_000
 export const POLL_CLOSED_MS = 5_000
 export const POLL_MAX_MS = 30_000
 export const DISCOVER_MS = 60_000
+export const POLL_BACKOFF = 2
+export const KEEP_ENTRIES = 500
 
 export const ASK_MODEL = 'haiku'
 export const ASK_MAX_TOKENS = 800

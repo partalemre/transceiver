@@ -8,7 +8,8 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T1 scaffold | done | `fdb1570` | — |
 | T2 protocol + ulid | done | `a6496ca`, `f6b3413` | — |
 | T3 dbtext | done | `2c2f2ce`, `2913d5c`, `5063a48` | — |
-| T4 relay | done (review fixes) | `f9b12b3`, then the review-fix commit | 70 |
+| T4 relay | done (review fixes) | `f9b12b3`, `4dfcdbc`, `615618e` (kit-pull) | 70 |
+| T5 timeline + sync | done | see git log `feat(sync)` | 98 |
 
 ## T4 review fixes
 
@@ -24,3 +25,17 @@ Deviations from the plan (Task 4 interface):
 - `markRead(opts)` added (the file map lists it; the plan's code had no such method).
 - Also fixed pre-existing `tsc` errors: `parseHead`/`parseMeta` widened `v` to `number`, and three test index reads under `noUncheckedIndexedAccess`.
 - `bin/kit-pull` resolves MODZ from `$MODZ`, else the repo's sibling `MODZ` folder, instead of a hard-coded Mac path.
+
+## T5 timeline + sync
+
+`hooks/timeline.ts` is the plan's code. `hooks/sync.ts` follows the plan's shape (`initialSync`, `enqueue`, `tick`, `nextDelay`) on the T4 relay API:
+
+- The cached own head and version ride along as `known` on every `send` and `markRead`, and the merged `HeadState` the relay returns replaces the cache. The plan's `nextHead: prev => prev.head === '' ? head : …` trick is gone, since the relay merges.
+- `acknowledge` calls `relay.markRead` with `seenUpTo` = newest pulled id, and `readUpTo` only while the room is open and receipts are on. It also catches up `readUpTo` to `seenUpTo` when the person opens a room whose messages were pulled while it was closed (the plan only marked read what was fresh in the same tick).
+- `TickOpts.now` (optional) stamps `readTs`; without it the newest read message's `ts` stands in.
+- Progress is kept on failure: messages sent before a failing step leave `pending`, and a failed pull keeps what the flush did. The plan returned the original state, so a delivered message would be re-sent (now harmless thanks to T4 item 2, but wasteful).
+- `flush` stops at the first refusal, so messages land in order.
+- When a `since` page comes back short, the peer's cursor moves to its `headTs`, so a doc that fails the guards (no readable `ts`) is not fetched on every tick.
+- `KEEP_ENTRIES` (500) and `POLL_BACKOFF` (2) moved from `sync.ts` into `limits.ts`.
+
+Tests: the plan's timeline and sync tests, plus a lost reply settled on the next tick, in-order flush, read catch-up on opening, `gh` kept across acks and sends, and the unreadable-doc cursor.
