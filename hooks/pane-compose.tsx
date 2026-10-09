@@ -27,11 +27,11 @@ export function hintOf(ctx: Ctx, room: RoomView): { left: string; right: string 
 }
 
 function Chip(ctx: Ctx, o: { key: string; label: string; onPress: () => void; isOn?: boolean }): RenderElement {
-  const { Box, Button, Text } = ctx.ui
+  const { Box, Button } = ctx.ui
   const run = ctx.look.role.run
   return (
     <Box key={`${o.key}-chip`} borderStyle="round" borderColor={run.line} backgroundColor={o.isOn === true ? run.line : run.tint} flexShrink={0}>
-      <Button key={o.key} plain onPress={() => o.onPress()}><Text color={run.fg}>{o.label}</Text></Button>
+      <Button key={o.key} label={o.label} plain onPress={() => o.onPress()} />
     </Box>
   )
 }
@@ -50,28 +50,26 @@ function Chips(ctx: Ctx, room: RoomView): RenderElement {
 }
 
 function Cell(ctx: Ctx, o: { room: RoomView; spec: QuerySpec; cellPx: number }): RenderElement {
-  const { Box, Button, Text } = ctx.ui
+  const { Box, Button } = ctx.ui
   const isOn = ctx.model.composeMode === o.spec.type
   const desc = rowPart({ width: o.cellPx, height: 16, left: [textPiece(o.spec.desc, { size: 11.5, paint: isOn ? 'mid' : 'lo', max: o.cellPx })], alt: o.spec.desc })
   return (
     <Box key={`cell-${o.spec.type}`} flexDirection="column" alignItems="flex-start" width="50%" paddingX={1} backgroundColor={isOn ? ctx.look.role.run.tint : undefined}>
-      <Button key={`sheet-${o.spec.type}`} plain onPress={() => ctx.on.askAgent(o.room.id, o.spec.type)}>
-        <Text color={ctx.look.role.run.fg}>{`${o.spec.type}${isModeType(o.spec.type) ? ' …' : ''}`}</Text>
-      </Button>
+      <Button key={`sheet-${o.spec.type}`} label={`${o.spec.type}${isModeType(o.spec.type) ? ' …' : ''}`} plain onPress={() => ctx.on.askAgent(o.room.id, o.spec.type)} />
       {Pic(ctx, desc)}
     </Box>
   )
 }
 
 function AskRow(ctx: Ctx, o: { room: RoomView; spec: QuerySpec; width: number }): RenderElement {
-  const { Box, Button, Text } = ctx.ui
+  const { Box, Button } = ctx.ui
   const desc = rowPart({ width: o.width - 120, height: 16, left: [textPiece(o.spec.desc, { size: 11.5, paint: 'lo', max: o.width - 120 })], alt: o.spec.desc })
   const limit = rowPart({ width: 70, height: 16, left: [], right: [textPiece('günde 10', { size: 11.5, paint: 'mid' })], alt: 'günde 10' })
   return (
     <Box key="ask-row" flexDirection="row" alignItems="center" gap={1} paddingX={1}>
       {Pic(ctx, { ...rowPart({ width: 16, height: 16, left: [glyphPiece('star', { size: 16, paint: 'warn', stroke: 1.5 })], alt: '' }), alt: 'ask' })}
       <Box flexDirection="column" alignItems="flex-start" flexGrow={1}>
-        <Button key={`sheet-${ASK_TYPE}`} plain onPress={() => ctx.on.askAgent(o.room.id, ASK_TYPE)}><Text color={ctx.look.role.warn.fg}>ask …</Text></Button>
+        <Button key={`sheet-${ASK_TYPE}`} label="ask …" plain onPress={() => ctx.on.askAgent(o.room.id, ASK_TYPE)} />
         {Pic(ctx, desc)}
       </Box>
       {Pic(ctx, limit)}

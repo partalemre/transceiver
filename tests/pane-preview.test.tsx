@@ -31,6 +31,16 @@ const withGrep = (): Record<string, RoomSync> => {
 }
 const DRAFT = { 'tx.budget': { day: localDay(NOW), byRoom: { re: 10 } }, 'tx.drafts': [{ roomId: 're', qid: idAt(2), question: 'Refresh token neden iki kez yazılıyor?', asker: ALPEREN }] }
 
+// Engine 2.1.293 (the desktop app's) refuses a Button without a string label: the whole pane then goes undrawn.
+type Node = { type?: string; props?: { label?: unknown }; children?: unknown[] }
+function unlabeledButtons(node: unknown): string[] {
+  if (node === null || typeof node !== 'object') return []
+  const n = node as Node
+  const kids = n.children ?? []
+  const isBad = n.type === 'Button' && (typeof n.props?.label !== 'string' || kids.some(k => typeof k === 'object' && k !== null))
+  return [...(isBad ? [JSON.stringify(n).slice(0, 120)] : []), ...kids.flatMap(unlabeledButtons)]
+}
+
 type Shot = {
   label: string
   rooms?: RoomRecord[]
@@ -78,6 +88,7 @@ for (const isLight of [false, true]) {
         const tree = JSON.stringify(await ui.drawn())
         console.log(`@@TREE@@${label}@@${tree}`)
         expect(tree.includes(s.sees)).toBe(true)
+        expect(unlabeledButtons(JSON.parse(tree))).toEqual([])
         await ui.unmount()
       })
     }

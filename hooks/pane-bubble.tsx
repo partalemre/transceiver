@@ -34,7 +34,7 @@ function Stamp(ctx: Ctx, line: Line, ts: number): RenderElement {
 
 // ⌥ partalemre/eliti ··· Odaya git: a shared project room this DM names.
 function RoomChip(ctx: Ctx, o: { line: Line; maxPx: number }): RenderElement | null {
-  const { Box, Button, Text } = ctx.ui
+  const { Box, Button } = ctx.ui
   const link = o.line.roomLink
   if (link === undefined) return null
   const run = ctx.look.role.run
@@ -44,7 +44,7 @@ function RoomChip(ctx: Ctx, o: { line: Line; maxPx: number }): RenderElement | n
     <Box key="room-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderColor={run.line} backgroundColor={run.tint} paddingX={1}>
       {Pic(ctx, name)}
       <Box flexGrow={1} />
-      <Button key={`goto-${o.line.id}`} plain onPress={() => ctx.on.select(link.roomId)}><Text bold color={run.fg}>Odaya git</Text></Button>
+      <Button key={`goto-${o.line.id}`} label="Odaya git" plain onPress={() => ctx.on.select(link.roomId)} />
     </Box>
   )
 }

@@ -36,7 +36,7 @@ function TextRow(ctx: Ctx, room: RoomView): RenderElement {
     <Box key={`row-${room.id}`} flexDirection="column">
       <Box flexDirection="row" gap={1}>
         <Text color={room.kind === 'project' ? ctx.look.role.run.fg : ctx.look.lo}>{glyph}</Text>
-        <Button key={`open-${room.id}`} plain onPress={() => ctx.on.select(room.id)}><Text bold>{room.title}</Text></Button>
+        <Button key={`open-${room.id}`} label={room.title} plain onPress={() => ctx.on.select(room.id)} />
         <Box flexGrow={1} />
         {room.unread > 0 ? <Text color={ctx.look.signal.fg} bold>{`(${room.unread})`}</Text> : null}
         <Text color={ctx.look.lo}>{rowTime(room.lastTs, ctx.model.now)}</Text>
@@ -58,9 +58,7 @@ export function RoomRow(ctx: Ctx, room: RoomView): RenderElement {
       {Pic(ctx, face, `av-${room.id}`)}
       <Box flexDirection="column" flexGrow={1}>
         <Box flexDirection="row" justifyContent="space-between" gap={1}>
-          <Button key={`open-${room.id}`} plain onPress={() => ctx.on.select(room.id)}>
-            <Text bold color={ctx.look.hi}>{room.kind === 'project' ? room.repo?.split('/')[1] ?? room.title : room.title}</Text>
-          </Button>
+          <Button key={`open-${room.id}`} label={room.kind === 'project' ? room.repo?.split('/')[1] ?? room.title : room.title} plain onPress={() => ctx.on.select(room.id)} />
           <Text color={hasUnread ? ctx.look.signal.fg : ctx.look.lo} bold={hasUnread}>{rowTime(room.lastTs, ctx.model.now)}</Text>
         </Box>
         <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>

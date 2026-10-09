@@ -37,8 +37,8 @@ const extraOf = (c: Compact): string | undefined =>
   (c.kind === 'hits' ? `${c.count} eşleşme` : c.kind === 'list' ? `${c.count} ${c.noun}` : undefined)
 
 function MoreButton(ctx: Ctx, o: { tx: Tx; isOpen: boolean }): RenderElement {
-  const { Button, Text } = ctx.ui
-  return <Button key={`more-${o.tx.id}`} plain onPress={() => ctx.on.toggleExpanded(o.tx.id)}><Text bold color={ctx.look.role.run.fg}>{o.isOpen ? 'Gizle' : 'Göster'}</Text></Button>
+  const { Button } = ctx.ui
+  return <Button key={`more-${o.tx.id}`} label={o.isOpen ? 'Gizle' : 'Göster'} plain onPress={() => ctx.on.toggleExpanded(o.tx.id)} />
 }
 
 // A compact body with "Göster" at its right (a stat, pills), or its first rows and "+n daha · Göster" under them.
