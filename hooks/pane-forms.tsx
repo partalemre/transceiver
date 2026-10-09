@@ -34,7 +34,7 @@ export function AddView(ctx: Ctx): RenderElement {
     key: 'add-dm', tone: 'signal',
     children: [
       Head(ctx, { glyph: 'radio', tone: 'signal', eyebrow: 'Doğrudan mesaj', headline: 'Arkadaşını ekle', sub: 'Senin için bir oda açılır. claude.ai\'de Paylaş menüsünden arkadaşını e-postasıyla davet edersin; o kabul edince yazışırsınız.' }),
-      ButtonRow(ctx.ui, ctx.surface, ctx.look.isLight, {
+      ButtonRow({ ui: ctx.ui, surface: ctx.surface, isLight: ctx.look.isLight }, {
         buttons: [{ key: 'add-dm', label: isBusy ? ctx.model.busy ?? '' : 'Arkadaş ekle', variant: 'primary', onPress: () => ctx.on.addDm() }],
       }),
     ],
