@@ -5,20 +5,18 @@ import type { RenderElement } from 'claude-code'
 
 import { Cards } from './pane-cards'
 import { EmptyView } from './pane-empty'
-import { isText, Pic, PX_PER_CELL, receiptTone, roomFace, ticksOf, type Ctx } from './pane-kit'
+import { isText, Pic, receiptTone, roomFace, type Ctx } from './pane-kit'
 import { Title } from './pane-type'
-import { badgePart } from './sig'
-import { previewPart, sectionPart, statusPart } from './sig-rail'
 import type { RoomView } from './state-types'
 import { rowTime } from './when'
 
 const FACE = 36
-const FACE_CELLS = 5
-const NEW_CELLS = 9
-const FOOT_CELLS = 10
-// A row's padding and the badge beside its second line.
-const ROW_CHROME_CELLS = 2
+
+// What a row's face and padding take, and its unread badge: the second line is cut to the rest, so it never wraps.
+const ROW_CHROME_CELLS = 8
 const BADGE_CELLS = 4
+
+const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`)
 
 const BOX_BLOCKED = 'kutusu henüz seninle paylaşılmadı'
 const TROUBLED = 'bağlantı sorunu · yeniden deneniyor'
@@ -39,16 +37,27 @@ function lineOf(room: RoomView): { text: string; isWarn: boolean } {
 
 const hasTicks = (room: RoomView): boolean => room.lastIsMine && room.lastText !== '' && !room.isTroubled && !room.isBoxBlocked
 
-function previewOf(room: RoomView, width: number) {
+// What is wrong in amber; an unread last message bright; any other dim.
+function secondColor(ctx: Ctx, o: { room: RoomView; isWarn: boolean }): string | undefined {
+  if (o.isWarn) return ctx.look.role.warn.fg
+  return o.room.unread > 0 ? ctx.look.hi : ctx.look.lo
+}
+
+// The second line as text: its receipt, then what is wrong or the last message, cut to one line.
+function SecondLine(ctx: Ctx, room: RoomView): RenderElement {
+  const { Box, Text } = ctx.ui
+  const tick = room.lastReceipt === undefined || !hasTicks(room) ? null : receiptTone(ctx, room.lastReceipt)
   const line = lineOf(room)
-  if (line.isWarn) return previewPart({ width, text: line.text, isUnread: false, paint: 'warn' })
-  return previewPart({ width, text: line.text, isUnread: room.unread > 0, ticks: hasTicks(room) ? ticksOf(room.lastReceipt) : undefined })
+  return (
+    <Box key="second" flexDirection="row" gap={1} flexGrow={1} flexShrink={1}>
+      {tick === null ? null : <Text color={tick.color}>{tick.glyph}</Text>}
+      <Box flexGrow={1} flexShrink={1}><Text color={secondColor(ctx, { room, isWarn: line.isWarn })} wrap="truncate-end">{clip(line.text, ctx.columns - ROW_CHROME_CELLS - (room.unread > 0 ? BADGE_CELLS : 0))}</Text></Box>
+    </Box>
+  )
 }
 
 function TextRow(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
-  const tick = room.lastReceipt === undefined || !hasTicks(room) ? null : receiptTone(ctx, room.lastReceipt)
-  const line = lineOf(room)
   return (
     <Box key={`row-${room.id}`} flexDirection="column">
       <Box flexDirection="row" gap={1}>
@@ -58,9 +67,15 @@ function TextRow(ctx: Ctx, room: RoomView): RenderElement {
         {room.unread > 0 ? <Text color={ctx.look.signal.fg} bold>{`(${room.unread})`}</Text> : null}
         <Text color={ctx.look.lo}>{rowTime(room.lastTs, ctx.model.now)}</Text>
       </Box>
-      <Text color={line.isWarn ? ctx.look.role.warn.fg : ctx.look.lo} wrap="truncate-end">{`  ${tick === null ? '' : `${tick.glyph} `}${line.text}`}</Text>
+      <Box paddingLeft={2}>{SecondLine(ctx, room)}</Box>
     </Box>
   )
+}
+
+// The unread count on the signal colour, as Text so the host draws it in Claude's theme.
+function Badge(ctx: Ctx, room: RoomView): RenderElement {
+  const { Box, Text } = ctx.ui
+  return <Box key={`badge-${room.id}`} backgroundColor={ctx.look.signal.fg} paddingX={1} flexShrink={0}><Text color={ctx.look.sheet} bold>{String(room.unread)}</Text></Box>
 }
 
 export function RoomRow(ctx: Ctx, room: RoomView): RenderElement {
@@ -68,19 +83,18 @@ export function RoomRow(ctx: Ctx, room: RoomView): RenderElement {
   if (isText(ctx)) return TextRow(ctx, room)
   const isActive = room.id === ctx.model.activeId && ctx.model.view === 'chat'
   const hasUnread = room.unread > 0
-  const width = (ctx.columns - FACE_CELLS - ROW_CHROME_CELLS - (hasUnread ? BADGE_CELLS : 0)) * PX_PER_CELL
   const face = roomFace(room, { size: FACE, now: ctx.model.now, isMuted: room.kind === 'project' && room.gate === 'closed' })
   return (
     <Box key={`row-${room.id}`} flexDirection="row" gap={1} alignItems="center" paddingX={1} backgroundColor={isActive ? ctx.look.card : undefined}>
       {Pic(ctx, face, `av-${room.id}`)}
-      <Box flexDirection="column" flexGrow={1}>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         <Box flexDirection="row" justifyContent="space-between" gap={1}>
           <Button key={`open-${room.id}`} label={room.kind === 'project' ? room.repo?.split('/')[1] ?? room.title : room.title} plain onPress={() => ctx.on.select(room.id)} />
           <Text color={hasUnread ? ctx.look.signal.fg : ctx.look.lo} bold={hasUnread}>{rowTime(room.lastTs, ctx.model.now)}</Text>
         </Box>
         <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
-          {Pic(ctx, previewOf(room, width), `preview-${room.id}`)}
-          {hasUnread ? Pic(ctx, badgePart(room.unread), `badge-${room.id}`) : null}
+          {SecondLine(ctx, room)}
+          {hasUnread ? Badge(ctx, room) : null}
         </Box>
       </Box>
     </Box>
@@ -91,7 +105,7 @@ function Top(ctx: Ctx): RenderElement {
   const { Box, Button } = ctx.ui
   return (
     <Box key="list-head" flexDirection="row" alignItems="center" gap={1}>
-      {Title(ctx, { key: 'list-title', text: 'Sohbetler', width: (ctx.columns - NEW_CELLS) * PX_PER_CELL })}
+      {Title(ctx, { key: 'list-title', text: 'Sohbetler' })}
       <Box flexGrow={1} />
       <Button key="open-add" label="+ Yeni" plain onPress={() => ctx.on.openView('add')} />
     </Box>
@@ -101,9 +115,7 @@ function Top(ctx: Ctx): RenderElement {
 function Section(ctx: Ctx, o: { key: string; title: string | null; rooms: RoomView[] }): RenderElement | null {
   const { Box, Text } = ctx.ui
   if (o.rooms.length === 0) return null
-  const label = isText(ctx)
-    ? <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title?.toLocaleUpperCase('tr')}</Text>
-    : Pic(ctx, sectionPart({ width: ctx.px, text: o.title ?? '' }), `${o.key}-label`)
+  const label = <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title?.toLocaleUpperCase('tr')}</Text>
   return (
     <Box key={o.key} flexDirection="column" gap={isText(ctx) ? 0 : 1}>
       {o.title === null ? null : label}
@@ -123,9 +135,7 @@ function Foot(ctx: Ctx): RenderElement {
   const { Box, Button, Text } = ctx.ui
   const status = statusOf(ctx)
   const color = status?.paint === 'warn' ? ctx.look.role.warn.fg : ctx.look.signal.fg
-  const line = isText(ctx)
-    ? <Text key="foot-status" color={color}>{`● ${status?.text}`}</Text>
-    : Pic(ctx, statusPart({ width: (ctx.columns - FOOT_CELLS) * PX_PER_CELL, text: status?.text ?? '', paint: status?.paint ?? 'lo' }), 'foot-status')
+  const line = <Text key="foot-status" color={color}>{`● ${status?.text}`}</Text>
   return (
     <Box key="foot" flexDirection="row" alignItems="center" gap={1}>
       {status === null ? null : line}

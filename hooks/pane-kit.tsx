@@ -9,7 +9,7 @@ import { PRESENCE_MS } from './limits'
 import { sigPic } from './sig'
 import { facePart } from './sig-chat'
 import { tilePart } from './sig-states'
-import { rulePart } from './sig-ui'
+import { glyphPiece, rowPart, rulePart, type GlyphName } from './sig-ui'
 import type { PaneModel, Receipt, RoomView } from './state-types'
 import { avatarRole, initialsOf, type Look } from './theme'
 
@@ -43,6 +43,15 @@ export function SvgOf(ctx: Ctx, pic: SvgPic, key?: string): RenderElement | null
 export function Pic(ctx: Ctx, part: Part, key?: string): RenderElement {
   const { Text } = ctx.ui
   return SvgOf(ctx, sigPic(part), key) ?? <Text key={key} color={ctx.look.lo}>{part.alt}</Text>
+}
+
+const GLYPH_PX = 16
+
+// One of the boards' glyphs as a small Svg: decoration beside words that say the same.
+export function GlyphPic(ctx: Ctx, o: { glyph: GlyphName; paint: string; key: string }): RenderElement {
+  const { Text } = ctx.ui
+  const part = rowPart({ width: GLYPH_PX, height: GLYPH_PX, left: [glyphPiece(o.glyph, { size: GLYPH_PX, paint: o.paint, stroke: 1.5 })], alt: '' })
+  return SvgOf(ctx, sigPic(part), o.key) ?? <Text key={o.key}> </Text>
 }
 
 // One line of meta text in text.lo.
@@ -83,8 +92,3 @@ export function receiptTone(ctx: Ctx, receipt: Receipt): ReceiptTone {
   return { glyph: receipt === 'sent' ? '✓' : '✓✓', color: ctx.look.lo }
 }
 
-// A message still going out has no ticks yet.
-const TICKS: Record<Receipt, 'one' | 'two' | 'read' | undefined> = { pending: undefined, sent: 'one', delivered: 'two', read: 'read' }
-
-export const ticksOf = (receipt: Receipt | undefined): 'one' | 'two' | 'read' | undefined =>
-  (receipt === undefined ? undefined : TICKS[receipt])

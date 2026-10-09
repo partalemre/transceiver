@@ -9,34 +9,36 @@ import { RoomInfo } from './pane-aside'
 import { Bubble } from './pane-bubble'
 import { ErrorCard } from './pane-cards'
 import { Composer } from './pane-compose'
-import { isHere, isText, Meta, Pic, PX_PER_CELL, roomFace, Rule, type Ctx } from './pane-kit'
+import { isHere, isText, Meta, Pic, roomFace, Rule, type Ctx } from './pane-kit'
 import { TermChat } from './pane-term'
 import { noticeOf, statusOf } from './pane-words'
-import { dividerPart } from './sig'
-import { headLinePart, newRulePart } from './sig-chat'
 import type { Line, RoomView } from './state-types'
 import { itemsOf, messageOf, type Item, type Tx } from './traffic'
 import { dayKey, dayLabel } from './when'
 
 const FACE = 40
-const BACK_CELLS = 4
-const INFO_CELLS = 13
 
 function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
-  const { Box, Button } = ctx.ui
+  const { Box, Button, Text } = ctx.ui
   const hasInfo = room.kind === 'project'
   const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })
-  const width = ctx.px - ((ctx.isWide ? 0 : BACK_CELLS) + (hasInfo ? INFO_CELLS : 0)) * PX_PER_CELL
-  const face = roomFace(room, { size: FACE, now: ctx.model.now })
-  const head = headLinePart({ face, title: room.title, sub: status?.text, subPaint: status?.isHere === true ? 'ok' : 'lo', isMonoTitle: room.kind === 'project', width })
   return (
     <Box key="chat-head" flexDirection="row" alignItems="center" gap={1}>
       {ctx.isWide ? null : <Button key="back" label="‹" plain onPress={() => ctx.on.back()} />}
-      {Pic(ctx, head, 'chat-head-svg')}
-      <Box flexGrow={1} />
+      {Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), 'chat-face')}
+      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+        <Text bold color={ctx.look.hi} wrap="truncate-end">{room.title}</Text>
+        {status === null ? null : <Text color={status.isHere ? ctx.look.role.ok.fg : ctx.look.lo} wrap="truncate-end">{status.text}</Text>}
+      </Box>
       {hasInfo ? <Button key={`info-${room.id}`} label={ctx.model.isInfoOpen ? 'Kapat' : 'Ayrıntılar'} plain dimColor onPress={() => ctx.on.toggleInfo(room.id)} /> : null}
     </Box>
   )
+}
+
+// A centred line of text between messages: the day, or where the unread ones begin.
+function Divider(ctx: Ctx, o: { key: string; text: string; color?: string }): RenderElement {
+  const { Box, Text } = ctx.ui
+  return <Box key={o.key} flexDirection="row" justifyContent="center"><Text color={o.color ?? ctx.look.lo} bold>{o.text}</Text></Box>
 }
 
 // What is wrong, in one line, and the press that explains it when there is one.
@@ -84,9 +86,9 @@ function slotEls(ctx: Ctx, o: Slot): RenderElement[] {
   const ts = tsOfLine(firstLineOf(item))
   const prev = o.i > 0 ? firstLineOf(o.items[o.i - 1] as Item) : undefined
   const out: RenderElement[] = []
-  if (prev === undefined || dayKey(tsOfLine(prev)) !== dayKey(ts)) out.push(Pic(ctx, dividerPart({ text: dayLabel(ts, ctx.model.now), width: ctx.px }), `day-${idsOf(item)[0] ?? o.i}`))
+  if (prev === undefined || dayKey(tsOfLine(prev)) !== dayKey(ts)) out.push(Divider(ctx, { key: `day-${idsOf(item)[0] ?? o.i}`, text: dayLabel(ts, ctx.model.now) }))
   const divider = ctx.model.divider
-  if (o.isRuleHere && divider !== null) out.push(Pic(ctx, newRulePart({ text: `${divider.count} yeni mesaj`, width: ctx.px }), 'new-rule'))
+  if (o.isRuleHere && divider !== null) out.push(Divider(ctx, { key: 'new-rule', text: `${divider.count} yeni mesaj`, color: ctx.look.signal.fg }))
   return [...out, itemEl(ctx, o)]
 }
 

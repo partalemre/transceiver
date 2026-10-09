@@ -4,13 +4,11 @@
 import type { RenderElement } from 'claude-code'
 
 import { DraftCard } from './pane-agent'
-import { isText, Pic, PX_PER_CELL, type Ctx } from './pane-kit'
+import { isText, type Ctx } from './pane-kit'
 import { Sentence, Title } from './pane-type'
-import { repoPillsPart } from './sig-states'
 import type { Invite } from './state-types'
 
 const CARD_PAD = 2
-const CARD_CHROME_PX = (CARD_PAD * 2) * PX_PER_CELL + 2
 
 type Btn = { key: string; label: string; variant?: 'primary' | 'secondary' | 'plain'; onPress: () => void }
 
@@ -35,8 +33,6 @@ function Card(ctx: Ctx, o: { key: string; line?: string; children: Array<RenderE
   )
 }
 
-const innerOf = (ctx: Ctx) => ctx.px - CARD_CHROME_PX
-
 const CONNECT = 'Yazmak için bu oturumda bir kez izin ver.'
 const CONNECT_WAITING = 'Yazdıkların bekliyor; göndermek için bu oturumda bir kez izin ver.'
 
@@ -45,7 +41,7 @@ export function ConnectCard(ctx: Ctx): RenderElement {
   return Card(ctx, {
     key: 'connect', line: ctx.look.signal.line,
     children: [
-      Sentence(ctx, { key: 'connect-body', text, width: innerOf(ctx) }),
+      Sentence(ctx, { key: 'connect-body', text }),
       Buttons(ctx, [
         { key: 'connect', label: ctx.model.busy === null ? 'Bağlan' : 'Bağlanıyor…', variant: 'primary', onPress: () => ctx.on.connect() },
         { key: 'connect-later', label: 'Şimdi değil', variant: 'plain', onPress: () => ctx.on.dismissConnect() },
@@ -63,8 +59,8 @@ export function InviteCard(ctx: Ctx, inv: Invite): RenderElement {
   return Card(ctx, {
     key: `invite-${inv.id}`,
     children: [
-      Title(ctx, { key: 'invite-title', text: title, isCard: true, width: innerOf(ctx) }),
-      Sentence(ctx, { key: 'invite-body', text: isProject ? INVITE_PROJECT : INVITE_DM, width: innerOf(ctx) }),
+      Title(ctx, { key: 'invite-title', text: title }),
+      Sentence(ctx, { key: 'invite-body', text: isProject ? INVITE_PROJECT : INVITE_DM }),
       Buttons(ctx, [
         { key: `accept-${inv.id}`, label: 'Kabul et', variant: 'primary', onPress: () => ctx.on.accept(inv.id) },
         { key: `reject-${inv.id}`, label: 'Reddet', onPress: () => ctx.on.reject(inv.id) },
@@ -79,13 +75,14 @@ export function GhCard(ctx: Ctx): RenderElement | null {
   const ask = ctx.model.ghAsk
   if (ask === null) return null
   const repos = ask.repos ?? []
-  // What GitHub already said about this login, where the gate asked: a fact to decide on, not decoration.
-  const pills = repos.length === 0 || isText(ctx) ? null : Pic(ctx, repoPillsPart({ width: innerOf(ctx), repos }), 'gh-repos')
+  // What GitHub already said about this login, where the gate asked: a fact to decide on.
+  const heard = repos.map(r => `${r.repo.split('/')[1] ?? r.repo}: ${r.isCollaborator ? 'collaborator' : 'değil'}`).join(' · ')
+  const pills = repos.length === 0 ? null : Sentence(ctx, { key: 'gh-repos', text: `GitHub'a göre ${heard}`, paint: 'lo' })
   return Card(ctx, {
     key: 'gh',
     children: [
-      Title(ctx, { key: 'gh-title', text: `${ask.name} GitHub'da @${ask.gh} mı?`, isCard: true, width: innerOf(ctx) }),
-      Sentence(ctx, { key: 'gh-body', text: GH_BODY, width: innerOf(ctx) }),
+      Title(ctx, { key: 'gh-title', text: `${ask.name} GitHub'da @${ask.gh} mı?` }),
+      Sentence(ctx, { key: 'gh-body', text: GH_BODY }),
       pills,
       Buttons(ctx, [
         { key: 'gh-yes', label: 'Evet, o', variant: 'primary', onPress: () => ctx.on.answerGh(true) },
@@ -102,7 +99,7 @@ export function CreatedCard(ctx: Ctx): RenderElement | null {
   return Card(ctx, {
     key: 'created', line: ctx.look.signal.line,
     children: [
-      Title(ctx, { key: 'created-title', text: 'Kutun hazır.', isCard: true, width: innerOf(ctx) }),
+      Title(ctx, { key: 'created-title', text: 'Kutun hazır.' }),
       <Text key="created-url" color={ctx.look.signal.fg} wrap="truncate-middle">{created.url}</Text>,
       Buttons(ctx, [
         { key: 'copy-link', label: 'Linki kopyala', variant: 'primary', onPress: () => ctx.on.copy(created.url, ctx.surface) },

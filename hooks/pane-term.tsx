@@ -4,7 +4,7 @@
 // keys: the sheet of queries, the details and the way back.
 import type { RenderElement } from 'claude-code'
 
-import { compactOf, FIRST_ROWS, type Compact } from './answers'
+import { compactOf } from './answers'
 import { TIMELINE_LINES } from './limits'
 import { fullIdOf } from './pane-agent'
 import { RoomInfo } from './pane-aside'
@@ -17,15 +17,10 @@ import type { Draft, Line, RoomView } from './state-types'
 import { avatarRole } from './theme'
 import { firstName, genitive } from './tr'
 import { askedArg, itemsOf, joined, messageOf, queryType, type Item, type Tx } from './traffic'
-import { agentOf, txSummary } from './tx-words'
+import { answererOf, compactText, txSummary } from './tx-words'
 import { clockText, dayKey, dayLabel } from './when'
 
 const SHEET_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'w', 'y', 'z']
-
-// Who answered: this machine, the peer's agent (or, at 0 tokens, their machine).
-function answererOf(a: NonNullable<ReturnType<typeof joined>>): string {
-  return a.line.isMine ? 'bu makine' : agentOf(a.line, a.tokens > 0 ? 'agent\'ı' : 'makinesi')
-}
 
 // What is wrong, in one line, and "neden?" when the room's details explain it.
 function NoticeLine(ctx: Ctx, room: RoomView): RenderElement | null {
@@ -82,16 +77,6 @@ function HumanLine(ctx: Ctx, o: { line: Line; isFirst: boolean }): RenderElement
   return <Box key={`msg-${o.line.id}`} flexDirection="column">{extras.slice(0, quote === undefined ? 0 : 1)}{row}{extras.slice(quote === undefined ? 0 : 1)}</Box>
 }
 
-function compactText(c: Compact): string {
-  if (c.kind === 'diff') return `${c.stat.files} dosya +${c.stat.added} −${c.stat.removed}`
-  if (c.kind === 'tests') return `✓ ${c.passed} geçti · ${c.failed} kaldı`
-  if (c.kind === 'hits') return `${c.count} eşleşme · ${c.rows.slice(0, FIRST_ROWS).map(h => h.loc).join(', ')}`
-  if (c.kind === 'list') return `${c.count} ${c.noun} · ${c.items.slice(0, FIRST_ROWS).join(', ')}`
-  if (c.kind === 'tags') return c.tags.map(t => `${t.tag} ${t.count}`).join(' · ')
-  if (c.kind === 'commit') return `${c.subject}${c.stat === null ? '' : ` · ${c.stat.files} dosya +${c.stat.added} −${c.stat.removed}`}`
-  return c.text.split('\n').find(r => r.trim() !== '')?.trim() ?? ''
-}
-
 // "tamamı" opens the whole answer under its exchange; "gizle" folds it again.
 function More(ctx: Ctx, o: { tx: Tx; body: string }): RenderElement {
   const { Box, Button, Text } = ctx.ui
@@ -115,7 +100,7 @@ function TxDetail(ctx: Ctx, tx: Tx): RenderElement[] {
   if (a === null) return [...question, <Text key="waiting" color={ctx.look.lo}>{'└ cevap bekleniyor…'}</Text>]
   return [
     ...question,
-    <Text key="who"><Text color={rail}>└ </Text>{answererOf(a)}<Text color={a.tokens === 0 ? ctx.look.signal.fg : ctx.look.lo}>{` · ${a.tokens} token`}</Text></Text>,
+    <Text key="who"><Text color={rail}>└ </Text>{a.line.isMine ? 'bu makine' : answererOf(a)}<Text color={a.tokens === 0 ? ctx.look.signal.fg : ctx.look.lo}>{` · ${a.tokens} token`}</Text></Text>,
     <Text key="compact" wrap="truncate-end">{`  ${compactText(compactOf(queryType(tx), a.body))}`}</Text>,
     More(ctx, { tx, body: a.body }),
   ]

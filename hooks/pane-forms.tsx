@@ -5,9 +5,8 @@ import type { RenderElement } from 'claude-code'
 
 import { WAITING } from './connection'
 import { ErrorCard } from './pane-cards'
-import { isText, Rule, SvgOf, type Ctx } from './pane-kit'
+import { isText, Rule, type Ctx } from './pane-kit'
 import { Sentence, Title } from './pane-type'
-import { chipPart, sigPic, switchPart } from './sig'
 import type { PaneSettings } from './state-types'
 
 function Back(ctx: Ctx, title: string): RenderElement {
@@ -59,7 +58,7 @@ const TOGGLES: Toggle[] = [
   { key: 'isStatusOn', title: 'Durum satırı', on: 'Okunmamış mesaj sayısı prompt\'un altında durur.', off: 'Kapalı: prompt\'un altında bir şey yazmaz.' },
 ]
 
-function Row(ctx: Ctx, o: { key: string; mark: RenderElement | null; title: string; sub: string; button: RenderElement | null }): RenderElement {
+function Row(ctx: Ctx, o: { key: string; mark: RenderElement; title: string; sub: string; button: RenderElement | null }): RenderElement {
   const { Box, Text } = ctx.ui
   return (
     <Box key={o.key} flexDirection="row" alignItems="center" gap={2}>
@@ -76,9 +75,7 @@ function Row(ctx: Ctx, o: { key: string; mark: RenderElement | null; title: stri
 function ToggleRow(ctx: Ctx, t: Toggle): RenderElement {
   const { Button, Text } = ctx.ui
   const isOn = ctx.model.settings[t.key]
-  const mark = isText(ctx)
-    ? <Text color={isOn ? ctx.look.signal.fg : ctx.look.lo}>{isOn ? '●' : '○'}</Text>
-    : SvgOf(ctx, sigPic(switchPart(isOn)), `switch-${t.key}`)
+  const mark = <Text color={isOn ? ctx.look.signal.fg : ctx.look.lo}>{isOn ? '●' : '○'}</Text>
   const button = <Button key={`set-${t.key}`} variant="secondary" label={isOn ? 'Kapat' : 'Aç'} onPress={() => ctx.on.toggleSetting(t.key)} />
   return Row(ctx, { key: `toggle-${t.key}`, mark, title: t.title, sub: isOn ? t.on : t.off, button })
 }
@@ -86,9 +83,7 @@ function ToggleRow(ctx: Ctx, t: Toggle): RenderElement {
 function SessionRow(ctx: Ctx): RenderElement {
   const { Button, Text } = ctx.ui
   const isOn = ctx.model.isConnected
-  const mark = isText(ctx)
-    ? <Text color={isOn ? ctx.look.role.ok.fg : ctx.look.role.warn.fg}>{isOn ? '✓' : '◷'}</Text>
-    : SvgOf(ctx, sigPic(chipPart({ glyph: isOn ? 'check' : 'clock', paint: isOn ? 'ok' : 'warn' })), 'session-chip')
+  const mark = <Text color={isOn ? ctx.look.role.ok.fg : ctx.look.role.warn.fg}>{isOn ? '✓' : '◷'}</Text>
   const button = isOn ? null : <Button key="connect-settings" variant="primary" label="Bağlan" onPress={() => ctx.on.connect()} />
   return Row(ctx, { key: 'session-row', mark, title: 'Bu oturum', sub: isOn ? 'Bağlı: mesajlar gönderiliyor.' : `Okuyor, yazmıyor: ${WAITING}.`, button })
 }
@@ -108,7 +103,7 @@ export function SettingsView(ctx: Ctx): RenderElement {
       <Box key="settings-rows" flexDirection="column" gap={isText(ctx) ? 0 : 2}>{[...TOGGLES.map(t => ToggleRow(ctx, t)), SessionRow(ctx)]}</Box>
       {Rule(ctx, 'help-rule')}
       <Box key="help" flexDirection="column" gap={1}>
-        {Title(ctx, { key: 'help-title', text: 'Nasıl paylaşılır', isCard: true })}
+        {Title(ctx, { key: 'help-title', text: 'Nasıl paylaşılır' })}
         {HELP.map((text, i) => Sentence(ctx, { key: `help-${i}`, text, paint: 'lo' }))}
       </Box>
     </Box>

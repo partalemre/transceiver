@@ -26,6 +26,8 @@ const syncs = (o: { isPending?: boolean } = {}): Record<string, RoomSync> =>
 const DRAFT = { 'tx.budget': { day: localDay(NOW), byRoom: { re: 10 } }, 'tx.drafts': [{ roomId: 're', qid: idAt(2), question: 'Refresh token neden iki kez yazılıyor?', asker: ALPEREN }] }
 // The diff Alperen's agent asked for: an exchange's key is its query's id.
 const OPEN_DIFF = `open-tx-${idAt(18)}`
+const EMPTY_TITLE = 'Arkadaşlarınla buradan yazış'
+const EMPTY_BODY = 'Bir arkadaşını ekle; o kabul edince Claude\'dan çıkmadan yazışırsınız.'
 
 // Engine 2.1.293 (the desktop app's) refuses a Button without a string label: the whole pane then goes undrawn.
 type Node = { type?: string; props?: { label?: unknown }; children?: unknown[] }
@@ -36,6 +38,23 @@ function unlabeledButtons(node: unknown): string[] {
   const isBad = n.type === 'Button' && (typeof n.props?.label !== 'string' || kids.some(k => typeof k === 'object' && k !== null))
   return [...(isBad ? [JSON.stringify(n).slice(0, 120)] : []), ...kids.flatMap(unlabeledButtons)]
 }
+
+type Tree = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
+const nodes = (n: unknown): Tree[] => {
+  if (n === null || typeof n !== 'object') return []
+  const t = n as Tree
+  return [t, ...(t.children ?? []).flatMap(nodes)]
+}
+const textOf = (n: Tree): string => (n.children ?? []).map(c => (typeof c === 'string' ? c : textOf(c as Tree))).join('')
+// Words drawn inside any Svg: Svg takes the OS's colour scheme, not Claude's, so only a face's initials may be there.
+const MAX_SVG_WORD = 2
+function svgWords(tree: unknown): string[] {
+  const sources = nodes(tree).filter(n => n.type === 'Svg').map(n => String(n.props?.source ?? ''))
+  const words = sources.flatMap(src => [...src.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map(m => (m[1] ?? '').replace(/<[^>]+>/g, '').trim()))
+  return words.filter(w => w.length > MAX_SVG_WORD)
+}
+// Each reading text is a native Text element's own words.
+const isInText = (tree: unknown, text: string): boolean => nodes(tree).some(n => n.type === 'Text' && textOf(n).includes(text))
 
 type Shot = {
   label: string
@@ -50,14 +69,16 @@ type Shot = {
   // A text the drawing must hold, and one it must not: what a screen keeps out of the default view.
   sees: string
   hides?: string
+  // Titles and sentences that must be native Text, which the host draws in Claude's theme.
+  texts?: string[]
 }
 
 const SHOTS: Shot[] = [
-  { label: 'rooms', isBypass: true, sees: 'Sohbetler', hides: 'yoklama' },
-  { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: 'Proje odası', hides: 'join-link' },
+  { label: 'rooms', isBypass: true, sees: 'Sohbetler', hides: 'yoklama', texts: ['Sohbetler', 'Teşekkürler, okudum, çok iyi olmuş.'] },
+  { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: 'Proje odası', hides: 'join-link', texts: [EMPTY_TITLE, EMPTY_BODY] },
   { label: 'empty-join', rooms: [], syncs: {}, isBypass: true, presses: ['open-join'], sees: 'join-link' },
   { label: 'empty-project', rooms: [], syncs: {}, isBypass: true, presses: ['open-project'], sees: 'partalemre/eliti' },
-  { label: 'connect', syncs: syncs({ isPending: true }), sees: 'bu oturumda bir kez izin ver' },
+  { label: 'connect', syncs: syncs({ isPending: true }), sees: 'bu oturumda bir kez izin ver', texts: ['Yazdıkların bekliyor; göndermek için bu oturumda bir kez izin ver.'] },
   { label: 'invite', rooms: [ROOMS.alperen, room({ id: 'ri', status: 'invited' }), { ...ROOMS.eliti, peers: [] }], isBypass: true, sees: 'seninle yazışmak' },
   { label: 'dm', isBypass: true, presses: ['open-ra'], sees: '2 yeni mesaj', hides: 'okundu bilgisi açık' },
   { label: 'dm-waiting', syncs: syncs({ isPending: true }), presses: ['connect-later', 'open-ra'], sees: 'bağlantı bekleniyor' },
@@ -69,7 +90,7 @@ const SHOTS: Shot[] = [
   { label: 'project-sheet', isBypass: true, presses: ['open-re', 'ask-more-re'], sees: 'sheet-grep' },
   { label: 'project-mode', isBypass: true, presses: ['open-re', 'ask-more-re', 'sheet-grep'], sees: 'Aranacak metin' },
   { label: 'error', isBypass: true, presses: ['open-add', 'add-dm'], artifact: () => ({ deny: 'not now' }), sees: 'Oda açılamadı' },
-  { label: 'created', isBypass: true, presses: ['open-add', 'add-dm'], sees: 'Linki kopyala' },
+  { label: 'created', isBypass: true, presses: ['open-add', 'add-dm'], sees: 'Linki kopyala', texts: ['Kutun hazır.', 'https://claude.ai/artifact/NEWROOM1x'] },
   { label: 'add', isBypass: true, presses: ['open-add'], sees: 'Linkim var' },
   { label: 'settings', presses: ['open-settings'], sees: 'Nasıl paylaşılır' },
   { label: 'wide', isBypass: true, presses: ['open-ra'], columns: WIDE, sees: 'Gelirim! Saat kaçta?' },
@@ -94,6 +115,8 @@ for (const isLight of [false, true]) {
         expect(tree.includes(s.sees)).toBe(true)
         if (s.hides !== undefined) expect(tree.includes(s.hides)).toBe(false)
         expect(unlabeledButtons(JSON.parse(tree))).toEqual([])
+        expect(svgWords(JSON.parse(tree))).toEqual([])
+        for (const text of s.texts ?? []) expect(isInText(JSON.parse(tree), text)).toBe(true)
         await ui.unmount()
       })
     }
