@@ -669,7 +669,7 @@ function inCollection(db: FakeDb, collection: string): Array<[string, Doc]> {
 function write(db: FakeDb, w: { collection: string; doc_id: string; data: Record<string, unknown>; if_version?: number }): string | null {
   const k = key(w.collection.replace('/me', `/${db.self}`), w.doc_id)
   const prev = db.docs.get(k)
-  if (prev !== undefined && w.if_version !== prev.version) return 'pinned write failed: the document changed; current version ' + prev.version
+  if (prev !== undefined && w.if_version !== prev.version) return `db write failed (version_mismatch): the document is now at version ${prev.version}; nothing was written`
   db.docs.set(k, { data: w.data, version: (prev?.version ?? 0) + 1 })
   return null
 }
@@ -702,7 +702,7 @@ export function callerFor(db: FakeDb) {
       const writes = input.writes as Array<{ collection: string; doc_id: string; data: Record<string, unknown>; if_version?: number }>
       for (const w of writes) {
         const prev = db.docs.get(key(w.collection, w.doc_id))
-        if (prev !== undefined && w.if_version !== prev.version) return { isError: true, text: `changed; current version ${prev.version}` }
+        if (prev !== undefined && w.if_version !== prev.version) return { isError: true, text: `db write failed (version_mismatch): it is now at version ${prev.version}; nothing was written` }
       }
       const lines = writes.map(w => { write(db, w); return `- set "${w.collection}"/"${w.doc_id}" (version ${db.docs.get(key(w.collection, w.doc_id))!.version})` })
       return { text: lines.join('\n') }
