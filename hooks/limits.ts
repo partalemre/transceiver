@@ -23,6 +23,7 @@ export const QUERY_RATE_PER_MIN = 60
 
 export const COLLAB_CACHE_MS = 600_000
 export const RUN_TIMEOUT_MS = 15_000
+export const COLLAB_PAGE = 100
 export const COMPACT_AFTER_MS = 7 * 24 * 60 * 60 * 1_000
 export const ROLLOVER_DOCS = 20_000
 
