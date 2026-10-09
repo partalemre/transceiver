@@ -36,3 +36,23 @@ Measured with `ArtifactData` from a cloud session on the spike artifact, the sam
   db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[1] (write 2 of 2, "outbox/<uid>") was pinned to version 1 and that document is now at version 2: …
   ```
   → A real conflict on the head: re-read the head, merge, resend once.
+
+## Delete batch texts (measured 2026-10-09, compaction)
+
+- **Committed day doc + delete** (`op: delete` pinned with `if_version`):
+  ```
+  Database batch committed atomically — 2 writes; who can read them follows the page's access rules (by default, everyone who can open the artifact):
+  - set "outbox/<uid>/days"/"2026-10-09" (version 1)
+  - delete "outbox/<uid>/msgs"/"m0003probe"
+  6 of 25000 documents used in this artifact's database.
+  ```
+  A delete line carries no version.
+- **Stale delete pin** (doc exists at another version):
+  ```
+  db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[1] (write 2 of 2, "outbox/<uid>/msgs/m0002") was pinned to version 7 and that document is now at version 1: …
+  ```
+- **Delete of a doc that is already gone** (a crash between batches):
+  ```
+  db batch write failed (version_mismatch): the batch is atomic, so nothing was written — none of the writes applied. writes[0] (write 1 of 1, "outbox/<uid>/msgs/m0003probe") was pinned to version 1 and that document has changed or may have been deleted (the server named no current version): …
+  ```
+  → Compaction must treat "may have been deleted (the server named no current version)" on a delete entry as already done: drop that entry and resend the rest.
