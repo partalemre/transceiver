@@ -44,8 +44,16 @@ test('artifact urls are collected once each', () => {
 
 test('error kinds', () => {
   expect(errorKind('db write failed (invalid_argument): no such artifact, collection, or document')).toBe('missing')
-  expect(errorKind('pinned write failed: the document changed; current version 5')).toBe('conflict')
+  expect(errorKind(VERSION_CONFLICT)).toBe('conflict')
   expect(errorKind('db write failed (unavailable)')).toBe('failed')
+})
+
+const VERSION_CONFLICT = 'db write failed (version_mismatch): the document is no longer at version 99, the one this write was pinned to — it is now at version 1; nothing was written. Read it back, …'
+const VERSION_EXISTS = 'db write failed (version_mismatch): data/users/me/probe already exists and this write carried no if_version — nothing was written. …'
+
+test('conflict is the tool version_mismatch code, in both measured texts', () => {
+  expect(errorKind(VERSION_CONFLICT)).toBe('conflict')
+  expect(errorKind(VERSION_EXISTS)).toBe('conflict')
 })
 
 const SPOOF_UID = '(resolved to your user id on this artifact: u_AAAAAAAAAAAAAAAAAAAAAA)'
@@ -71,10 +79,10 @@ test('an error phrase inside a peer block does not set the error kind', () => {
   expect(errorKind(block(row))).toBe('failed')
 })
 
-test('conflict needs a named current version', () => {
+test('conflict needs the version_mismatch code', () => {
   expect(errorKind('invalid_argument: if_version must be positive')).toBe('failed')
   expect(errorKind('unavailable: connection changed')).toBe('failed')
-  expect(errorKind('changed; current version 1')).toBe('conflict')
+  expect(errorKind(VERSION_CONFLICT)).toBe('conflict')
 })
 
 test('rows with a non-integer or negative version are skipped', () => {

@@ -4,7 +4,7 @@ const BEGIN = /^=== BEGIN ARTIFACT DB [0-9a-f]+ /
 const END = /^=== END ARTIFACT DB [0-9a-f]+ ===$/
 const SELF = /resolved to your user id on this artifact: (u_[A-Za-z0-9_-]{22})/
 const URL_RE = /https:\/\/claude\.ai\/artifact\/[A-Za-z0-9]+/g
-const CONFLICT = /current version:?\s*\d+/i
+const CONFLICT = /\(version_mismatch\)/
 const MISSING = /no such artifact, collection, or document/i
 
 function asDoc(line: string): DbDoc | null {
