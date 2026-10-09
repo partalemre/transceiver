@@ -4,19 +4,16 @@ import type { RenderSurface } from 'claude-code'
 
 import { isConnected, setConnected } from './connection'
 import { joinUrlOf, joinRoom } from './join'
-import { MAX_TEXT_BYTES } from './limits'
-import { isRepo, paths, utf8Bytes, type Message } from './protocol'
-import { enqueueMessage, pokeRoom, syncOf } from './room-loop'
+import { askAgent, sendComposed, setTyped, typedOf } from './compose'
+import { isRepo, paths } from './protocol'
+import { pokeRoom, syncOf } from './room-loop'
 import { createRoom, loadRooms, loadSettings, saveRooms, saveSettings, type RoomKind, type RoomRecord } from './rooms'
 import { draftSettlerNow, modelNow, patchSession, portNow, refreshPane, sessionNow, type PanePort } from './state'
 import type { PaneSettings, PaneView } from './state-types'
-import { newId } from './ulid'
+import { readMarkOf } from './view'
 
-const ASK_PREFIX = '/ask '
 const CONNECT_CONSENT = 'The user pressed "Bağlan" on the Transceiver pane to send messages from this session.'
 const SAY = {
-  tooLong: 'Mesaj çok uzun (en fazla 16 KB).',
-  askOnlyProject: '/ask yalnızca proje odalarında çalışır.',
   notLoaded: 'Oda henüz yüklenmedi; birazdan tekrar dene.',
   declined: 'Onay verilmedi; yazdıkların sırada bekliyor.',
   offline: 'Bağlanılamadı; ağ bağlantını kontrol et.',
@@ -41,28 +38,10 @@ async function patchRoom(p: PanePort, id: string, patch: Partial<RoomRecord>): P
   return rooms.find(r => r.id === id)
 }
 
-function messageOf(opts: { text: string; now: number; room: RoomRecord }): Message | string {
-  const id = newId(opts.now)
-  if (!opts.text.startsWith(ASK_PREFIX)) return { v: 1, id, ts: opts.now, kind: 'human', text: opts.text }
-  if (opts.room.kind !== 'project' || !isRepo(opts.room.repo)) return SAY.askOnlyProject
-  const question = opts.text.slice(ASK_PREFIX.length).trim()
-  return { v: 1, id, ts: opts.now, kind: 'query', text: question, query: { type: 'ask', repo: opts.room.repo, question } }
-}
-
-// Shown at once as pending; the room's loop sends it, or keeps it waiting until the session is connected.
-async function send(p: PanePort, opts: { roomId: string; text: string }): Promise<void> {
-  const text = opts.text.trim()
-  const room = (await loadRooms(p.host)).find(r => r.id === opts.roomId && r.status === 'active')
-  if (text === '' || room === undefined) return
-  if (utf8Bytes(text) > MAX_TEXT_BYTES) return patchSession({ error: SAY.tooLong })
-  const message = messageOf({ text, now: await p.host.now(), room })
-  if (typeof message === 'string') return patchSession({ error: message })
-  if (!enqueueMessage({ host: p.host, room, message })) return patchSession({ error: SAY.notLoaded })
-  patchSession({ error: null, composerKey: sessionNow().composerKey + 1 })
-}
-
 async function select(p: PanePort, id: string): Promise<void> {
-  patchSession({ activeId: id, view: 'chat', error: null })
+  const sync = syncOf(id)
+  const openedMark = sync === undefined ? null : { roomId: id, mark: readMarkOf(sync, sessionNow().localRead[id]) }
+  patchSession({ activeId: id, view: 'chat', error: null, openedMark, composeMode: null, sheetRoom: null, hint: null })
   const room = (await loadRooms(p.host)).find(r => r.id === id)
   if (room !== undefined) pokeRoom(p.host, room)
 }
@@ -154,12 +133,18 @@ export type PaneHandlers = {
   dismissCreated(): void
   dismissError(): void
   settleDraft(qid: string, isApproved: boolean): void
+  askAgent(roomId: string, type: string): void
+  type(roomId: string, text: string): void
+  sendTyped(roomId: string): void
+  toggleExpanded(id: string): void
+  toggleSheet(roomId: string): void
+  clearMode(): void
 }
 
 export const paneHandlers: PaneHandlers = {
   select: id => run(p => select(p, id)),
   back: () => run(async () => patchSession({ view: 'rooms', error: null })),
-  send: (roomId, text) => run(p => send(p, { roomId, text })),
+  send: (roomId, text) => run(p => sendComposed(p, { roomId, text })),
   accept: id => run(p => accept(p, id)),
   reject: id => run(async p => { await patchRoom(p, id, { status: 'left' }) }),
   answerGh: isYes => run(p => answerGh(p, isYes)),
@@ -182,5 +167,14 @@ export const paneHandlers: PaneHandlers = {
   settleDraft: (qid, isApproved) => run(async () => {
     const isDone = await draftSettlerNow()?.(qid, isApproved)
     if (isDone === false && !isConnected()) patchSession({ error: SAY.draftWaits })
+  }),
+  askAgent: (roomId, type) => run(p => askAgent(p, { roomId, type })),
+  type: (roomId, text) => setTyped(roomId, text),
+  sendTyped: roomId => run(p => sendComposed(p, { roomId, text: typedOf(roomId) })),
+  toggleSheet: roomId => run(async () => patchSession({ sheetRoom: sessionNow().sheetRoom === roomId ? null : roomId, hint: null })),
+  clearMode: () => run(async () => patchSession({ composeMode: null, hint: null })),
+  toggleExpanded: id => run(async () => {
+    const open = sessionNow().expanded
+    patchSession({ expanded: open.includes(id) ? open.filter(x => x !== id) : [...open, id] })
   }),
 }
