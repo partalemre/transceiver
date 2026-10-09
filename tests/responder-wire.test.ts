@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { authorKey } from '../hooks/authors'
 import { forgetRepo } from '../hooks/here'
 import { localDay } from '../hooks/budget'
 import { loadDrafts } from '../hooks/drafts'
@@ -23,29 +24,31 @@ const run: Run = gitIn('partalemre/eliti', async argv => {
   return { exitCode: argv[0] === 'gh' && !isYes ? 1 : 0, stdout: '', stderr: '' }
 })
 
-type World = { db: FakeDb; host: FakeAgent; qid: string; stop: () => void }
+type World = { db: FakeDb; peer: FakeDb; host: FakeAgent; qid: string; stop: () => void }
 
 async function world(opts: { id: string; headGh?: string; isOn?: boolean; preClaimed?: boolean }): Promise<World> {
   forgetRepo()
   const db = fakeDb(ME)
-  const host = fakeAgent(callerFor(db), run)
+  const peer = fakeDb(PEER)
+  const peerBox = `https://claude.ai/artifact/${opts.id}P`
+  const host = fakeAgent(input => callerFor(input.url === peerBox ? peer : db)(input), run)
   host.isOn = opts.isOn ?? true
   const ts = host.clock.now - 1_000
   const qid = newId(ts)
   const query = { v: 1, id: qid, ts, kind: 'query', text: 'status', query: { type: 'status', repo: 'PartalEmre/eliti' } }
-  db.docs.set(`outbox/${PEER}/msgs/${qid}`, { data: query, version: 1 })
+  peer.docs.set(`outbox/${PEER}/msgs/${qid}`, { data: query, version: 1 })
   const head = { v: 1, head: qid, headTs: ts, seenUpTo: '', readUpTo: '', readTs: 0, gh: opts.headGh ?? 'AlperenX' }
-  db.docs.set(`outbox/${PEER}`, { data: head, version: 1 })
+  peer.docs.set(`outbox/${PEER}`, { data: head, version: 1 })
   if (opts.preClaimed === true) db.docs.set(`outbox/${ME}/claims/${qid}`, { data: { v: 1, at: 1 }, version: 1 })
   const room: RoomRecord = {
     id: opts.id, url: `https://claude.ai/artifact/${opts.id}`, kind: 'project', repo: 'partalemre/eliti', title: 't',
-    status: 'active', isLive: false, isOwner: true, peers: [{ uid: PEER, gh: 'alperenx', isGhConfirmed: true }], joinedAt: 0,
+    status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [peerBox], peers: [{ uid: authorKey({ uid: PEER, url: peerBox, isOwn: false }), gh: 'alperenx', isGhConfirmed: true }], joinedAt: 0,
   }
   await saveRooms(host, [room])
   const stop = wireResponder(host)
   await startLoop(host)
   await host.advance(0)
-  return { db, host, qid, stop: () => { stop(); stopRoom(opts.id) } }
+  return { db, peer, host, qid, stop: () => { stop(); stopRoom(opts.id) } }
 }
 
 const answersIn = (db: FakeDb) =>
@@ -101,10 +104,10 @@ async function asksPastLimit(w: World, opts: { roomId: string; n: number }): Pro
     const ts = w.host.clock.now + i
     head = newId(ts)
     const ask = { v: 1, id: head, ts, kind: 'query', text: `soru ${i}?`, query: { type: 'ask', repo: 'partalemre/eliti', question: `soru ${i}?` } }
-    w.db.docs.set(`outbox/${PEER}/msgs/${head}`, { data: ask, version: 1 })
+    w.peer.docs.set(`outbox/${PEER}/msgs/${head}`, { data: ask, version: 1 })
   }
   const headTs = w.host.clock.now + opts.n - 1
-  w.db.docs.set(`outbox/${PEER}`, { data: { v: 1, head, headTs, seenUpTo: '', readUpTo: '', readTs: 0, gh: 'AlperenX' }, version: 2 })
+  w.peer.docs.set(`outbox/${PEER}`, { data: { v: 1, head, headTs, seenUpTo: '', readUpTo: '', readTs: 0, gh: 'AlperenX' }, version: 2 })
 }
 
 test('a burst of asks past the day limit is told in one toast that says how many wait', async () => {

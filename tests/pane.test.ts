@@ -92,13 +92,14 @@ for (const surface of SURFACES) {
   })
 
   test(`${surface}: invites are accepted or refused, and the GitHub question is answered once`, async ($: any, on: any) => {
-    const invited = room({ id: 'ri', status: 'invited', isOwner: false })
-    const w = paneWorld(on, { rooms: [invited, room({ id: 'rx', status: 'invited' }), { ...ROOMS.eliti, peers: [] }], syncs: { re: projectEliti() } })
+    const invite = (id: string) => room({ id, status: 'invited', url: '', boxes: [`https://claude.ai/artifact/${id.toUpperCase()}x`] })
+    const w = paneWorld(on, { rooms: [invite('ri'), invite('rx'), { ...ROOMS.eliti, peers: [] }], syncs: { re: projectEliti() } })
     await startSession($, w, { surface, isBypass: true })
     const ui = await mountPane($, { surface, columns: NARROW })
     await ui.press({ key: 'reject-rx' })
     await ui.press({ key: 'accept-ri' })
-    expect((roomsIn(w)).map(r => [r.id, r.status])).toEqual([['ri', 'active'], ['rx', 'left'], ['re', 'active']])
+    expect((roomsIn(w)).map(r => [r.id, r.status])).toEqual([['rx', 'left'], ['re', 'active'], ['ri', 'active']])
+    expect(roomsIn(w).find(r => r.id === 'ri')).toMatchObject({ url: 'https://claude.ai/artifact/NEWROOM1x', boxes: ['https://claude.ai/artifact/RIx'] })
     await ui.press({ key: 'back' })
     expect(await drawn(ui)).toContain('alperenx')
     await ui.press({ key: 'gh-no' })

@@ -24,7 +24,7 @@ const said = (author: string, message: Message, isPending = false): Entry => ({ 
 
 export const room = (o: Partial<RoomRecord> & { id: string }): RoomRecord => ({
   url: `https://claude.ai/artifact/${o.id.toUpperCase()}x`, kind: 'dm', title: 'Transceiver · DM', status: 'active',
-  isLive: false, isOwner: true, peers: [], joinedAt: at(3 * 24 * 60), ...o,
+  isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: at(3 * 24 * 60), ...o,
 })
 
 const head = (o: Partial<Head>): Head => ({ ...emptyHead(), ...o })
@@ -34,7 +34,7 @@ function sync(o: { peers: Record<string, Head>; entries: Entry[]; failures?: num
   const seen = o.entries.filter(e => e.author !== ME).reduce((max, e) => (e.message.id > max ? e.message.id : max), '')
   return {
     selfUid: ME, ownHead: head({ readUpTo: o.readUpTo ?? '', seenUpTo: seen }), ownVersion: 3, cursors: {}, peers: o.peers,
-    entries: o.entries, pending, failures: o.failures ?? 0,
+    entries: o.entries, pending, failures: o.failures ?? 0, boxOf: {}, unread: [],
   }
 }
 
@@ -110,7 +110,7 @@ export function grepTraffic(): Entry[] {
 export const ROOMS = {
   alperen: room({ id: 'ra' }),
   eliti: room({ id: 're', kind: 'project', repo: REPO, title: `Transceiver · ${REPO}`, peers: [{ uid: ALPEREN, gh: 'alperenx', isGhConfirmed: true }] }),
-  zeynep: room({ id: 'rz', isOwner: false }),
+  zeynep: room({ id: 'rz' }),
 }
 
 export const SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }

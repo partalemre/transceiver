@@ -10,6 +10,7 @@ export type Status = { text: string; isHere: boolean }
 export function statusOf(room: RoomView, o: { now: number; isHere: boolean }): Status | null {
   if (room.kind === 'project') return { text: `Proje odası · ${room.peerName === undefined ? 'davet bekleniyor' : `sen ve ${room.peerName}`}`, isHere: false }
   if (room.isWaiting) return { text: 'Arkadaşın daveti kabul edince başlar', isHere: false }
+  if (room.isBoxBlocked) return { text: 'Karşı tarafın kutusu okunamıyor; seninle paylaşmasını iste', isHere: false }
   const parts = [o.isHere ? 'burada' : '', room.peerReadTs > 0 ? `${agoText(room.peerReadTs, o.now)} okudu` : ''].filter(Boolean)
   return parts.length === 0 ? null : { text: parts.join(' · '), isHere: o.isHere }
 }

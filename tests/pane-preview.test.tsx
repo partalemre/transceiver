@@ -58,7 +58,7 @@ const SHOTS: Shot[] = [
   { label: 'rooms', isBypass: true, sees: 'Sohbetler' },
   { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: 'Arkadaş ekle' },
   { label: 'connect', syncs: syncs({ isPending: true }), sees: 'Bağlan ve gönder' },
-  { label: 'invite', rooms: [ROOMS.alperen, room({ id: 'ri', status: 'invited', isOwner: false }), { ...ROOMS.eliti, peers: [] }], isBypass: true, sees: 'seninle yazışmak' },
+  { label: 'invite', rooms: [ROOMS.alperen, room({ id: 'ri', status: 'invited' }), { ...ROOMS.eliti, peers: [] }], isBypass: true, sees: 'seninle yazışmak' },
   { label: 'dm', isBypass: true, presses: ['open-ra'], sees: '2 yeni mesaj' },
   { label: 'dm-waiting', syncs: syncs({ isPending: true }), presses: ['connect-later', 'open-ra'], sees: 'bağlantı bekleniyor' },
   { label: 'project', isBypass: true, presses: ['open-re'], extra: DRAFT, sees: 'erişim yok' },

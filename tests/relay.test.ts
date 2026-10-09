@@ -141,6 +141,7 @@ test('meta is null for a room without one and round-trips once written', async (
   const db = fakeDb(ME)
   const relay = relayOf(callerFor(db), URL)
   expect(await relay.meta()).toBe(null)
-  await relay.writeMeta({ v: 1, kind: 'project', repo: 'partalemre/eliti', createdAt: 1 })
-  expect(await relay.meta()).toEqual({ v: 1, kind: 'project', repo: 'partalemre/eliti', createdAt: 1 })
+  const meta = { v: 1 as const, kind: 'project' as const, repo: 'partalemre/eliti', room: '01K7A0000000000000000000R1', createdAt: 1 }
+  await relay.writeMeta(meta)
+  expect(await relay.meta()).toEqual(meta)
 })

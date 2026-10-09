@@ -6,9 +6,8 @@ type Write = { op?: string; collection: string; doc_id: string; data?: Record<st
 
 // `isReplyLost` makes the next write land and then fail on the way back, as a dropped connection would.
 // `beforeWrite` runs just before a write is checked, so a test can move a doc under it (another session's write).
-// `extraUsed` adds documents to the "N of 25000 documents used" line. `owner`, when set, enforces the room's
-// rules (rooms.ts ROOM_CAPABILITIES) for callers made with `callerAs`: everyone writes only `outbox/{self}/**`,
-// the owner also the rest of `outbox` and `meta`.
+// `extraUsed` adds documents to the "N of 25000 documents used" line. `owner`, when set, enforces the mailbox's
+// rules (rooms.ts ROOM_CAPABILITIES) for callers made with `callerAs`: only the owner writes, anywhere.
 export type FakeDb = {
   docs: Map<string, Doc>; calls: Record<string, unknown>[]; self: string
   isDown: boolean; isWriteDenied: boolean; isReplyLost: boolean
@@ -106,20 +105,14 @@ const writesIn = (db: FakeDb, input: Record<string, unknown>): Write[] =>
   (input.action === 'batch' ? (input.writes as Write[]) : [input as unknown as Write])
     .map(w => ({ ...w, collection: resolveMe(db.self, String(w.collection ?? '')) }))
 
-// The room's rules (R2 unmeasured): a write the rules refuse reads as not found, as the tool says it does when it
-// acts at a lowered access level.
-function isAllowed(db: FakeDb, w: Write): boolean {
-  if (db.owner === undefined) return true
-  const path = key(w.collection, w.doc_id)
-  const isOwn = path === `outbox/${db.self}` || path.startsWith(`outbox/${db.self}/`)
-  const isOwners = db.self === db.owner && (path.startsWith('outbox/') || path.startsWith('meta/'))
-  return isOwn || isOwners
-}
+// The mailbox's rules: a write the rules refuse reads as not found, as the tool says it does when it acts at a
+// lowered access level.
+const isAllowed = (db: FakeDb): boolean => db.owner === undefined || db.self === db.owner
 
 function answer(db: FakeDb, input: Record<string, unknown>): CallResult {
   const action = String(input.action)
   const collection = resolveMe(db.self, String(input.collection ?? ''))
-  if (WRITES.has(action) && !writesIn(db, input).every(w => isAllowed(db, w))) return { isError: true, text: T.MISSING }
+  if (WRITES.has(action) && !isAllowed(db)) return { isError: true, text: T.MISSING }
   if (action === 'list' || action === 'query') return read(db, input, collection)
   if (action === 'get') return get(db, collection, String(input.doc_id))
   if (action === 'set') return set(db, { ...(input as unknown as Write), collection })

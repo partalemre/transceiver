@@ -41,7 +41,8 @@ export type Unreadable = { id: string; isUnreadable: true; reason: string }
 export type Head = {
   v: 1; head: string; headTs: number; seenUpTo: string; readUpTo: string; readTs: number; gh?: string; label?: string
 }
-export type RoomMeta = { v: 1; kind: (typeof ROOM_KINDS)[number]; repo?: string; createdAt: number }
+// `room` ties the mailboxes of one room together: every member's mailbox for it carries the same id.
+export type RoomMeta = { v: 1; kind: (typeof ROOM_KINDS)[number]; repo?: string; room: string; createdAt: number }
 
 export const paths = {
   heads: 'outbox',
@@ -132,9 +133,9 @@ function parseAnswer(x: unknown): Answer | null {
 
 const unreadable = (id: string, reason: string): Unreadable => ({ id, isUnreadable: true, reason })
 
-// The author of a doc is the outbox it sits in, never a field. The mod never writes one of these, so a doc that
-// carries one claims an author it cannot prove (the room's owner may write any outbox, see rooms.ts) and is ignored.
-export const AUTHOR_FIELDS = ['author', 'from', 'sender', 'uid'] as const
+// The author of a doc is the mailbox and outbox it sits in, never a field. The mod never writes one of these, so a
+// doc that carries one claims an author it cannot prove and is ignored.
+const AUTHOR_FIELDS = ['author', 'from', 'sender', 'uid'] as const
 const claimsAuthor = (x: Obj) => AUTHOR_FIELDS.some(k => Object.hasOwn(x, k))
 
 export function parseMessage(id: string, raw: unknown): Message | Unreadable {
@@ -181,7 +182,8 @@ export function parseHead(raw: unknown): Head | null {
 export function parseMeta(raw: unknown): RoomMeta | null {
   if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isOneOf(ROOM_KINDS, raw.kind) || !isCount(raw.createdAt)) return null
   if ((raw.kind === 'project' || 'repo' in raw) && !isRepo(raw.repo)) return null
-  return stripUndefined<RoomMeta>({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, createdAt: raw.createdAt })
+  if (!isId(raw.room)) return null
+  return stripUndefined<RoomMeta>({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, room: raw.room, createdAt: raw.createdAt })
 }
 
 // A compacted day (T15): `ts` is its newest message's, so readers can ask for the days after a cursor. Messages

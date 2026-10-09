@@ -75,12 +75,18 @@ function syncsOf(rooms: RoomRecord[]): Record<string, RoomSync> {
   return syncs
 }
 
-// Names arrive in the background; the pane draws "Biri" until then and redraws once they land.
+// Names arrive in the background; the pane draws "Biri" until then and redraws once they land. An id means
+// something only in the mailbox its author writes, so each is resolved there.
 function askNames(host: Host, rooms: RoomRecord[], syncs: Record<string, RoomSync>): void {
   const known = namesNow()
   for (const room of rooms) {
-    const uids = Object.keys(syncs[room.id]?.peers ?? {}).filter(uid => known[uid] === undefined)
-    if (uids.length > 0) void resolveNames(host, { url: room.url, uids }).then(() => refreshPane()).catch(() => undefined)
+    const sync = syncs[room.id]
+    const byBox = new Map<string, string[]>()
+    for (const uid of Object.keys(sync?.peers ?? {}).filter(u => known[u] === undefined)) {
+      const url = sync?.boxOf[uid] ?? room.url
+      byBox.set(url, [...(byBox.get(url) ?? []), uid])
+    }
+    for (const [url, uids] of byBox) void resolveNames(host, { url, uids }).then(() => refreshPane()).catch(() => undefined)
   }
 }
 

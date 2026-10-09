@@ -4,7 +4,7 @@ import { forgetRepo } from '../hooks/here'
 
 const ROOM = {
   id: 'te', url: 'https://claude.ai/artifact/TE1', kind: 'project', repo: 'partalemre/eliti', title: 't',
-  status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: 0,
+  status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 0,
 }
 
 // The engine answers $.session.root and $.process.run from the test's own hooks (`git remote get-url` here).

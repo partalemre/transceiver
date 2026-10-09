@@ -9,7 +9,6 @@ import { joinRoom } from '../hooks/join'
 import { DISCOVER_MS, MAX_DRAFTS_PER_ROOM } from '../hooks/limits'
 import type { Message } from '../hooks/protocol'
 import { enqueueMessage, startLoop, stopRoom, syncOf } from '../hooks/room-loop'
-import { roomPageHtml } from '../hooks/room-page'
 import { loadRooms, saveRooms, type RoomRecord } from '../hooks/rooms'
 import { mergeEntries } from '../hooks/timeline'
 import { newId } from '../hooks/ulid'
@@ -21,7 +20,7 @@ const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
 const room = (id: string): RoomRecord => ({
   id, url: `https://claude.ai/artifact/${id}`, kind: 'dm', title: 'Transceiver · DM',
-  status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: 0,
+  status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 0,
 })
 const human = (ts: number, text: string): Message => ({ v: 1, id: newId(ts), ts, kind: 'human', text })
 
@@ -94,25 +93,27 @@ test('discovery never overlaps itself and reads a shared artifact that is not a 
 })
 
 test('a room joined by link while discovery runs is not saved twice', async () => {
-  const db = fakeDb(ME)
-  const call = callerFor(db)
+  const [db, mine] = [fakeDb(ME), fakeDb(ME)]
   const url = 'https://claude.ai/artifact/JOINED1'
-  db.docs.set('meta/room', { data: { v: 1, kind: 'dm', createdAt: 1 }, version: 1 })
+  const own = 'https://claude.ai/artifact/MINE1'
+  db.docs.set('meta/room', { data: { v: 1, kind: 'dm', room: newId(1), createdAt: 1 }, version: 1 })
   const { g, pass, open } = gate()
   const host = fakeHost(async (input): Promise<CallResult> => {
+    if (input.tool === 'Artifact' && input.action === 'publish') return { result: { url: own }, text: `Published at ${own}` }
     if (input.tool === 'Artifact') return { result: { artifacts: [{ title: 'Transceiver · DM', url }] }, text: '' }
     if (input.action === 'get' && g.isShut) await pass()
-    return call(input)
+    return callerFor(input.url === own ? mine : db)(input)
   })
   await startLoop(host)
   g.isShut = true
   await host.advance(DISCOVER_MS)
   g.isShut = false
-  expect(await joinRoom(host, url)).toBe('Transceiver · DM odasına katıldın.')
+  const joined = await joinRoom(host, url)
+  expect([joined.text.startsWith('Transceiver · DM odasına katıldın.'), joined.isNew]).toEqual([true, true])
   open()
   await host.advance(0)
   const rooms = await loadRooms(host)
-  expect(rooms.filter(r => r.url === url).map(r => r.status)).toEqual(['active'])
+  expect(rooms.map(r => [r.url, r.boxes, r.status])).toEqual([[own, [url], 'active']])
   for (const r of rooms) stopRoom(r.id)
 })
 
@@ -136,7 +137,6 @@ test('a peer reusing my message id in their own outbox neither hides mine nor is
   expect(merged.map(e => [e.author, 'text' in e.message ? e.message.text : ''])).toEqual([[ME, 'benim'], [PEER, 'onların']])
   // One author's copy in a day doc and in msgs is still one entry.
   expect(mergeEntries([{ author: PEER, message: theirs }], [{ author: PEER, message: theirs }]).length).toBe(1)
-  expect(roomPageHtml({ title: 't' })).toContain('rows.set(author + "/" + id')
 })
 
 test('drafts past the ask limit are capped per room, so a flood of asks cannot grow the store', async () => {

@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { CallResult } from '../hooks/host'
 import { parseCommand, runCommand } from '../hooks/commands'
-import { joinRoom, joinUrlOf } from '../hooks/join'
+import { joinRoom, joinUrlOf, SHARE_BACK } from '../hooks/join'
 import { stopRoom } from '../hooks/room-loop'
 import { loadRooms, saveRooms, type RoomRecord } from '../hooks/rooms'
 import { callerFor, fakeDb } from './fake-db'
@@ -10,6 +10,7 @@ import { fakeHost } from './fake-host'
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const LINK = 'https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb'
 const NEW_ROOM = 'https://claude.ai/artifact/NEW111'
+const ROOM_ID = '01K7A0000000000000000000R1'
 
 test('no args opens the pane; Turkish verbs parse with or without diacritics', () => {
   expect(parseCommand('')).toEqual({ verb: 'open', arg: '' })
@@ -29,40 +30,58 @@ test('only a claude.ai artifact link is accepted for joining', () => {
   expect(joinUrlOf('')).toBe(null)
 })
 
+// `db` is the linked mailbox; the person's own new mailbox has its own db.
 function world() {
   const db = fakeDb(ME)
+  const own = fakeDb(ME)
   const opened: string[] = []
   const host = fakeHost(async input => {
-    if (input.tool === 'ArtifactData') return callerFor(db)(input)
+    if (input.tool === 'ArtifactData') return callerFor(input.url === NEW_ROOM ? own : db)(input)
     return { result: {}, text: `Published at ${NEW_ROOM} (Version 1)` }
   })
   const deps = { host, openPane: async () => { opened.push('pane') } }
   return { db, host, opened, deps }
 }
 
-test('joining by link checks the room meta, saves the room as active and starts polling it', async () => {
+const META = { v: 1, kind: 'project', repo: 'partalemre/eliti', room: ROOM_ID, createdAt: 1 }
+
+test('joining by link checks the meta, opens the joiner\'s own mailbox with the command as consent, and polls both', async () => {
   const { db, host } = world()
-  expect(await joinRoom(host, LINK)).toBe('Bu link bir Transceiver odası değil ya da sana paylaşılmamış.')
-  db.docs.set('meta/room', { data: { v: 1, kind: 'project', repo: 'partalemre/eliti', createdAt: 1 }, version: 1 })
-  expect(await joinRoom(host, LINK)).toBe('Transceiver · partalemre/eliti odasına katıldın.')
+  expect((await joinRoom(host, LINK)).text).toBe('Bu link bir Transceiver kutusu değil ya da sana paylaşılmamış.')
+  db.docs.set('meta/room', { data: META, version: 1 })
+  const joined = await joinRoom(host, LINK)
+  expect(joined.text).toBe(`Transceiver · partalemre/eliti odasına katıldın. Kendi kutun: ${NEW_ROOM}\n${SHARE_BACK}`)
+  expect(joined.isNew).toBe(true)
+  expect(host.tools.find(t => t.tool === 'Artifact')?.consent).toBe(`The user ran "/transceiver katıl ${LINK}"`)
   const [room] = await loadRooms(host)
-  expect(room).toMatchObject({ url: LINK, status: 'active', kind: 'project', isOwner: false })
-  expect(await joinRoom(host, LINK)).toBe('Bu odaya zaten katıldın.')
+  expect(room).toMatchObject({ url: NEW_ROOM, boxes: [LINK], room: ROOM_ID, status: 'active', kind: 'project' })
+  expect((await joinRoom(host, LINK)).text).toBe('Bu odaya zaten katıldın.')
   await host.advance(0)
   expect(db.calls.some(c => c.action === 'list' && c.collection === 'outbox' && c.url === LINK)).toBe(true)
   if (room !== undefined) stopRoom(room.id)
 })
 
+test('a link to another member\'s mailbox of a room already joined adds it there and publishes nothing', async () => {
+  const { db, host } = world()
+  const own = { ...record('r1', 'Transceiver · partalemre/eliti', NEW_ROOM), kind: 'project' as const, repo: 'partalemre/eliti', room: ROOM_ID }
+  await saveRooms(host, [own])
+  db.docs.set('meta/room', { data: META, version: 1 })
+  expect((await joinRoom(host, LINK)).text).toBe('Transceiver · partalemre/eliti: karşı tarafın kutusu eklendi.')
+  expect((await loadRooms(host)).map(r => r.boxes)).toEqual([[LINK]])
+  expect(host.tools.some(t => t.tool === 'Artifact')).toBe(false)
+  stopRoom('r1')
+})
+
 test('a bad link gets the usage line and touches nothing', async () => {
   const { db, host } = world()
-  expect(await joinRoom(host, 'https://evil.example/artifact/AAA')).toBe('Kullanım: /transceiver katıl <https://claude.ai/artifact/…>')
+  expect((await joinRoom(host, 'https://evil.example/artifact/AAA')).text).toBe('Kullanım: /transceiver katıl <https://claude.ai/artifact/…>')
   expect(db.calls.length).toBe(0)
 })
 
 test('ekle publishes a DM room with the command as consent, opens the pane and says how to share it', async () => {
   const { host, opened, deps } = world()
   const text = await runCommand({ ...deps, cmd: parseCommand('ekle') })
-  expect(text?.startsWith(`Oda hazır: ${NEW_ROOM}`)).toBe(true)
+  expect(text?.startsWith(`Oda hazır, kendi kutun: ${NEW_ROOM}`)).toBe(true)
   expect(opened).toEqual(['pane'])
   expect(host.tools.find(t => t.tool === 'Artifact')?.consent).toBe('The user ran "/transceiver ekle"')
   const rooms = await loadRooms(host)
@@ -82,7 +101,7 @@ test('a refused publish is reported, not thrown', async () => {
 })
 
 const record = (id: string, title: string, url: string): RoomRecord => ({
-  id, url, kind: 'dm', title, status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: 1,
+  id, url, kind: 'dm', title, status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 1,
 })
 
 test('çık needs a name or link that picks exactly one active room', async () => {
@@ -105,10 +124,10 @@ test('open, kur and ayarlar open the pane with no text; anything else prints hel
 
 test('/transceiver is registered and answers through the engine', async ($, on) => {
   const db = fakeDb(ME)
-  db.docs.set('meta/room', { data: { v: 1, kind: 'dm', createdAt: 1 }, version: 1 })
+  db.docs.set('meta/room', { data: { v: 1, kind: 'dm', room: ROOM_ID, createdAt: 1 }, version: 1 })
   const registered: string[] = []
   const hints: Array<string | undefined> = []
-  mock.store(on)
+  mock.store(on, { 'tx.rooms': [{ ...record('r1', 'Transceiver · DM', NEW_ROOM), room: ROOM_ID }] })
   mock.clock(on, { now: 1_791_545_100_000 })
   mock.env(on, { HOME: '/home/u' })
   on('command.register', (_$, e) => { registered.push(e.name); hints.push(e.argumentHint); return { value: { command: e.name } } })
@@ -122,5 +141,6 @@ test('/transceiver is registered and answers through the engine', async ($, on) 
   // A bare /transceiver is the whole entry point: the menu shows no verbs to puzzle over.
   expect(hints).toEqual([undefined])
   const out = await $.command.run({ command: 'transceiver', args: `katıl ${LINK}` } as never)
-  expect(out.text).toBe('Transceiver · DM odasına katıldın.')
+  expect(out.text).toBe('Transceiver · DM: karşı tarafın kutusu eklendi.')
+  stopRoom('r1')
 })

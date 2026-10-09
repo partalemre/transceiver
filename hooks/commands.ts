@@ -45,7 +45,7 @@ async function addRoom(deps: CommandDeps, opts: { kind: RoomKind; repo?: string;
   await saveRooms(host, [...(await loadRooms(host)), room])
   pokeRoom(host, room)
   await deps.openPane()
-  return `Oda hazır: ${room.url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla davet et; sonra linki ona gönder (/${COMMAND} katıl <link>).`
+  return `Oda hazır, kendi kutun: ${room.url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla ekle (Viewer yeter); sonra linki ona gönder (/${COMMAND} katıl <link>). O da kendi kutusunun linkini sana gönderince /${COMMAND} katıl <onun linki> yaz.`
 }
 
 async function leave(host: Host, name: string): Promise<string> {
@@ -71,6 +71,6 @@ export async function runCommand(opts: CommandDeps & { cmd: Cmd }): Promise<stri
     return isRepo(cmd.arg) ? addRoom(opts, { kind: 'project', repo: cmd.arg, typed: `proje ${cmd.arg}` }) : `Kullanım: /${COMMAND} proje <sahip/repo>`
   }
   if (cmd.verb === 'cik') return leave(host, cmd.arg)
-  if (cmd.verb === 'katil') return joinRoom(host, cmd.arg)
+  if (cmd.verb === 'katil') return (await joinRoom(host, cmd.arg)).text
   return HELP
 }

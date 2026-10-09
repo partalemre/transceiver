@@ -34,6 +34,8 @@ export class RelayError extends Error {
 }
 
 export type Relay = {
+  // The mailbox this relay reads and writes.
+  url: string
   whoami(): Promise<string>
   meta(): Promise<RoomMeta | null>
   writeMeta(meta: RoomMeta): Promise<void>
@@ -262,6 +264,7 @@ async function days(ctx: Ctx, uid: string, afterTs: number): Promise<Message[]> 
 export function relayOf(call: ToolCaller, url: string): Relay {
   const ctx: Ctx = { call, url, used: null }
   return {
+    url,
     whoami: () => whoami(ctx),
     meta: async () => parseMeta((await getDoc(ctx, paths.meta, 'room'))?.data),
     writeMeta: async meta => { await exec(ctx, { action: 'set', collection: paths.meta, doc_id: 'room', data: meta }) },

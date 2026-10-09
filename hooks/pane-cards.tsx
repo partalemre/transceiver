@@ -179,17 +179,17 @@ export function GhCard(ctx: Ctx): RenderElement | null {
   })
 }
 
-const CREATED = '1 · Linki claude.ai\'de aç, Paylaş\'a bas, arkadaşının e-postasını yaz. 2 · Linki ona gönder: Transceiver\'ı açınca davet kendiliğinden görünür.'
+const CREATED = '1 · Bu senin kutun. Linki claude.ai\'de aç, Paylaş\'a bas, arkadaşının e-postasını yaz (Viewer yeter). 2 · Linki ona gönder. Aynı organizasyondaysanız kutular kendiliğinden bağlanır; değilse ikiniz de karşı tarafın linkini Linkle katıl\'a yapıştırın.'
 
 export function CreatedCard(ctx: Ctx): RenderElement | null {
   const created = ctx.model.created
   if (created === null) return null
   const { Text } = ctx.ui
-  const head = cardHeadPart({ width: innerOf(ctx), lead: tilePart({ glyph: 'signal', paint: 'signal', size: TILE }), eyebrow: 'Oda hazır', paint: 'signal', title: 'Şimdi arkadaşını davet et' })
+  const head = cardHeadPart({ width: innerOf(ctx), lead: tilePart({ glyph: 'signal', paint: 'signal', size: TILE }), eyebrow: 'Kutun hazır', paint: 'signal', title: 'Şimdi kutunu paylaş' })
   return Card(ctx, {
     key: 'created', line: ctx.look.signal.line,
     children: [
-      Words(ctx, { key: 'created-head', part: head, text: 'ODA HAZIR · Şimdi arkadaşını davet et', color: ctx.look.signal.fg }),
+      Words(ctx, { key: 'created-head', part: head, text: 'KUTUN HAZIR · Şimdi kutunu paylaş', color: ctx.look.signal.fg }),
       Words(ctx, { key: 'created-body', part: body(ctx, CREATED), text: CREATED }),
       <Text key="created-url" color={ctx.look.signal.fg} wrap="truncate-middle">{created.url}</Text>,
       Buttons(ctx, [

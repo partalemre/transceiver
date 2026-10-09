@@ -22,6 +22,8 @@ const BADGE_CELLS = 4
 const GATE_DOT: Record<RoomView['gate'], string> = { open: 'ok', closed: 'line-strong', unknown: 'warn' }
 
 // A project's branch, a DM nobody joined yet, any other room.
+const BOX_BLOCKED = 'karşı tarafın kutusu okunamıyor · seninle paylaşmasını iste'
+
 function rowGlyph(room: RoomView): string {
   if (room.kind === 'project') return '⌥'
   return room.isWaiting ? '◷' : '●'
@@ -29,6 +31,7 @@ function rowGlyph(room: RoomView): string {
 
 function previewOf(ctx: Ctx, room: RoomView, width: number) {
   if (room.isTroubled) return previewPart({ width, text: 'bağlantı sorunu · yeniden deneniyor', isUnread: false, paint: 'warn' })
+  if (room.isBoxBlocked) return previewPart({ width, text: BOX_BLOCKED, isUnread: false, paint: 'warn' })
   if (room.kind === 'project') return previewPart({ width, text: projectLine(room), isUnread: false, paint: room.gate === 'open' ? 'mid' : 'lo', dot: GATE_DOT[room.gate] })
   if (room.lastText === '') {
     return previewPart({ width, text: room.isWaiting ? 'Arkadaşın kabul edince burada yazışırsınız' : 'Henüz mesaj yok', isUnread: false })

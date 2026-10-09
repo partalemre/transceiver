@@ -3,12 +3,13 @@
 import { expect, test } from 'claude-code/testing'
 
 import { statusText, toastText } from '../hooks/notify'
-import { paths } from '../hooks/protocol'
+import { emptyHead, paths } from '../hooks/protocol'
 import { buildModel } from '../hooks/view'
 import { ALPEREN, dmAlperen, dmZeynep, idAt, input, NOW, projectEliti, ROOMS } from './pane-fixtures'
 import { paneWorld, startSession, type World } from './pane-world'
 
-const ALL = [ROOMS.alperen, ROOMS.eliti, ROOMS.zeynep]
+const ALPEREN_BOX = 'https://claude.ai/artifact/RA2x'
+const ALL = [{ ...ROOMS.alperen, boxes: [ALPEREN_BOX] }, ROOMS.eliti, ROOMS.zeynep]
 const SYNCS = () => ({ ra: dmAlperen(), re: projectEliti(), rz: dmZeynep() })
 
 const view = (unread: number, title = 'Alperen') => ({ ...buildModel(input()).rooms[0]!, unread, title })
@@ -30,11 +31,10 @@ test('a toast carries a person\'s first line, clipped; several become a count; a
 })
 
 async function newMessageFromAlperen(w: World): Promise<void> {
-  const db = w.dbOf(ROOMS.alperen.url)
+  const db = w.dbOf(ALPEREN_BOX)
   const id = idAt(-1)
   db.docs.set(`${paths.msgs(ALPEREN)}/${id}`, { data: { v: 1, id, ts: NOW + 60_000, kind: 'human', text: 'Ben de geliyorum!\nBiletleri aldım.' }, version: 1 })
-  const head = db.docs.get(`outbox/${ALPEREN}`)
-  db.docs.set(`outbox/${ALPEREN}`, { data: { ...head?.data, head: id, headTs: NOW + 60_000 }, version: (head?.version ?? 0) + 1 })
+  db.docs.set(`outbox/${ALPEREN}`, { data: { ...emptyHead(), head: id, headTs: NOW + 60_000 }, version: 1 })
   await w.clock.advance(6_000)
 }
 

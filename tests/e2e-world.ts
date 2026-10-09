@@ -1,5 +1,5 @@
-// Two people's mods on one claude.ai: every room artifact is one shared fake db that enforces the room's rules
-// (each uid writes only `outbox/{uid}/**`; `meta` is the owner's), Artifact publish and the shared list answer as
+// Two people's mods on one claude.ai: every mailbox artifact is one fake db that enforces the mailbox's rules (only
+// its owner writes; whoever it is shared with reads), Artifact publish and the shared list answer as
 // the spike measured them, and every person's mod runs on one shared clock. One process holds one copy of the
 // mod's modules (the test runner refuses a dynamic import), so the people differ by their Host: own store, own
 // tool caller (their uid), own room records. What is module-wide (the connection flag, the pane's viewing room,
@@ -10,7 +10,8 @@ import { wireIdentity } from '../hooks/identity'
 import { wireLive } from '../hooks/live'
 import { wireResponder } from '../hooks/responder-wire'
 import { wireRetention } from '../hooks/retention'
-import { pokeRoom, syncOf } from '../hooks/room-loop'
+import { acceptInvite } from '../hooks/join'
+import { syncOf } from '../hooks/room-loop'
 import { loadRooms, loadSettings, saveRooms, saveSettings, type RoomRecord } from '../hooks/rooms'
 import type { Run } from '../hooks/run'
 import type { Receipt } from '../hooks/state-types'
@@ -95,21 +96,32 @@ export async function command(host: FakeAgent, args: string): Promise<string | n
   return runCommand({ host, openPane: async () => undefined, cmd: parseCommand(args) })
 }
 
+// A room by any of its mailboxes: the person's own or another member's.
+const isIn = (r: RoomRecord, url: string) => r.url === url || r.boxes.includes(url)
+
 export async function roomOf(host: FakeAgent, url: string): Promise<RoomRecord> {
-  const room = (await loadRooms(host)).find(r => r.url === url)
+  const room = (await loadRooms(host)).find(r => isIn(r, url))
   if (room === undefined) throw new Error(`no room ${url}`)
   return room
 }
 
 async function patchRoom(host: FakeAgent, url: string, patch: Partial<RoomRecord>): Promise<RoomRecord> {
-  const rooms = (await loadRooms(host)).map(r => (r.url === url ? { ...r, ...patch } : r))
+  const rooms = (await loadRooms(host)).map(r => (isIn(r, url) ? { ...r, ...patch } : r))
   await saveRooms(host, rooms)
   return roomOf(host, url)
 }
 
-// What the pane's "Kabul et" does.
-export async function accept(host: FakeAgent, url: string): Promise<void> {
-  pokeRoom(host, await patchRoom(host, url, { status: 'active' }))
+// What the pane's "Kabul et" does: it publishes the person's own mailbox for the room, whose url it returns.
+export async function accept(host: FakeAgent, url: string): Promise<string> {
+  const invite = await roomOf(host, url)
+  return (await acceptInvite({ host, invite, consent: 'The user pressed "Kabul et"' })).url
+}
+
+// The owner opens their mailbox to another person through claude.ai's Paylaş menu.
+export function share(net: Net, url: string, uid: string): void {
+  const room = net.rooms.get(url)
+  if (room === undefined) throw new Error(`no mailbox ${url}`)
+  room.sharedWith.add(uid)
 }
 
 // What the pane's GitHub card "Evet" does.

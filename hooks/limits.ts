@@ -14,8 +14,6 @@ export const DISCOVER_MS = 60_000
 export const SHARED_LIST_LIMIT = 100
 export const POLL_BACKOFF = 2
 export const KEEP_ENTRIES = 500
-// A room page message: 4000 characters stay under MAX_TEXT_BYTES even at 4 bytes each.
-export const PAGE_MAX_CHARS = 4_000
 
 export const ASK_MODEL = 'haiku'
 export const ASK_MAX_TOKENS = 800
@@ -49,8 +47,6 @@ export const RETENTION_RETRY_MS = 10 * 60_000
 export const DAYS_PULL_AFTER_MS = COMPACT_AFTER_MS - DAY_MS
 // The newest day docs read for a peer who was away: the pane keeps KEEP_ENTRIES messages at most.
 export const DAYS_PAGE = 7
-// The compacted days per author the room's web page shows: about a month of history before the last week.
-export const PAGE_DAYS = 30
 
 export const PANE_ID = 'transceiver'
 export const COMMAND = 'transceiver'

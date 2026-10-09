@@ -45,6 +45,8 @@ export type RoomView = {
   seed: string
   // The room's last poll failed; it is tried again with backoff.
   isTroubled: boolean
+  // Another member's mailbox the last poll could not read: they have not shared it with this person yet.
+  isBoxBlocked: boolean
   lastIsMine: boolean
   lastReceipt?: Receipt
   // A DM this person opened that no friend has joined yet.

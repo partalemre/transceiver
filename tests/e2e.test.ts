@@ -1,18 +1,19 @@
 // The T16 checklist, simulated: Emre's and Alperen's mods (and a second Alperen session) against one claude.ai
-// whose rooms enforce the room rules. Each test is one step of the walk and builds on the ones before it.
+import { authorKey } from '../hooks/authors'
+// whose mailboxes enforce the mailbox rules. Each test is one step of the walk and builds on the ones before it.
 import { expect, test } from 'claude-code/testing'
 import { loadDrafts, settleDraft } from '../hooks/drafts'
 import { forgetRepo } from '../hooks/here'
 import { forgetLogin } from '../hooks/identity'
 import { COLLAB_CACHE_MS, DISCOVER_MS } from '../hooks/limits'
 import { DENIED, type Message } from '../hooks/protocol'
-import { enqueueMessage, setViewing, startLoop, stopRoom } from '../hooks/room-loop'
+import { discover, enqueueMessage, setViewing, startLoop, stopRoom } from '../hooks/room-loop'
 import { loadRooms, loadSettings, saveRooms, saveSettings } from '../hooks/rooms'
 import { newId } from '../hooks/ulid'
 import * as T from './db-texts'
 import {
   accept, agentTool, ALPEREN, command, confirmGh, EMRE, fakeNet, machine, person, receipt, REPO, resultOf, roomOf,
-  sameStore, textsIn, wireMod,
+  sameStore, share, textsIn, wireMod,
 } from './e2e-world'
 import type { FakeAgent } from './fake-agent'
 import { callerAs } from './fake-db'
@@ -26,7 +27,8 @@ const AWS_KEY = 'AKIAIOSFODNN7EXAMPLE'
 const GH_TOKEN = `ghp_${'a'.repeat(36)}`
 
 type Walk = {
-  emre: FakeAgent; alperen: FakeAgent; alperen2: FakeAgent; dm: string; project: string
+  // `dm` and `project` are Emre's mailboxes, `dmA` and `projectA` Alperen's.
+  emre: FakeAgent; alperen: FakeAgent; alperen2: FakeAgent; dm: string; project: string; dmA: string; projectA: string
   unwire: Array<() => void>; unwire2: Array<() => void>
 }
 const w = { unwire: [], unwire2: [] } as unknown as Walk
@@ -59,35 +61,46 @@ test('setup: two people, each with the mod and their own machine, on one clock',
   expect(w.emre.isConnected()).toBe(true)
 })
 
-test('Emre: /transceiver ekle publishes the DM room, writes its meta and shows the link', async () => {
+test('Emre: /transceiver ekle publishes his DM mailbox, writes its meta and shows the link', async () => {
   const text = await command(w.emre, 'ekle')
   w.dm = urlIn(text)
-  expect(text).toContain('Oda hazır:')
+  expect(text).toContain('Oda hazır, kendi kutun:')
   expect(net.rooms.get(w.dm)?.title).toBe('Transceiver · DM')
   expect(dbOf(w.dm)?.docs.get('meta/room')?.data.kind).toBe('dm')
 })
 
-test('Alperen: the invite shows within a minute of Emre sharing the room; Kabul et joins it', async () => {
+test('Alperen: the invite shows within a minute of Emre sharing; Kabul et opens his own mailbox', async () => {
   await sched.advance(DISCOVER_MS)
   expect((await loadRooms(w.alperen)).length).toBe(0)
-  net.rooms.get(w.dm)?.sharedWith.add(ALPEREN)
+  share(net, w.dm, ALPEREN)
   await sched.advance(DISCOVER_MS)
   expect((await roomOf(w.alperen, w.dm)).status).toBe('invited')
-  await accept(w.alperen, w.dm)
+  w.dmA = await accept(w.alperen, w.dm)
+  expect(net.rooms.get(w.dmA)?.db.owner).toBe(ALPEREN)
+  expect((await roomOf(w.alperen, w.dm))).toMatchObject({ status: 'active', url: w.dmA, boxes: [w.dm] })
   await sched.advance(2_000)
-  expect((await roomOf(w.alperen, w.dm)).status).toBe('active')
-  // Only his own mod writes his head (Emre owns the room, and the rules would let the owner write it).
-  expect(dbOf(w.dm)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBe('AlperenX')
+  // Each head sits in its writer's own mailbox.
+  expect(dbOf(w.dmA)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBe('AlperenX')
   expect(dbOf(w.dm)?.docs.get(`outbox/${EMRE}`)?.data.gh).toBe('partalemre')
 })
 
-test('room rules: a guest writes only their own outbox, never the owner\'s or meta', async () => {
+test('Emre: Alperen shares his mailbox back and it joins Emre\'s DM within a minute', async () => {
+  expect((await roomOf(w.emre, w.dm)).boxes).toEqual([])
+  share(net, w.dmA, EMRE)
+  // The discovery timer is one per process and runs for Alperen; Emre's mod runs its own the same way.
+  await discover(w.emre)
+  expect((await roomOf(w.emre, w.dm)).boxes).toEqual([w.dmA])
+  expect((await loadRooms(w.emre)).length).toBe(1)
+})
+
+test('mailbox rules: only its owner writes it; a member writes nothing there, not even under their own id', async () => {
   const db = dbOf(w.dm)
   if (db === undefined) throw new Error('no dm')
   const asAlperen = callerAs(db, ALPEREN)
   const forged = await asAlperen({ tool: 'ArtifactData', action: 'set', collection: `outbox/${EMRE}/msgs`, doc_id: 'x', data: {} })
+  const own = await asAlperen({ tool: 'ArtifactData', action: 'set', collection: `outbox/${ALPEREN}/msgs`, doc_id: 'x', data: {} })
   const meta = await asAlperen({ tool: 'ArtifactData', action: 'set', collection: 'meta', doc_id: 'room', data: { v: 1, kind: 'project' }, if_version: 1 })
-  expect([forged.text, meta.text]).toEqual([T.MISSING, T.MISSING])
+  expect([forged.text, own.text, meta.text]).toEqual([T.MISSING, T.MISSING, T.MISSING])
   expect(db.docs.get('meta/room')?.data.kind).toBe('dm')
 })
 
@@ -131,12 +144,15 @@ test('receipts off on Alperen\'s side: he sends no blue ✓✓ and sees none fro
 test('project room: Emre opens eliti, Alperen accepts, both heads carry their GitHub login', async () => {
   w.project = urlIn(await command(w.emre, `proje ${REPO}`))
   expect(net.rooms.get(w.project)?.title).toBe(`Transceiver · ${REPO}`)
-  net.rooms.get(w.project)?.sharedWith.add(ALPEREN)
+  share(net, w.project, ALPEREN)
   await sched.advance(DISCOVER_MS)
-  await accept(w.alperen, w.project)
+  w.projectA = await accept(w.alperen, w.project)
+  share(net, w.projectA, EMRE)
+  await discover(w.emre)
   await sched.advance(3_000)
+  expect((await roomOf(w.emre, w.project)).boxes).toEqual([w.projectA])
   expect(dbOf(w.project)?.docs.get(`outbox/${EMRE}`)?.data.gh).toBe('partalemre')
-  expect(dbOf(w.project)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBe('AlperenX')
+  expect(dbOf(w.projectA)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBe('AlperenX')
 })
 
 test('gate closed until the GitHub question is answered: a query gets exactly erişim yok', async () => {
@@ -145,21 +161,24 @@ test('gate closed until the GitHub question is answered: a query gets exactly er
   expect(out).not.toContain('main')
 })
 
-test('both say Evet; a second Alperen session joins by link', async () => {
-  await confirmGh(w.emre, w.project, { uid: ALPEREN, gh: 'AlperenX' })
-  await confirmGh(w.alperen, w.project, { uid: EMRE, gh: 'partalemre' })
+// A second session reads the person's rooms from their store, so it writes the same mailbox (here its records are
+// copied under new ids, which one process needs, see sameStore).
+test('both say Evet; a second Alperen session opens the same rooms', async () => {
+  await confirmGh(w.emre, w.project, { uid: authorKey({ uid: ALPEREN, url: w.projectA, isOwn: false }), gh: 'AlperenX' })
+  await confirmGh(w.alperen, w.project, { uid: authorKey({ uid: EMRE, url: w.project, isOwn: false }), gh: 'partalemre' })
   w.alperen2 = await person({ net, sched, uid: ALPEREN, gh: 'AlperenX', run: machine({ collaborators }) })
   Object.assign(w.alperen2.files, FILES)
   sameStore(w.alperen2, w.alperen)
   w.unwire2.push(...wireMod(w.alperen2))
-  expect(await command(w.alperen2, `katıl ${w.project}`)).toBe(`Transceiver · ${REPO} odasına katıldın.`)
-  await confirmGh(w.alperen2, w.project, { uid: EMRE, gh: 'partalemre' })
+  await saveRooms(w.alperen2, (await loadRooms(w.alperen)).map(r => ({ ...r, id: `${r.id}2` })))
+  await startLoop(w.alperen2)
+  expect((await roomOf(w.alperen2, w.project)).url).toBe(w.projectA)
   await sched.advance(3_000)
 })
 
 const claimsOf = (host: FakeAgent, qid: string) => host.tools.filter(t => String(t.collection).endsWith('/claims') && t.doc_id === qid).length
 const lastQid = () => String(outboxDocs(w.project, EMRE).filter(d => d.kind === 'query').map(d => d.id).sort().at(-1))
-const answersTo = (qid: string) => outboxDocs(w.project, ALPEREN).filter(d => (d.answer as { qid?: string } | undefined)?.qid === qid)
+const answersTo = (qid: string) => outboxDocs(w.projectA, ALPEREN).filter(d => (d.answer as { qid?: string } | undefined)?.qid === qid)
 
 test('a typed query is answered once, at no token cost, while two Alperen sessions race for it', async () => {
   const out = resultOf(await agentTool(w.emre, 'ask', { type: 'status' }))
@@ -195,7 +214,7 @@ test('ask: ten a day get a small model\'s answer; the eleventh waits as a draft 
   expect(eleventh).toMatch(/^pending:/)
   expect(w.alperen.asked.length).toBe(10)
   const drafts = await loadDrafts(w.alperen)
-  expect(drafts.map(d => [d.question, d.asker])).toEqual([['soru 11?', EMRE]])
+  expect(drafts.map(d => [d.question, d.asker])).toEqual([['soru 11?', authorKey({ uid: EMRE, url: w.project, isOwn: false })]])
   const draft = drafts[0]
   expect(await settleDraft(w.alperen, { qid: draft?.qid ?? '', isApproved: true })).toBe(true)
   await sched.advance(3_000)
@@ -241,12 +260,13 @@ test('Emre leaves the DM: his mod stops polling it, Alperen\'s goes on', async (
 
 test('no path, model, session or repo name reaches a DM; no path or model reaches any room', async () => {
   const dump = (url: string) => JSON.stringify([...(dbOf(url)?.docs ?? new Map())])
-  for (const url of [w.dm, w.project]) {
+  for (const url of [w.dm, w.project, w.dmA, w.projectA]) {
     expect(dump(url)).not.toContain('/w/')
     expect(dump(url)).not.toContain('/home/')
     expect(dump(url)).not.toContain('haiku')
   }
   expect(dump(w.dm)).not.toContain('eliti')
+  expect(dump(w.dmA)).not.toContain('eliti')
   // Module state outlives this file: leave the pane closed and nothing polling.
   for (const off of w.unwire) off()
   for (const host of [w.emre, w.alperen]) for (const r of await loadRooms(host)) stopRoom(r.id)

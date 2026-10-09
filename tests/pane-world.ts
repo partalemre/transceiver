@@ -53,18 +53,16 @@ function profiles(input: Record<string, unknown>): CallResult {
   return { result: { db_profiles: { ids, profiles: found } }, text: '' }
 }
 
-// One database per room, holding the heads the stored sync state saw (own at its version), so the first polls
-// change nothing they should not.
+// One database per mailbox: the person's own, holding their head at the stored sync state's version, so the first
+// polls change nothing they should not; and an empty one for each other member's.
 function roomDbs(o: WorldOpts): Map<string, FakeDb> {
   const dbs = new Map<string, FakeDb>()
   for (const room of o.rooms ?? []) {
     const db = fakeDb(ME)
     const sync = o.syncs?.[room.id]
-    if (sync !== undefined) {
-      db.docs.set(`outbox/${ME}`, { data: sync.ownHead, version: sync.ownVersion })
-      for (const [uid, head] of Object.entries(sync.peers)) db.docs.set(`outbox/${uid}`, { data: { ...head, head: '' }, version: 1 })
-    }
+    if (sync !== undefined) db.docs.set(`outbox/${ME}`, { data: sync.ownHead, version: sync.ownVersion })
     dbs.set(room.url, db)
+    for (const box of room.boxes) dbs.set(box, fakeDb(ME))
   }
   return dbs
 }

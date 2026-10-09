@@ -43,7 +43,9 @@ test('a split answer numbers its parts; a part out of range or alone is unreadab
 test('heads and meta reject junk', () => {
   expect(parseHead({ v: 1, head: '', headTs: 0, seenUpTo: '', readUpTo: '', readTs: 0 })).not.toBe(null)
   expect(parseHead({ v: 1, head: 3 })).toBe(null)
-  expect(parseMeta({ v: 1, kind: 'project', repo: 'a/b', createdAt: 1 })).not.toBe(null)
+  expect(parseMeta({ v: 1, kind: 'project', repo: 'a/b', room: '01K7A0000000000000000000R1', createdAt: 1 })).not.toBe(null)
+  expect(parseMeta({ v: 1, kind: 'project', repo: 'a/b', createdAt: 1 })).toBe(null)
+  expect(parseMeta({ v: 1, kind: 'project', repo: 'a/b', room: 'x', createdAt: 1 })).toBe(null)
   expect(parseMeta({ v: 1, kind: 'group', createdAt: 1 })).toBe(null)
 })
 
@@ -57,10 +59,10 @@ test('paths keep each author in its own subtree', () => {
 })
 
 test('a dm meta may omit repo but a present repo must be valid', () => {
-  expect(parseMeta({ v: 1, kind: 'dm', createdAt: 1 })).not.toBe(null)
-  expect(parseMeta({ v: 1, kind: 'dm', repo: { x: 1 }, createdAt: 1 })).toBe(null)
-  expect(parseMeta({ v: 1, kind: 'dm', repo: null, createdAt: 1 })).toBe(null)
-  expect(parseMeta({ v: 1, kind: 'dm', repo: '../x', createdAt: 1 })).toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', room: '01K7A0000000000000000000R1', createdAt: 1 })).not.toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', repo: { x: 1 }, room: '01K7A0000000000000000000R1', createdAt: 1 })).toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', repo: null, room: '01K7A0000000000000000000R1', createdAt: 1 })).toBe(null)
+  expect(parseMeta({ v: 1, kind: 'dm', repo: '../x', room: '01K7A0000000000000000000R1', createdAt: 1 })).toBe(null)
 })
 
 test('head pointers are empty or a valid id', () => {

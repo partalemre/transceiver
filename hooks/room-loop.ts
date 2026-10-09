@@ -4,7 +4,7 @@ import type { Host } from './host'
 import { DISCOVER_MS } from './limits'
 import type { Message } from './protocol'
 import { callerOf, relayOf, type HeadState } from './relay'
-import { discoverInvites, loadRooms, loadSettings, saveRooms, type RoomRecord } from './rooms'
+import { discoverInvites, loadRooms, loadSettings, placeFound, saveRooms, type RoomRecord } from './rooms'
 import { enqueue, initialSync, nextDelay, tick, type RoomSync } from './sync'
 import type { Entry } from './timeline'
 
@@ -50,7 +50,10 @@ async function loadSync(host: Host, room: RoomRecord): Promise<RoomSync> {
   const cached = syncs.get(room.id)
   if (cached !== undefined) return cached
   const stored = await host.storeGet(syncKey(room.id))
-  const state = isSync(stored) ? stored : initialSync(await relayOf(callerOf(host), room.url).whoami())
+  // A state stored before rooms had mailboxes lacks the mailbox fields.
+  const state = isSync(stored)
+    ? { ...stored, boxOf: stored.boxOf ?? {}, unread: stored.unread ?? [] }
+    : initialSync(await relayOf(callerOf(host), room.url).whoami())
   syncs.set(room.id, state)
   return state
 }
@@ -74,14 +77,17 @@ function carryQueued(opts: { before: RoomSync; during: RoomSync | undefined; aft
   return during.pending.filter(m => !known.has(m.id)).reduce(enqueue, after)
 }
 
-async function step(host: Host, room: RoomRecord): Promise<void> {
+async function step(host: Host, scheduled: RoomRecord): Promise<void> {
+  // Read fresh: a mailbox found since the poll was scheduled is read on this tick.
+  const room = (await loadRooms(host)).find(r => r.id === scheduled.id) ?? scheduled
   const before = await loadSync(host, room)
   const settings = await loadSettings(host)
   const isViewing = isPaneOpen && viewing === room.id
   const relay = relayOf(callerOf(host), room.url)
+  const boxes = room.boxes.map(url => relayOf(callerOf(host), url))
   const startedAt = await host.now()
   // Until the session is connected (spike R1) the loop only reads: no send, no read mark raises an approval.
-  const out = await tick({ relay, state: before, isViewing, isReceiptsOn: settings.isReceiptsOn, now: startedAt, canWrite: host.isConnected() })
+  const out = await tick({ relay, boxes, state: before, isViewing, isReceiptsOn: settings.isReceiptsOn, now: startedAt, canWrite: host.isConnected() })
   const tookMs = (await host.now()) - startedAt
   // Left while the poll was in flight: nothing of it is kept.
   if (!active.has(room.id)) return
@@ -163,15 +169,14 @@ export function enqueueMessage(opts: { host: Host; room: RoomRecord; message: Me
 }
 
 // One discovery at a time. The rooms are read again before saving: one joined by link meanwhile is not added twice.
-async function discover(host: Host): Promise<void> {
+export async function discover(host: Host): Promise<void> {
   if (isDiscovering) return
   isDiscovering = true
   try {
     const found = await discoverInvites({ host, known: await loadRooms(host) }).catch(() => [])
     const rooms = await loadRooms(host)
-    const urls = new Set(rooms.map(r => r.url))
-    const added = found.filter(r => !urls.has(r.url))
-    if (added.length > 0) await saveRooms(host, [...rooms, ...added])
+    const placed = placeFound({ rooms, found, now: await host.now() })
+    if (placed !== rooms) await saveRooms(host, placed)
   } finally {
     isDiscovering = false
   }

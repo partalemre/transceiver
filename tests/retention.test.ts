@@ -3,8 +3,9 @@ import { dayOf } from '../hooks/compact'
 import type { CallResult } from '../hooks/host'
 import { COMPACT_AFTER_MS, RETENTION_RETRY_MS, ROLLOVER_DOCS } from '../hooks/limits'
 import type { Message } from '../hooks/protocol'
-import { wireRetention } from '../hooks/retention'
-import { enqueueMessage, setViewing, startLoop, stopRoom } from '../hooks/room-loop'
+import { emptyHead } from '../hooks/protocol'
+import { MOVED, wireRetention } from '../hooks/retention'
+import { enqueueMessage, setViewing, startLoop, stopRoom, syncOf } from '../hooks/room-loop'
 import { loadRooms, saveRooms, type RoomRecord } from '../hooks/rooms'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, type FakeAgent } from './fake-agent'
@@ -12,6 +13,7 @@ import { callerFor, fakeDb, type FakeDb } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
+const THIRD = 'u_CCCCCCCCCCCCCCCCCCCCCC'
 const SECRET_TEXT = 'gizli-metin'
 
 type World = { host: FakeAgent; db: FakeDb; dbs: Map<string, FakeDb>; room: RoomRecord; stop: () => Promise<void> }
@@ -31,10 +33,10 @@ function router(w: { dbs: Map<string, FakeDb>; publishes: number; isPublishDenie
   }
 }
 
-async function world(opts: { id: string; isOwner?: boolean; old?: number; isPublishDenied?: boolean }): Promise<World & { net: { publishes: number; isPublishDenied?: boolean } }> {
+async function world(opts: { id: string; boxes?: Map<string, FakeDb>; later?: Map<string, FakeDb>; old?: number; isPublishDenied?: boolean }): Promise<World & { net: { publishes: number; isPublishDenied?: boolean } }> {
   const url = `https://claude.ai/artifact/${opts.id}`
   const db = fakeDb(ME)
-  const net = { dbs: new Map([[url, db]]), publishes: 0, isPublishDenied: opts.isPublishDenied }
+  const net = { dbs: new Map([[url, db], ...(opts.boxes ?? []), ...(opts.later ?? [])]), publishes: 0, isPublishDenied: opts.isPublishDenied }
   const host = fakeAgent(router(net))
   const old = host.clock.now - COMPACT_AFTER_MS - 60_000
   for (let i = 0; i < (opts.old ?? 0); i++) {
@@ -43,7 +45,7 @@ async function world(opts: { id: string; isOwner?: boolean; old?: number; isPubl
   }
   const room: RoomRecord = {
     id: opts.id, url, kind: 'project', repo: 'partalemre/eliti', title: 'Transceiver · partalemre/eliti', status: 'active',
-    isLive: true, isOwner: opts.isOwner ?? true, peers: [{ uid: PEER, gh: 'alperenx', isGhConfirmed: true }], joinedAt: 0,
+    isLive: true, room: 'R0000000000000000000000000', boxes: [...(opts.boxes?.keys() ?? [])], peers: [{ uid: PEER, gh: 'alperenx', isGhConfirmed: true }], joinedAt: 0,
   }
   await saveRooms(host, [room])
   // Module state other test files may leave behind: the pane counts as closed here (5 s polls).
@@ -99,7 +101,7 @@ test('a failing compaction logs the room title and error name only, and waits be
   await w.stop()
 })
 
-test('a full room of mine moves to a new room: notice in the old one, peers kept, old one stops', async () => {
+test('a full mailbox of mine moves to a new one: notice in the old one, peers kept, old one stops', async () => {
   const w = await world({ id: 'RET3' })
   await w.host.advance(2_000)
   w.db.extraUsed = ROLLOVER_DOCS
@@ -112,10 +114,11 @@ test('a full room of mine moves to a new room: notice in the old one, peers kept
   expect(next?.status).toBe('active')
   expect(next?.peers).toEqual(w.room.peers)
   expect(next?.isLive).toBe(true)
+  expect([next?.room, next?.boxes]).toEqual([w.room.room, w.room.boxes])
   const notices = [...w.db.docs.values()].filter(d => d.data.kind === 'system').map(d => d.data.text)
-  expect(notices).toEqual([`Oda doldu, yeni oda: ${next?.url}`])
+  expect(notices).toEqual([`${MOVED}${next?.url}`])
   expect(w.dbs.get(next?.url ?? '')?.docs.has('meta/room')).toBe(true)
-  expect(w.host.toasts).toContain('Transceiver: oda doldu; yeni odayı Paylaş ile tekrar davet et.')
+  expect(w.host.toasts).toContain('Transceiver: kutun doldu; yeni kutunu Paylaş ile odadakilere tekrar aç.')
   const calls = w.db.calls.length
   await w.host.advance(60_000)
   expect(w.db.calls.length).toBe(calls)
@@ -123,14 +126,29 @@ test('a full room of mine moves to a new room: notice in the old one, peers kept
   await w.stop()
 })
 
-test('a guest never rolls a room over', async () => {
-  const w = await world({ id: 'RET4', isOwner: false })
+const PEER_BOX = 'https://claude.ai/artifact/PEER1'
+const THIRD_BOX = 'https://claude.ai/artifact/THIRD1'
+const PEER_NEXT = 'https://claude.ai/artifact/PEER2'
+
+function says(db: FakeDb, uid: string, message: Message): void {
+  db.docs.set(`outbox/${uid}/msgs/${message.id}`, { data: message, version: 1 })
+  const prev = db.docs.get(`outbox/${uid}`)
+  db.docs.set(`outbox/${uid}`, { data: { ...emptyHead(), head: message.id, headTs: message.ts }, version: (prev?.version ?? 0) + 1 })
+}
+
+test('a member\'s move notice swaps their mailbox; one forged into another mailbox moves nothing', async () => {
+  const [peer, third, next] = [fakeDb(PEER), fakeDb(THIRD), fakeDb(PEER)]
+  const w = await world({ id: 'RET4', boxes: new Map([[PEER_BOX, peer], [THIRD_BOX, third]]), later: new Map([[PEER_NEXT, next]]) })
   await w.host.advance(2_000)
-  w.db.extraUsed = ROLLOVER_DOCS
-  enqueueMessage({ host: w.host, room: w.room, message: say(w.host, 'selam') })
+  says(third, THIRD, say(w.host, 'selam'))
+  says(third, PEER, { ...say(w.host, ''), kind: 'system', text: `${MOVED}https://claude.ai/artifact/EVIL1` })
+  says(peer, PEER, { ...say(w.host, ''), kind: 'system', text: `${MOVED}${PEER_NEXT}` })
   await w.host.advance(5_000)
+  expect((await loadRooms(w.host)).find(r => r.id === 'RET4')?.boxes).toEqual([PEER_NEXT, THIRD_BOX])
   expect(w.net.publishes).toBe(0)
-  expect((await loadRooms(w.host)).map(r => r.status)).toEqual(['active'])
+  says(next, PEER, say(w.host, 'yeni kutudan'))
+  await w.host.advance(5_000)
+  expect((syncOf('RET4')?.entries ?? []).some(e => 'text' in e.message && e.message.text === 'yeni kutudan')).toBe(true)
   await w.stop()
 })
 

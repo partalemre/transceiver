@@ -120,7 +120,7 @@ function HintRow(ctx: Ctx, room: RoomView): RenderElement {
 
 export function Composer(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Text } = ctx.ui
-  if (!('Input' in ctx.ui)) return <Text key="read-only" color={ctx.look.lo} wrap="wrap">{`Bu yüzeyde yalnızca okunur. Yazmak için odanın sayfasını aç: ${room.url}`}</Text>
+  if (!('Input' in ctx.ui)) return <Text key="read-only" color={ctx.look.lo} wrap="wrap">{'Bu yüzeyde yalnızca okunur. Yazmak için Transceiver\'ı Claude Code\'da aç.'}</Text>
   const { Input, Button } = ctx.ui
   const isProject = room.kind === 'project'
   const mode = ctx.model.composeMode

@@ -10,7 +10,7 @@ import { callerFor, fakeDb } from './fake-db'
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const room: RoomRecord = {
   id: 'id1', url: 'https://claude.ai/artifact/ID1', kind: 'project', repo: 'a/b', title: 't',
-  status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: 0,
+  status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 0,
 }
 const ev = (over: Partial<TickEvent> = {}): TickEvent => ({ room, state: initialSync(ME), fresh: [], isDenied: false, ...over })
 

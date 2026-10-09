@@ -3,6 +3,7 @@
 // without one shows as "Biri".
 import type { CallResult, ToolHost } from './host'
 import { MAX_NAME_CHARS, PROFILES_PAGE } from './limits'
+import { uidOf } from './authors'
 import { isUid } from './protocol'
 
 const cache: Record<string, string> = {}
@@ -47,12 +48,15 @@ export function parseProfiles(out: CallResult, uids: readonly string[]): Record<
   return found
 }
 
-// Asks for the uids not asked yet; a failed ask is remembered as no name, so it is not repeated every poll.
+// Asks the author's own mailbox for the authors (authors.ts keys) not asked yet; a failed ask is remembered as no
+// name, so it is not repeated every poll. Names are kept by author, since an id means something in one mailbox only.
 export async function resolveNames(host: ToolHost, opts: { url: string; uids: readonly string[] }): Promise<void> {
-  const missing = opts.uids.filter(u => isUid(u) && cache[u] === undefined).slice(0, PROFILES_PAGE)
+  const missing = opts.uids.filter(a => isUid(uidOf(a)) && cache[a] === undefined).slice(0, PROFILES_PAGE)
   if (missing.length === 0) return
-  for (const uid of missing) cache[uid] = ''
-  const out = await host.tool({ tool: 'ArtifactData', action: 'profiles', url: opts.url, ids: missing }).catch(() => null)
+  for (const author of missing) cache[author] = ''
+  const ids = missing.map(uidOf)
+  const out = await host.tool({ tool: 'ArtifactData', action: 'profiles', url: opts.url, ids }).catch(() => null)
   if (out === null || out.deny !== undefined || out.isError === true) return
-  Object.assign(cache, parseProfiles(out, missing))
+  const found = parseProfiles(out, ids)
+  for (const author of missing) cache[author] = found[uidOf(author)] ?? ''
 }

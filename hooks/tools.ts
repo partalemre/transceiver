@@ -8,6 +8,7 @@ import { ASK_WAIT_MARGIN_MS, ASK_WAIT_MS, ASK_WAIT_STEP_MS, INBOX_LIMIT } from '
 import { MAX_TEXT_BYTES, QUERY_FUTURE_SKEW_MS } from './limits'
 import { isUnreadable, parseMessage, QUERY_TYPE_NAMES, utf8Bytes, type Message } from './protocol'
 import { queryFromInput, queryText } from './queries-input'
+import { authorKey } from './authors'
 import { callerOf, relayOf } from './relay'
 import { enqueueMessage, syncOf } from './room-loop'
 import { loadRooms, type RoomRecord } from './rooms'
@@ -111,14 +112,17 @@ async function inbox(ctx: ToolCtx): Promise<ToolOut> {
   return { result: `${DATA_NOTE}\n${fence(lines.join('\n'), newNonce(await ctx.host.now()))}` }
 }
 
-// Looks in the room's own outboxes, not only in the poll's copy, so an answer shows up as soon as it is written.
+// Looks in the other members' mailboxes, not only in the poll's copy, so an answer shows up as soon as it is written.
 async function pulled(ctx: ToolCtx, opts: Wait): Promise<string | null> {
-  const relay = relayOf(callerOf(ctx.host), opts.room.url)
-  const heads = await relay.heads().catch(() => [])
   const entries: Entry[] = []
-  for (const h of heads.filter(x => x.uid !== opts.selfUid && x.head.headTs >= opts.since)) {
-    const got = await relay.since(h.uid, opts.since).catch(() => [])
-    entries.push(...got.map(message => ({ author: h.uid, message })))
+  for (const url of opts.room.boxes) {
+    const relay = relayOf(callerOf(ctx.host), url)
+    const heads = await relay.heads().catch(() => [])
+    for (const h of heads.filter(x => x.head.headTs >= opts.since)) {
+      const got = await relay.since(h.uid, opts.since).catch(() => [])
+      const author = authorKey({ uid: h.uid, url, isOwn: false })
+      entries.push(...got.map(message => ({ author, message })))
+    }
   }
   return collectAnswer(entries, opts)
 }

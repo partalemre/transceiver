@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'claude-code/testing'
 import { enqueueMessage, startLoop, stopRoom, syncOf } from '../hooks/room-loop'
 import { roomPageHtml } from '../hooks/room-page'
-import { createRoom, discoverInvites, invitedFrom, loadRooms, loadSettings, roomTitle, saveRooms } from '../hooks/rooms'
+import { createRoom, discoverInvites, invitedFrom, loadRooms, loadSettings, placeFound, roomTitle, saveRooms, type RoomRecord } from '../hooks/rooms'
+import type { RoomMeta } from '../hooks/protocol'
 import { NOT_ROOM_RETRY_MS } from '../hooks/limits'
 import { callerFor, fakeDb, type FakeDb } from './fake-db'
 import { fakeHost, type FakeHost } from './fake-host'
@@ -9,6 +10,7 @@ import type { CallResult } from '../hooks/host'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const ROOM = 'https://claude.ai/artifact/AAA111'
+const ROOM_ID = '01K7A0000000000000000000R1'
 
 test('room titles carry the prefix discovery looks for', () => {
   expect(roomTitle({ kind: 'dm' })).toBe('Transceiver · DM')
@@ -33,17 +35,19 @@ test('without a structured result the text lines are read', () => {
 test('the room page declares its title first and never embeds data', () => {
   const html = roomPageHtml({ title: 'Transceiver · DM' })
   expect(html.startsWith('<title>Transceiver · DM</title>')).toBe(true)
-  expect(html.includes('claude.use("db")')).toBe(true)
-  expect(html.includes('u_')).toBe(false)
+  expect(['<script', 'claude.', 'u_', '<form'].filter(bit => html.includes(bit))).toEqual([])
 })
 
 test('a title with markup is escaped', () => {
-  expect(roomPageHtml({ title: 'Transceiver · <b>x</b>' }).includes('<b>')).toBe(false)
+  const html = roomPageHtml({ title: 'Transceiver · <b>x</b>' })
+  expect(html.includes('<b>')).toBe(false)
+  expect(html.startsWith('<title>Transceiver · &#60;b&#62;x&#60;/b&#62;</title>')).toBe(true)
 })
 
-test('the room page only ever moves its head forward and merges into it', () => {
+test('the room page tells how to join with its link', () => {
   const html = roomPageHtml({ title: 'Transceiver · DM' })
-  expect(html.includes('.update({ head: id, headTs: ts })')).toBe(true)
+  expect(html.includes('<code>/transceiver katıl &lt;link&gt;</code>')).toBe(true)
+  expect(html.includes('<code>/plugin install transceiver')).toBe(true)
 })
 
 // A test's tool.call hook answers as core does: `{ result, text, isError? }`, or `{ deny }`.
@@ -65,12 +69,13 @@ function world(): World {
 test('creating a room publishes its page with db and profile rules, then writes meta with the press as consent', async () => {
   const { db, host } = world()
   const room = await createRoom({ host, kind: 'project', repo: 'partalemre/eliti', consent: 'The user ran "/transceiver proje"' })
-  expect(room).toMatchObject({ url: ROOM, kind: 'project', repo: 'partalemre/eliti', status: 'active', isOwner: true })
+  expect(room).toMatchObject({ url: ROOM, kind: 'project', repo: 'partalemre/eliti', status: 'active' })
   const publish = host.tools.find(t => t.tool === 'Artifact') as { file_path: string; consent: string; capabilities: { user: unknown } }
   expect(publish.capabilities.user).toEqual({ scopes: ['profile'] })
   expect(publish.consent).toBe('The user ran "/transceiver proje"')
   expect(host.written[publish.file_path]?.startsWith('<title>Transceiver · partalemre/eliti</title>')).toBe(true)
-  expect(db.docs.get('meta/room')?.data).toEqual({ v: 1, kind: 'project', repo: 'partalemre/eliti', createdAt: host.clock.now })
+  expect(db.docs.get('meta/room')?.data).toEqual({ v: 1, kind: 'project', repo: 'partalemre/eliti', room: room.room, createdAt: host.clock.now })
+  expect(room.boxes).toEqual([])
   expect(host.tools.filter(t => t.tool === 'ArtifactData').every(t => typeof t.consent === 'string')).toBe(true)
 })
 
@@ -82,15 +87,41 @@ test('a refused publish surfaces as an error and writes no meta', async () => {
   expect(db.docs.size).toBe(0)
 })
 
-test('discovery offers a shared room only once its meta doc parses, reading a non-room again only later', async () => {
+test('discovery finds a shared mailbox only once its meta doc parses, reading a non-room again only later', async () => {
   const { db, host } = world()
   expect(await discoverInvites({ host, known: [] })).toEqual([])
-  db.docs.set('meta/room', { data: { v: 1, kind: 'dm', createdAt: 1 }, version: 1 })
+  const meta = { v: 1, kind: 'dm', room: ROOM_ID, createdAt: 1 }
+  db.docs.set('meta/room', { data: meta, version: 1 })
   expect(await discoverInvites({ host, known: [] })).toEqual([])
   host.clock.now += NOT_ROOM_RETRY_MS
   const found = await discoverInvites({ host, known: [] })
-  expect(found.map(r => [r.url, r.status, r.title])).toEqual([[ROOM, 'invited', 'Transceiver · DM']])
-  expect(await discoverInvites({ host, known: found })).toEqual([])
+  expect(found).toEqual([{ url: ROOM, meta }])
+  const placed = placeFound({ rooms: [], found, now: 1 })
+  expect(placed.map(r => [r.url, r.boxes, r.status, r.title, r.room])).toEqual([['', [ROOM], 'invited', 'Transceiver · DM', ROOM_ID]])
+  expect(await discoverInvites({ host, known: placed })).toEqual([])
+})
+
+const OTHER = 'https://claude.ai/artifact/OTHER222'
+const mine = (o: Partial<RoomRecord>): RoomRecord => ({
+  id: 'r9', room: ROOM_ID, url: ROOM, boxes: [], kind: 'dm', title: 'Transceiver · DM', status: 'active', isLive: false, peers: [], joinedAt: 1, ...o,
+})
+const found = (o: Partial<RoomMeta> = {}) => ({ url: OTHER, meta: { v: 1 as const, kind: 'dm' as const, room: ROOM_ID, createdAt: 1, ...o } })
+
+test('a found mailbox of a room this person is in joins that room instead of becoming an invite', () => {
+  expect(placeFound({ rooms: [mine({})], found: [found()], now: 1 }).map(r => r.boxes)).toEqual([[OTHER]])
+})
+
+test('a DM takes one other mailbox; a second, a left room or a mismatched kind is not merged', () => {
+  const full = mine({ boxes: ['https://claude.ai/artifact/FIRST'] })
+  expect(placeFound({ rooms: [full], found: [found()], now: 1 })).toEqual([full])
+  expect(placeFound({ rooms: [mine({})], found: [found({ kind: 'project', repo: 'a/b' })], now: 1 })).toEqual([mine({})])
+  const left = mine({ status: 'left' })
+  expect(placeFound({ rooms: [left], found: [found()], now: 1 }).map(r => r.status)).toEqual(['left', 'invited'])
+})
+
+test('a mailbox held anywhere already is not placed again', () => {
+  const rooms = [mine({ boxes: [OTHER] })]
+  expect(placeFound({ rooms, found: [found()], now: 1 })).toBe(rooms)
 })
 
 test('rooms and settings round-trip through the store with defaults', async () => {
@@ -135,7 +166,7 @@ test('a failing room logs its title and the error name only, and tries again lat
 
 test('session start runs the loop through the engine, reading rooms from the store', async ($, on) => {
   const db = fakeDb(ME)
-  const room = { id: 'r3', url: ROOM, kind: 'dm', title: 'Transceiver · DM', status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: 1 }
+  const room = { id: 'r3', url: ROOM, kind: 'dm', title: 'Transceiver · DM', status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 1 }
   mock.store(on, { 'tx.rooms': [room] })
   const clock = mock.clock(on, { now: 1_791_545_100_000 })
   mock.env(on, { HOME: '/home/u' })

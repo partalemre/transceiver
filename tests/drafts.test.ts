@@ -11,7 +11,7 @@ const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
 const QID = '01K7A0000000000000000000D1'
 const room = (id: string, status: RoomRecord['status'] = 'active'): RoomRecord => ({
   id, url: `https://claude.ai/artifact/${id}`, kind: 'project', repo: 'partalemre/eliti', title: 't',
-  status, isLive: false, isOwner: true, peers: [], joinedAt: 0,
+  status, isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 0,
 })
 const draft = (roomId: string) => ({ roomId, qid: QID, question: 'neden?', asker: PEER })
 

@@ -57,7 +57,7 @@ function titleOf(room: RoomRecord, sync: RoomSync | undefined, names: Record<str
   if (room.kind === 'project') return room.repo ?? room.title
   const [peer] = peerUids(sync)
   if (peer !== undefined) return nameOf(names, peer)
-  return room.isOwner ? 'Davet bekleniyor' : 'DM'
+  return room.boxes.length === 0 ? 'Davet bekleniyor' : 'DM'
 }
 
 export const readMarkOf = (sync: RoomSync, local: string | undefined): string =>
@@ -86,8 +86,8 @@ function roomView(room: RoomRecord, input: ModelInput): RoomView {
     gate: project === undefined ? 'unknown' : gateBadge(project.checks),
     ghLogin: project?.checks.isConfirmed === true ? project.checks.login : undefined,
     seed: room.kind === 'project' ? room.repo ?? room.id : peer ?? room.id,
-    unread, isTroubled: (sync?.failures ?? 0) > 0,
-    isWaiting: room.kind === 'dm' && room.isOwner && peer === undefined,
+    unread, isTroubled: (sync?.failures ?? 0) > 0, isBoxBlocked: (sync?.unread.length ?? 0) > 0,
+    isWaiting: room.kind === 'dm' && room.boxes.length === 0 && peer === undefined,
     ...lastOf(room, sync, input),
     ...(peer === undefined ? {} : { peerName: firstName(nameOf(input.names, peer)) }),
     peerSeenTs: head.seenTs, peerReadTs: input.settings.isReceiptsOn ? head.readTs : 0,

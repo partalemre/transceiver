@@ -9,9 +9,12 @@ import { newId } from './ulid'
 
 export type RoomKind = 'dm' | 'project'
 export type Peer = { uid: string; gh?: string; isGhConfirmed: boolean }
+// A room is one mailbox per member, each owned by that member. `url` is this person's own mailbox, the only one
+// they write ('' while an invite is not accepted yet); `boxes` are the other members' mailboxes, read only. `room`
+// is the id every mailbox of the room carries in its meta.
 export type RoomRecord = {
-  id: string; url: string; kind: RoomKind; repo?: string; title: string
-  status: 'active' | 'invited' | 'left'; isLive: boolean; isOwner: boolean; peers: Peer[]; joinedAt: number
+  id: string; room: string; url: string; boxes: string[]; kind: RoomKind; repo?: string; title: string
+  status: 'active' | 'invited' | 'left'; isLive: boolean; peers: Peer[]; joinedAt: number
 }
 export type Settings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; label?: string; gh?: string }
 
@@ -19,30 +22,24 @@ const ROOMS_KEY = 'tx.rooms'
 const SETTINGS_KEY = 'tx.settings'
 const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
 
-// Everyone in the room reads every outbox; each member writes only their own `outbox/{self}` subtree. `meta` is
-// the owner's alone, so a guest cannot turn a DM into a project room. `profile` lets the page and the pane show
-// names (spike: Names).
-// The `outbox` rule is the narrowest the rule language allows, not the one wanted: a rule at the prefix of a
-// `{self}` rule must set both `read` and `write` (or the publish is refused), a write level is never below the read
-// level, and the owner meets every level. So nothing here can stop the room's owner writing another member's
-// subtree, while dropping the prefix rule would hide every outbox from everyone else. `owner` is the highest level
-// (`admin` would add Editors). The mod keys authorship by outbox and ignores a doc that names an author itself
-// (protocol.ts AUTHOR_FIELDS); the residual risk is in docs/progress.md, "Final cleanup" (checklist 0.10).
+// Only the mailbox's owner writes it; everyone it is shared with reads it. The platform lets an outside visitor
+// (another organization, invited by email) and every Viewer read, and lets nobody but the owner write at every
+// sharing level, so whatever level the share menu was left at, every member can talk and none can write into
+// another's mailbox. `profile` lets the pane show names (spike: Names).
 export const ROOM_CAPABILITIES = {
-  db: { rules: [
-    { path: 'outbox', read: 'view', write: 'owner' },
-    { path: 'outbox/{self}', write: 'interact' },
-    { path: 'meta', read: 'view', write: 'owner' },
-  ] },
+  db: { rules: [{ path: '', read: 'view', write: 'owner' }] },
   user: { scopes: ['profile'] },
 }
 
 export const roomTitle = (opts: { kind: RoomKind; repo?: string }) =>
   `${TITLE_PREFIX}${opts.kind === 'dm' ? 'DM' : opts.repo ?? ''}`
 
+// A record stored before rooms had mailboxes has no `room` or `boxes`; its own id stands in for the room.
+const normalized = (r: RoomRecord): RoomRecord => ({ ...r, room: r.room ?? r.id, boxes: Array.isArray(r.boxes) ? r.boxes : [] })
+
 export async function loadRooms(host: Host): Promise<RoomRecord[]> {
   const raw = await host.storeGet(ROOMS_KEY)
-  return Array.isArray(raw) ? (raw as RoomRecord[]) : []
+  return Array.isArray(raw) ? (raw as RoomRecord[]).map(normalized) : []
 }
 
 export const saveRooms = (host: Host, rooms: RoomRecord[]) => host.storeSet(ROOMS_KEY, rooms)
@@ -94,19 +91,23 @@ async function publishPage(opts: { host: Host; file: string; consent?: string })
   return url
 }
 
-// `consent` is the person's own words for the command or press that asked for the room; it rides on the publish
-// and the meta write, the session's first writes.
-export async function createRoom(opts: { host: Host; kind: RoomKind; repo?: string; consent?: string }): Promise<RoomRecord> {
+export type NewRoom = { host: Host; kind: RoomKind; repo?: string; consent?: string; room?: string; boxes?: string[] }
+
+// Publishes this person's own mailbox: for a new room, or (with `room` and the mailboxes already known in `boxes`)
+// for one they join. `consent` is the person's own words for the command or press that asked for it; it rides on
+// the publish and the meta write, the session's first writes.
+export async function createRoom(opts: NewRoom): Promise<RoomRecord> {
   const { host, kind, repo } = opts
   const now = await host.now()
   const id = newId(now)
+  const room = opts.room ?? id
   const title = roomTitle({ kind, repo })
   const url = await publishFrom({ host, id, title, consent: opts.consent })
-  const meta: RoomMeta = { v: PROTOCOL_VERSION, kind, createdAt: now, ...(repo === undefined ? {} : { repo }) }
+  const meta: RoomMeta = { v: PROTOCOL_VERSION, kind, room, createdAt: now, ...(repo === undefined ? {} : { repo }) }
   await relayOf(callerOf(host, opts.consent), url).writeMeta(meta)
   // The meta write carried the person's consent and landed: this session may write from now on.
   setConnected(true)
-  return { id, url, kind, repo, title, status: 'active', isLive: false, isOwner: true, peers: [], joinedAt: now }
+  return { id, room, url, boxes: opts.boxes ?? [], kind, repo, title, status: 'active', isLive: false, peers: [], joinedAt: now }
 }
 
 type Listed = { title?: unknown; url?: unknown }
@@ -128,26 +129,56 @@ export function invitedFrom(opts: { result: unknown; text: string; knownUrls: st
 // (offline) is tried again on the next discovery.
 const notRooms = new Map<string, number>()
 
-// A listed title is a hint only; a room is real once its meta doc parses.
-export async function discoverInvites(opts: { host: Host; known: RoomRecord[] }): Promise<RoomRecord[]> {
+export type Found = { url: string; meta: RoomMeta }
+
+// A listed title is a hint only; a mailbox is real once its meta doc parses.
+export async function discoverInvites(opts: { host: Host; known: RoomRecord[] }): Promise<Found[]> {
   const { host } = opts
   const out = await host.tool({ tool: 'Artifact', action: 'list', scope: 'shared', limit: SHARED_LIST_LIMIT })
-  const urls = invitedFrom({ result: out.result, text: out.text ?? '', knownUrls: opts.known.map(r => r.url) })
+  const urls = invitedFrom({ result: out.result, text: out.text ?? '', knownUrls: knownUrlsOf(opts.known) })
   const now = await host.now()
-  const found: RoomRecord[] = []
+  const found: Found[] = []
   for (const url of urls.filter(u => (notRooms.get(u) ?? 0) <= now)) {
     const meta = await relayOf(callerOf(host), url).meta().then(m => m, () => undefined)
     if (meta === null) notRooms.set(url, now + NOT_ROOM_RETRY_MS)
     if (meta === null || meta === undefined) continue
-    found.push(recordOf({ url, meta, now, status: 'invited' }))
+    found.push({ url, meta })
   }
   return found
 }
 
+export const knownUrlsOf = (rooms: RoomRecord[]): string[] => rooms.flatMap(r => [r.url, ...r.boxes]).filter(u => u !== '')
+
+// The room a mailbox belongs to, among those this person is in: same id, same kind and repo. A DM holds one other
+// mailbox, so a second one there belongs nowhere.
+export function homeOf(rooms: RoomRecord[], found: Found): RoomRecord | undefined {
+  const { meta } = found
+  const home = rooms.find(r => r.status !== 'left' && r.room === meta.room && r.kind === meta.kind && r.repo === meta.repo)
+  return home?.kind === 'dm' && home.boxes.length > 0 ? undefined : home
+}
+
+export const withBox = (room: RoomRecord, url: string): RoomRecord =>
+  (room.url === url || room.boxes.includes(url) ? room : { ...room, boxes: [...room.boxes, url] })
+
+// Found mailboxes join the room they belong to; one of a room this person is not in is an invite. A mailbox
+// already held anywhere (a left room's included) is not placed again.
+export function placeFound(opts: { rooms: RoomRecord[]; found: Found[]; now: number }): RoomRecord[] {
+  let rooms = opts.rooms
+  for (const f of opts.found) {
+    if (knownUrlsOf(rooms).includes(f.url)) continue
+    const home = homeOf(rooms, f)
+    const isMatch = rooms.some(r => r.status !== 'left' && r.room === f.meta.room)
+    if (home !== undefined) rooms = rooms.map(r => (r.id === home.id ? withBox(r, f.url) : r))
+    else if (!isMatch) rooms = [...rooms, recordOf({ url: f.url, meta: f.meta, now: opts.now, status: 'invited' })]
+  }
+  return rooms
+}
+
+// A room seen from another member's mailbox `url`: this person has no mailbox in it yet.
 export function recordOf(opts: { url: string; meta: RoomMeta; now: number; status: RoomRecord['status'] }): RoomRecord {
   const { url, meta, now } = opts
   return {
-    id: newId(now), url, kind: meta.kind, repo: meta.repo, title: roomTitle(meta),
-    status: opts.status, isLive: false, isOwner: false, peers: [], joinedAt: now,
+    id: newId(now), room: meta.room, url: '', boxes: [url], kind: meta.kind, repo: meta.repo, title: roomTitle(meta),
+    status: opts.status, isLive: false, peers: [], joinedAt: now,
   }
 }

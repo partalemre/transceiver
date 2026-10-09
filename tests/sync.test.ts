@@ -1,16 +1,21 @@
 import { expect, test } from 'claude-code/testing'
+import { authorKey } from '../hooks/authors'
 import { relayOf } from '../hooks/relay'
 import { enqueue, initialSync, nextDelay, tick } from '../hooks/sync'
-import { callerFor, fakeDb } from './fake-db'
+import { callerAs, callerFor, fakeDb, type FakeDb } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
 const URL = 'https://claude.ai/artifact/room1'
+const PEER_URL = 'https://claude.ai/artifact/room2'
+const PEER_KEY = authorKey({ uid: PEER, url: PEER_URL, isOwn: false })
 const A = '01K7A0000000000000000000A1'
 const B = '01K7A0000000000000000000A2'
 const C = '01K7A0000000000000000000A3'
 const human = (id: string, ts: number, text = 'x') => ({ v: 1 as const, id, ts, kind: 'human' as const, text })
-const asPeer = (db: ReturnType<typeof fakeDb>) => { db.self = PEER; return relayOf(callerFor(db), URL) }
+// The peer polls their own mailbox and reads mine.
+const asPeer = (opts: { mine: FakeDb; theirs: FakeDb }) =>
+  ({ relay: relayOf(callerFor(opts.theirs), PEER_URL), boxes: [relayOf(callerAs(opts.mine, PEER), URL)] })
 
 test('a queued message is sent, then appears as stored for both sides', async () => {
   const db = fakeDb(ME)
@@ -21,7 +26,7 @@ test('a queued message is sent, then appears as stored for both sides', async ()
   expect(state.pending.length).toBe(0)
   expect(state.entries[0]?.isPending).toBe(undefined)
 
-  const seen = await tick({ relay: asPeer(db), state: initialSync(PEER), isViewing: true, isReceiptsOn: true, now: 99 })
+  const seen = await tick({ ...asPeer({ mine: db, theirs: fakeDb(PEER) }), state: initialSync(PEER), isViewing: true, isReceiptsOn: true, now: 99 })
   expect(seen.fresh.map(e => e.message.id)).toEqual([A])
   expect(seen.state.ownHead.seenUpTo).toBe(A)
   expect(seen.state.ownHead.readUpTo).toBe(A)
@@ -60,11 +65,12 @@ test('queued messages go out in order and stop at the first failure', async () =
 })
 
 test('unapproved writes keep messages queued but still pull what peers sent', async () => {
-  const db = fakeDb(PEER)
-  await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(PEER), human(A, 1)), isViewing: false, isReceiptsOn: true })
-  db.self = ME
+  const peer = fakeDb(PEER)
+  await tick({ relay: relayOf(callerFor(peer), PEER_URL), state: enqueue(initialSync(PEER), human(A, 1)), isViewing: false, isReceiptsOn: true })
+  const db = fakeDb(ME)
   db.isWriteDenied = true
-  const out = await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(ME), human(B, 2)), isViewing: true, isReceiptsOn: true })
+  const boxes = [relayOf(callerAs(peer, ME), PEER_URL)]
+  const out = await tick({ relay: relayOf(callerFor(db), URL), boxes, state: enqueue(initialSync(ME), human(B, 2)), isViewing: true, isReceiptsOn: true })
   expect(out.isDenied).toBe(true)
   expect(out.state.pending.map(m => m.id)).toEqual([B])
   expect(out.fresh.map(e => e.message.id)).toEqual([A])
@@ -74,7 +80,7 @@ test('unapproved writes keep messages queued but still pull what peers sent', as
 test('read receipts off: readUpTo is never written', async () => {
   const db = fakeDb(ME)
   await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(ME), human(A, 1)), isViewing: false, isReceiptsOn: true })
-  const out = await tick({ relay: asPeer(db), state: initialSync(PEER), isViewing: true, isReceiptsOn: false })
+  const out = await tick({ ...asPeer({ mine: db, theirs: fakeDb(PEER) }), state: initialSync(PEER), isViewing: true, isReceiptsOn: false })
   expect(out.state.ownHead.readUpTo).toBe('')
   expect(out.state.ownHead.seenUpTo).toBe(A)
 })
@@ -82,10 +88,10 @@ test('read receipts off: readUpTo is never written', async () => {
 test('opening the room later marks what was only seen as read', async () => {
   const db = fakeDb(ME)
   await tick({ relay: relayOf(callerFor(db), URL), state: enqueue(initialSync(ME), human(A, 1)), isViewing: false, isReceiptsOn: true })
-  const peer = asPeer(db)
-  const closed = await tick({ relay: peer, state: initialSync(PEER), isViewing: false, isReceiptsOn: true })
+  const peer = asPeer({ mine: db, theirs: fakeDb(PEER) })
+  const closed = await tick({ ...peer, state: initialSync(PEER), isViewing: false, isReceiptsOn: true })
   expect(closed.state.ownHead.readUpTo).toBe('')
-  const opened = await tick({ relay: peer, state: closed.state, isViewing: true, isReceiptsOn: true })
+  const opened = await tick({ ...peer, state: closed.state, isViewing: true, isReceiptsOn: true })
   expect(opened.fresh.length).toBe(0)
   expect(opened.state.ownHead.readUpTo).toBe(A)
 })
@@ -101,17 +107,17 @@ test('acks and sends keep a gh name another session wrote to the same head', asy
 })
 
 test('a peer message that does not parse still moves the cursor, so it is not fetched forever', async () => {
-  const db = fakeDb(PEER)
-  db.docs.set(`outbox/${PEER}/msgs/${A}`, { data: { v: 9, id: A, ts: 5 }, version: 1 })
-  db.docs.set(`outbox/${PEER}`, { data: { v: 1, head: A, headTs: 5, seenUpTo: '', readUpTo: '', readTs: 0 }, version: 1 })
-  db.self = ME
-  const relay = relayOf(callerFor(db), URL)
-  const first = await tick({ relay, state: initialSync(ME), isViewing: false, isReceiptsOn: true })
+  const peer = fakeDb(PEER)
+  peer.docs.set(`outbox/${PEER}/msgs/${A}`, { data: { v: 9, id: A, ts: 5 }, version: 1 })
+  peer.docs.set(`outbox/${PEER}`, { data: { v: 1, head: A, headTs: 5, seenUpTo: '', readUpTo: '', readTs: 0 }, version: 1 })
+  const relay = relayOf(callerFor(fakeDb(ME)), URL)
+  const boxes = [relayOf(callerAs(peer, ME), PEER_URL)]
+  const first = await tick({ relay, boxes, state: initialSync(ME), isViewing: false, isReceiptsOn: true })
   expect(first.fresh.length).toBe(1)
-  expect(first.state.cursors[PEER]).toBe(5)
-  const queries = db.calls.filter(c => c.action === 'query').length
-  await tick({ relay, state: first.state, isViewing: false, isReceiptsOn: true })
-  expect(db.calls.filter(c => c.action === 'query').length).toBe(queries)
+  expect(first.state.cursors[PEER_KEY]).toBe(5)
+  const queries = peer.calls.filter(c => c.action === 'query').length
+  await tick({ relay, boxes, state: first.state, isViewing: false, isReceiptsOn: true })
+  expect(peer.calls.filter(c => c.action === 'query').length).toBe(queries)
 })
 
 test('delay: 1s open, 5s closed, doubling on failure up to 30s', () => {

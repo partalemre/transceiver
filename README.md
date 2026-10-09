@@ -1,6 +1,6 @@
 # transceiver
 
-Claude Code'un içinden, ek bir servis kurmadan arkadaşlarınla yazışırsın. Aynı GitHub reposunda collaborator olduğun kişilerin agent'ları da o proje hakkında birbirine soru sorar. `status`, `diff`, `file` gibi sorular model tokeni harcamadan cevaplanır. Mesajlar claude.ai'deki özel bir oda artifact'inde durur; başka hiçbir yere gitmez.
+Claude Code'un içinden, ek bir servis kurmadan arkadaşlarınla yazışırsın. Aynı GitHub reposunda collaborator olduğun kişilerin agent'ları da o proje hakkında birbirine soru sorar. `status`, `diff`, `file` gibi sorular model tokeni harcamadan cevaplanır. Herkesin yazdıkları claude.ai'de kendine ait özel bir kutu artifact'inde durur; başka hiçbir yere gitmez.
 
 ## Kurulum
 
@@ -13,13 +13,16 @@ Claude Code'un içinden, ek bir servis kurmadan arkadaşlarınla yazışırsın.
 
 ## Nasıl çalışır
 
-1. **Oda aç.** Penceredeki **Arkadaş ekle** bir DM odası açar. **Proje odası** ortak bir repo için oda açar; alan, oturumun GitHub reposuyla dolu gelir, istersen değiştirirsin. Her oda claude.ai'de senin olan özel bir artifact'tir. Pencere linki ve sonraki adımı gösterir.
-2. **Davet et.** Linki claude.ai'de aç, sayfanın **Paylaş** menüsünden arkadaşının e-postasını ekle. Bu adımı elle yapman gerekiyor, çünkü platformun paylaşım API'si yok.
-3. **Katıl.** Aynı organizasyondaysanız arkadaşının penceresinde en geç bir dakika içinde bir davet kartı çıkar ve **Kabul et**'e basar. Başka bir organizasyondan gelen davetler bu listede görünmez. O durumda arkadaşın penceresindeki **Linkle katıl** alanına linki yapıştırır.
-4. **Bağlan.** Bir oturumda ilk mesajı yazdığında pencerede **Bağlan** kartı çıkar. Claude, odaya yazmak için bu oturumda bir kez onay ister. Onay verdikten sonra o oturumda başka bir şey sorulmaz. Bağlanmadan önce gelen mesajları okursun ama yazamazsın. `bypassPermissions` ile açılan bir oturum baştan bağlıdır.
-5. **Proje odasında GitHub eşleşmesi.** Her iki taraf da GitHub adını kendi kutusuna yazar. Pencere bir kez "X GitHub'da Y mi?" diye sorar. **Evet** dersen o kişinin agent'ı repo hakkında soru sorabilir.
+Bir oda, her üyenin kendine ait bir **kutusundan** oluşur. Kutuna yalnızca sen yazarsın, odadakiler onu okur. Bu yüzden paylaşırken hangi yetkiyi seçtiğin (Viewer bile yeter) ya da arkadaşının başka bir organizasyonda olması fark etmez.
 
-Mesajlar pencere açıkken yaklaşık 1 saniyede gelir. Pencere kapalıysa durum satırında okunmamış sayısı görünür ve bir bildirim çıkar. Mesajın altındaki işaretlerin anlamı: ◷ gönderiliyor, ✓ yazıldı, ✓✓ karşıya ulaştı, mavi ✓✓ okundu. Okundu bilgisini kapatırsan WhatsApp'taki gibi iki yönde de kapanır. Oda linki telefonda ve tarayıcıda da canlı bir sohbet sayfası olarak açılır.
+1. **Oda aç.** Penceredeki **Arkadaş ekle** bir DM odası açar. **Proje odası** ortak bir repo için oda açar; alan, oturumun GitHub reposuyla dolu gelir, istersen değiştirirsin. Pencere kendi kutunun linkini gösterir.
+2. **Kutunu paylaş.** Linki claude.ai'de aç, sayfanın **Paylaş** menüsünden arkadaşının e-postasını ekle ve linki ona gönder. Bu adımı elle yapman gerekiyor, çünkü platformun paylaşım API'si yok.
+3. **Katıl.** Aynı organizasyondaysanız arkadaşının penceresinde en geç bir dakika içinde bir davet kartı çıkar ve **Kabul et**'e basar. Başka bir organizasyondan gelen davetler bu listede görünmez; o durumda arkadaşın linki penceredeki **Linkle katıl** alanına yapıştırır ya da `/transceiver katıl <link>` yazar. Katılmak, onun için de kendi kutusunu açar.
+4. **Kutunu geri paylaş.** Katılan kişi de kendi kutusunun linkini aynı şekilde Paylaş'tan sana açar ve gönderir. Aynı organizasyondaysanız kutusu odana kendiliğinden eklenir; değilse sen de onun linkiyle `/transceiver katıl <link>` yazarsın. Kutusu henüz paylaşılmadıysa pencere "karşı tarafın kutusu okunamıyor" der.
+5. **Bağlan.** Bir oturumda ilk mesajı yazdığında pencerede **Bağlan** kartı çıkar. Claude, yazmak için bu oturumda bir kez onay ister. Onay verdikten sonra o oturumda başka bir şey sorulmaz. Bağlanmadan önce gelen mesajları okursun ama yazamazsın. `bypassPermissions` ile açılan bir oturum baştan bağlıdır.
+6. **Proje odasında GitHub eşleşmesi.** Her iki taraf da GitHub adını kendi kutusuna yazar. Pencere bir kez "X GitHub'da Y mi?" diye sorar. **Evet** dersen o kişinin agent'ı repo hakkında soru sorabilir.
+
+Mesajlar pencere açıkken yaklaşık 1 saniyede gelir. Pencere kapalıysa durum satırında okunmamış sayısı görünür ve bir bildirim çıkar. Mesajın altındaki işaretlerin anlamı: ◷ gönderiliyor, ✓ yazıldı, ✓✓ karşıya ulaştı, mavi ✓✓ okundu. Okundu bilgisini kapatırsan WhatsApp'taki gibi iki yönde de kapanır. Kutu linki tarayıcıda açılırsa sohbet değil, Claude Code'dan nasıl katılınacağını anlatan bir sayfa görünür.
 
 ## Komutlar
 
@@ -30,7 +33,7 @@ Hepsi pencerede bir düğme olarak da var; komutlar kısayoldur. Yanlış bir al
 | `/transceiver` | Pencereyi açar |
 | `/transceiver ekle` | Arkadaşın için bir DM odası açar |
 | `/transceiver proje <sahip/repo>` | Ortak bir proje odası açar |
-| `/transceiver katıl <link>` | Davet linkiyle odaya katılır |
+| `/transceiver katıl <link>` | Bir kutu linkiyle odaya katılır ya da katıldığın odaya karşı tarafın kutusunu ekler |
 | `/transceiver çık <oda adı \| link>` | Odadan çıkar; o odanın yoklaması durur |
 | `/transceiver kur` | Bu oturumda bağlanır (ilk mesaj için tek onay) |
 | `/transceiver ayarlar` | Okundu bilgisi, bildirimler, GitHub adın |
@@ -65,7 +68,7 @@ Agent araçları yalnızca proje odasında, ve yalnızca oturumun açık olduğu
 
 ## Gizlilik ve güvenlik
 
-- **Ne nerede durur:** Mesajlar yalnızca odanın artifact'inde durur ve odayı sadece davet ettiğin kişiler görür. Herkes yalnızca kendi kutusuna (`outbox/<kendi id'n>`) yazabilir, bu kural sunucu tarafında uygulanır. Oda bilgisini yalnızca odanın sahibi değiştirebilir. Ayarların, oda listen ve günlük sayaçların kendi makinende, modun kendi deposunda durur.
+- **Ne nerede durur:** Yazdıkların yalnızca kendi kutunda durur ve kutunu sadece paylaştığın kişiler görür. Bir kutuya yalnızca sahibi yazabilir; bu kural sunucu tarafında uygulanır. Mod her kutuyu tek bir yazara bağlar: biri kendi kutusuna başkasının kimliğiyle yazsa da o satırlar okunmaz. Ayarların, oda listen ve günlük sayaçların kendi makinende, modun kendi deposunda durur.
 - **Ne hiç yazılmaz:** Oturum adı, klasör yolu, model adı ya da repo listesi hiçbir odaya yazılmaz. Odaya yazılan tek kimlik bilgisi kabul ettiğin odalardaki GitHub adındır. Repo adı yalnızca o reponun proje odasında geçer.
 - **Kapı:** Bir agent sorusu yalnızca dört koşulun hepsi tutuyorsa cevaplanır. Kişiyi GitHub kartında onaylamış olmalısın. Kişi o reponun collaborator'ü olmalı; bu GitHub'dan kontrol edilir ve sonuç 10 dakika saklanır. Oturumun repo'su sorulan repo olmalı. Oda o reponun proje odası olmalı. Kontrol yapılamazsa kapı kapalı sayılır. Her ret aynı metinle döner: `erişim yok`.
 - **Dosyalar:** Yol repo kökünün içinde kalmak zorunda (bağlantılar çözülür). `.env*`, `*.pem`, `*.key`, `id_*`, `.git/`, `.ssh/` gibi dosyalar ve `.gitignore` kapsamındaki her şey reddedilir.
@@ -82,22 +85,23 @@ Canlı mod oda başına ayrı açılır ve varsayılan olarak kapalıdır. Açı
 
 ## Sınırlar
 
-- Grup sohbeti, uçtan uca şifreleme ve ek dosya yok. Telefonda oda sayfası tam bir sohbettir, ama mod içinden telefonda yazılamaz.
+- Grup sohbeti, uçtan uca şifreleme ve ek dosya yok. Sohbet yalnızca Claude Code'da akar; kutu sayfası tarayıcıda sohbet göstermez.
 - Mesaj başına en fazla 16 KB. Oda başına dakikada en fazla 60 soru.
 - Yoklama pencere açıkken 1 saniyede, kapalıyken 5 saniyede bir yapılır. Hata olursa aralık iki katına çıkar, en fazla 30 saniyeye kadar. Davetler dakikada bir kontrol edilir.
-- 7 günden eski mesajlar günde bir kez, kişi başına günlük paketlere sıkıştırılır. Pencere son mesajları, oda sayfası yaklaşık son bir ayı gösterir.
-- Bir artifact'in sınırı 25.000 dokümandır. Oda 20.000 dokümana ulaşınca sahibinin modu yeni bir oda açar ve eski odaya yeni linki yazar. Eski oda salt okunur kalır. Yeni odayı arkadaşlarınla **Paylaş** menüsünden tekrar paylaşman gerekir.
+- 7 günden eski mesajlar günde bir kez, kişi başına günlük paketlere sıkıştırılır. Pencere son mesajları gösterir.
+- Bir artifact'in sınırı 25.000 dokümandır. Kutun 20.000 dokümana ulaşınca modun yeni bir kutu açar ve eski kutuya yeni linki yazar; odadakilerin modu yeni kutuya kendiliğinden geçer. Yeni kutunu odadakilerle **Paylaş** menüsünden tekrar paylaşman gerekir.
 
 ## Sorun giderme
 
 | Belirti | Ne yapmalı |
 | --- | --- |
-| Davet kartı çıkmıyor | Başka bir organizasyondan davet edildiysen liste onu göstermez. Arkadaşın linki göndersin, sen `/transceiver katıl <link>` yaz. Bu da "Transceiver odası değil" derse paylaşım tamamlanmamıştır. |
+| Davet kartı çıkmıyor | Başka bir organizasyondan davet edildiysen liste onu göstermez. Arkadaşın linki göndersin, sen `/transceiver katıl <link>` yaz. Bu da "Transceiver kutusu değil" derse paylaşım tamamlanmamıştır. |
+| "Karşı tarafın kutusu okunamıyor" | Arkadaşın kendi kutusunu sana henüz paylaşmadı. Paylaş'tan seni eklesin; farklı organizasyondaysanız linkini de göndersin, sen `/transceiver katıl <link>` yaz. |
 | `bağlantı bekleniyor` | Bu oturumda daha bağlanmadın. Penceredeki **Bağlan**'a bas ya da `/transceiver kur` yaz. |
 | "Onay verilmedi" | Onay penceresi reddedildi. Yazdıkların sırada bekliyor, **Bağlan**'a tekrar bas. |
 | Her soruya `erişim yok` | GitHub kartında **Evet** dendi mi, kişi repoda collaborator mı, iki oturum aynı repoda mı? Bunları kontrol et. Kapı dışarıya nedenini söylemez, bu bilerek böyle. |
-| İsimler "Biri" görünüyor | Oda sayfası isim iznini (profile) isteyemedi. Mesajlar etkilenmez. |
+| İsimler "Biri" görünüyor | Kutu isim iznini (profile) alamadı ya da kişi başka bir organizasyonda. Mesajlar etkilenmez. |
 | "Oda açılamadı" | claude.ai bağlantısını kontrol et, sonra komutu tekrar dene. Mesajdaki ilk satır nedenini söyler. |
-| "Oda doldu" bildirimi | Yeni oda açıldı. Linkini arkadaşınla **Paylaş** menüsünden tekrar paylaş. |
+| "Kutun doldu" bildirimi | Yeni kutun açıldı. Linkini odadakilerle **Paylaş** menüsünden tekrar paylaş. |
 
 Gerçek iki hesaplı deneme adımları için: [docs/e2e-checklist.md](docs/e2e-checklist.md).

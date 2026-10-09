@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { authorKey } from '../hooks/authors'
 import { compactRoom, dayDocId, deleteBatches, fitting, groupByDay, mergeDay } from '../hooks/compact'
 import { parseDocsUsed } from '../hooks/dbtext'
 import { COMPACT_AFTER_MS, COMPACT_GONE_RESENDS, DAY_DOC_MAX_BYTES, DAY_MS } from '../hooks/limits'
@@ -7,11 +8,13 @@ import { relayOf, RelayError } from '../hooks/relay'
 import { enqueue, initialSync, tick } from '../hooks/sync'
 import { newId } from '../hooks/ulid'
 import { BATCH_COMMITTED } from './db-texts'
-import { callerFor, fakeDb, writesOf, type FakeDb } from './fake-db'
+import { callerAs, callerFor, fakeDb, writesOf, type FakeDb } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
 const URL = 'https://claude.ai/artifact/room1'
+const PEER_URL = 'https://claude.ai/artifact/room2'
+const PEER_KEY = authorKey({ uid: PEER, url: PEER_URL, isOwn: false })
 const NOW = Date.UTC(2026, 9, 9, 12)
 const OLD = Date.UTC(2026, 9, 1, 10)
 const DAY = '2026-10-01'
@@ -194,25 +197,26 @@ test('only messages past the compaction age are moved', async () => {
 })
 
 test('a peer who was away a week gets what was compacted meanwhile, each message once', async () => {
-  const db = fakeDb(ME)
+  const db = fakeDb(PEER)
   const [a, b] = [human(OLD, 'a'), human(OLD + 1, 'b')]
   const c = human(NOW - 1_000, 'c')
   // b sits in its day and still in msgs: the crash case, seen from the reader's side.
   db.docs.set(`outbox/${PEER}/days/${DAY}`, { data: { v: 1, ts: b.ts, msgs: [a, b] }, version: 1 })
   seed(db, PEER, [b, c])
   db.docs.set(`outbox/${PEER}`, { data: { v: 1, head: c.id, headTs: c.ts, seenUpTo: '', readUpTo: '', readTs: 0 }, version: 1 })
-  const relay = relayOf(callerFor(db), URL)
-  const away = { ...initialSync(ME), cursors: { [PEER]: OLD - 1 } }
-  const first = await tick({ relay, state: away, isViewing: false, isReceiptsOn: true, now: NOW })
+  const relay = relayOf(callerFor(fakeDb(ME)), URL)
+  const boxes = [relayOf(callerAs(db, ME), PEER_URL)]
+  const away = { ...initialSync(ME), cursors: { [PEER_KEY]: OLD - 1 } }
+  const first = await tick({ relay, boxes, state: away, isViewing: false, isReceiptsOn: true, now: NOW })
   expect(first.fresh.map(e => e.message.id)).toEqual([a.id, b.id, c.id])
   expect(first.state.entries.map(e => e.message.id)).toEqual([a.id, b.id, c.id])
-  expect(first.state.cursors[PEER]).toBe(c.ts)
+  expect(first.state.cursors[PEER_KEY]).toBe(c.ts)
   const dayReads = () => db.calls.filter(x => String(x.collection).endsWith('/days')).length
   const before = dayReads()
   const d = human(NOW + 500, 'd')
   seed(db, PEER, [d])
   db.docs.set(`outbox/${PEER}`, { data: { v: 1, head: d.id, headTs: d.ts, seenUpTo: '', readUpTo: '', readTs: 0 }, version: 2 })
-  const second = await tick({ relay, state: first.state, isViewing: false, isReceiptsOn: true, now: NOW + 1_000 })
+  const second = await tick({ relay, boxes, state: first.state, isViewing: false, isReceiptsOn: true, now: NOW + 1_000 })
   expect(second.fresh.map(e => e.message.id)).toEqual([d.id])
   expect(dayReads()).toBe(before)
 })

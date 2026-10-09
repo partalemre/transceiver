@@ -3,7 +3,7 @@
 import type { RenderSurface } from 'claude-code'
 
 import { isConnected, setConnected } from './connection'
-import { joinUrlOf, joinRoom } from './join'
+import { acceptInvite, joinUrlOf, joinRoom } from './join'
 import { askAgent, sendComposed, setTyped, typedOf } from './compose'
 import { isRepo, paths } from './protocol'
 import { pokeRoom, syncOf } from './room-loop'
@@ -21,6 +21,7 @@ const SAY = {
   badRepo: 'Repo adını sahip/repo biçiminde yaz (ör. partalemre/eliti).',
   badLink: 'claude.ai/artifact/… biçiminde bir oda linki yapıştır.',
   draftWaits: 'Önce "Bağlan": cevap bu oturumdan gönderilir.',
+  noBox: 'Kendi kutun açılamadı; claude.ai bağlantısını kontrol edip tekrar dene.',
 }
 
 type Step = (p: PanePort) => Promise<void>
@@ -46,9 +47,17 @@ async function select(p: PanePort, id: string): Promise<void> {
   if (room !== undefined) pokeRoom(p.host, room)
 }
 
+// Accepting publishes this person's own mailbox for the room, so the press is the consent for that write.
 async function accept(p: PanePort, id: string): Promise<void> {
-  const room = await patchRoom(p, id, { status: 'active' })
-  if (room !== undefined) await select(p, room.id)
+  const invite = (await loadRooms(p.host)).find(r => r.id === id && r.status === 'invited')
+  if (invite === undefined || sessionNow().busy !== null) return
+  patchSession({ busy: 'Katılınıyor…', error: null })
+  await refreshPane()
+  const consent = 'The user pressed "Kabul et" on a Transceiver invite'
+  const room = await acceptInvite({ host: p.host, invite, consent }).catch(() => null)
+  if (room === null) return patchSession({ busy: null, error: SAY.noBox })
+  patchSession({ busy: null, created: { url: room.url, title: room.title } })
+  await select(p, room.id)
 }
 
 async function answerGh(p: PanePort, isYes: boolean): Promise<void> {
@@ -100,9 +109,11 @@ async function join(p: PanePort, link: string): Promise<void> {
   if (url === null) return patchSession({ error: SAY.badLink })
   patchSession({ busy: 'Katılınıyor…', error: null })
   await refreshPane()
-  const text = await joinRoom(p.host, url)
-  const room = (await loadRooms(p.host)).find(r => r.url === url && r.status === 'active')
-  patchSession({ busy: null, error: room === undefined ? text : null })
+  const joined = await joinRoom(p.host, url, 'The user pasted a Transceiver link into the pane and pressed "Katıl"')
+  const { room } = joined
+  // Joining opened this person's own mailbox: the card asks them to share it back.
+  const created = joined.isNew && room !== undefined ? { url: room.url, title: room.title } : null
+  patchSession({ busy: null, error: room === undefined ? joined.text : null, created })
   if (room !== undefined) await select(p, room.id)
 }
 
