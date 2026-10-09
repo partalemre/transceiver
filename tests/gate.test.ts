@@ -6,7 +6,7 @@ import type { Run } from '../hooks/run'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
 const room: GateRoom = { kind: 'project', repo: 'partalemre/eliti', peers: [{ uid: PEER, gh: 'alperenx', isGhConfirmed: true }] }
 const query = { type: 'status' as const, repo: 'partalemre/eliti' }
-const base = { room, peerUid: PEER, query, sessionRepo: 'partalemre/eliti', headGh: 'alperenx', now: 0 }
+const base = { room, peerUid: PEER, query, sessionRepo: 'partalemre/eliti', headGh: 'alperenx', now: 0, otherMembers: 1 }
 const out = (exitCode: number, stdout = '') => ({ exitCode, stdout, stderr: '' })
 
 test('remotes parse in ssh and https forms', () => {
@@ -119,4 +119,11 @@ test('mcp check: a login in the list is a yes; a miss, an error or no server ask
   const absent = { mcp: { call: async () => { throw new Error('no such server') } } }
   expect(await mcpCheck(absent, fallback)({ repo: 'a/b', login: 'alperenx' })).toBe(false)
   expect(asked).toBe(4)
+})
+
+test('agent traffic runs only between two people: a third member closes the gate', async () => {
+  const gate = makeGate(async () => true)
+  expect(await gate(base)).toBe(true)
+  expect(await gate({ ...base, otherMembers: 2 })).toBe(false)
+  expect(await gate({ ...base, otherMembers: 0 })).toBe(false)
 })

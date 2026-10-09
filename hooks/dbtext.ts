@@ -7,6 +7,7 @@ const URL_RE = /https:\/\/claude\.ai\/artifact\/[A-Za-z0-9]+/g
 const CONFLICT = /\(version_mismatch\)/
 const MISSING = /no such artifact, collection, or document/i
 const ALREADY_STORED = /writes\[\d+\] \(write \d+ of \d+\) targets (\S+), which already exists/
+const GONE_PIN = /writes\[(\d+)\] \(write \d+ of \d+, "([^"]+)"\) was pinned to version \d+ and that document has changed or may have been deleted \(the server named no current version\)/
 
 function asDoc(line: string): DbDoc | null {
   try {
@@ -61,6 +62,14 @@ export function parseWriteVersion(text: string, collection: string, docId: strin
 // A batch refused because one of its create-only writes names a doc that is already there
 // (spike: "writes[0] (write 1 of 2) targets outbox/<uid>/msgs/<id>, which already exists, …").
 export const alreadyStoredPath = (text: string): string | null => ALREADY_STORED.exec(outsideBlocks(text))?.[1] ?? null
+
+// A batch refused because a pinned write's doc is gone (spike: "writes[0] (write 1 of 1, "outbox/<uid>/msgs/<id>")
+// was pinned to version 1 and that document has changed or may have been deleted (the server named no current
+// version)"): which write, and its path.
+export function gonePin(text: string): { index: number; path: string } | null {
+  const hit = GONE_PIN.exec(outsideBlocks(text))
+  return hit === null ? null : { index: Number(hit[1]), path: hit[2] ?? '' }
+}
 
 // The tool's own line after a write (spike: "6 of 25000 documents used in this artifact's database."). Only a line
 // outside the doc blocks counts, so a peer's text cannot fake a full room.

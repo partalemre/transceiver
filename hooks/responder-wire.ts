@@ -35,7 +35,10 @@ function depsFor(ctx: Ctx, turn: Turn): Deps {
     claim: async qid => relayOf(callerOf(host), room.url).claim({ uid: selfUid, qid, now: await host.now() }),
     // The room is read fresh from the store (a confirmation may be newer than this tick's copy); the login the
     // peer's head announces now must still be the one confirmed.
-    gate: o => ctx.gate({ ...o, room, sessionRepo: repo, headGh: ev.state.peers[o.peerUid]?.gh }),
+    gate: o => ctx.gate({
+      ...o, room, sessionRepo: repo, headGh: ev.state.peers[o.peerUid]?.gh,
+      otherMembers: Object.keys(ev.state.peers).filter(uid => uid !== selfUid).length,
+    }),
     typed: q => answerTyped({
       run: host.run, root, realPath: host.realPath, readFile: p => host.readFile(p), readState: (p, k) => host.readState(p, k),
     }, q),

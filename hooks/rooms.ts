@@ -19,11 +19,16 @@ const ROOMS_KEY = 'tx.rooms'
 const SETTINGS_KEY = 'tx.settings'
 const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
 
-// Everyone in the room reads every outbox; each guest writes only their own. The owner can write any outbox: the db
-// contract lets no level rule limit the owner, and the prefix rule that opens reads must set a write level, so
-// `owner` is the narrowest one (docs/e2e-checklist.md 0.10). `meta` is the owner's alone, so a guest cannot turn a
-// DM into a project room. `profile` lets the page and the pane show names (spike: Names).
-const ROOM_CAPABILITIES = {
+// Everyone in the room reads every outbox; each member writes only their own `outbox/{self}` subtree. `meta` is
+// the owner's alone, so a guest cannot turn a DM into a project room. `profile` lets the page and the pane show
+// names (spike: Names).
+// The `outbox` rule is the narrowest the rule language allows, not the one wanted: a rule at the prefix of a
+// `{self}` rule must set both `read` and `write` (or the publish is refused), a write level is never below the read
+// level, and the owner meets every level. So nothing here can stop the room's owner writing another member's
+// subtree, while dropping the prefix rule would hide every outbox from everyone else. `owner` is the highest level
+// (`admin` would add Editors). The mod keys authorship by outbox and ignores a doc that names an author itself
+// (protocol.ts AUTHOR_FIELDS); the residual risk is in docs/progress.md, "Final cleanup" (checklist 0.10).
+export const ROOM_CAPABILITIES = {
   db: { rules: [
     { path: 'outbox', read: 'view', write: 'owner' },
     { path: 'outbox/{self}', write: 'interact' },

@@ -146,3 +146,34 @@ test('/transceiver ayarlar opens the settings; a bad link or repo is answered in
   await ui.input({ key: 'add-repo', text: 'eliti' })
   expect(await drawn(ui)).toContain('sahip/repo biçiminde')
 })
+
+type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
+const kids = (n: Node): Node[] => (n.children ?? []).filter((c): c is Node => typeof c === 'object' && c !== null)
+const textOf = (n: Node): string => (n.children ?? []).map(c => (typeof c === 'string' ? c : textOf(c as Node))).join('')
+// The bordered Box whose own Text child says `text`: the bubble that holds it.
+function bubbleOf(n: Node, text: string): Node | null {
+  if (n.type === 'Box' && n.props?.borderStyle !== undefined && kids(n).some(c => c.type === 'Text' && textOf(c) === text)) return n
+  for (const c of kids(n)) {
+    const hit = bubbleOf(c, text)
+    if (hit !== null) return hit
+  }
+  return null
+}
+
+test('desktop: a bubble holds its text; the last of a run carries its time, a pending one is dashed', async ($: any, on: any) => {
+  const w = paneWorld(on, { rooms: ALL, syncs: { ...SYNCS(), ra: dmAlperen({ isPending: true }) } })
+  await startSession($, w, { surface: 'desktop' })
+  const ui = await mountPane($, { surface: 'desktop', columns: NARROW })
+  await ui.press({ key: 'open-ra' })
+  const tree = (await ui.drawn()) as Node
+  const first = bubbleOf(tree, 'Gelirim! Saat kaçta?')
+  const last = bubbleOf(tree, 'Bu arada yeni branch\'i pushladım, eliti odasından agent\'ına sorabilirsin.')
+  const pending = bubbleOf(tree, 'Sekizde stadyum önünde.')
+  expect(first?.props?.borderStyle).toBe('round')
+  expect(kids(first ?? {}).length).toBe(1)
+  // Text, the chip to the eliti room it names, and the time.
+  expect(kids(last ?? {}).map(k => k.props?.key ?? k.type)).toEqual(['Text', 'room-chip', 'stamp'])
+  expect(pending?.props?.borderStyle).toBe('dashed')
+  expect(kids(pending ?? {}).length).toBe(2)
+  await ui.unmount()
+})

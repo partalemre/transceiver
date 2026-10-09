@@ -56,7 +56,7 @@ function RoomChip(ctx: Ctx, o: { line: Line; maxPx: number }): RenderElement | n
 
 function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): RenderElement {
   const { Box, Text } = ctx.ui
-  const { line } = o
+  const { line, text, ts } = o
   const tone = line.isMine ? ctx.look.signal : { tint: ctx.look.card, line: ctx.look.line }
   const maxPx = (ctx.columns - gutterOf(ctx) - FACE_CELLS) * PX_PER_CELL - BUBBLE_PAD_PX
   const isPending = line.receipt === 'pending'

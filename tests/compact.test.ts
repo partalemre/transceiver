@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { compactRoom, dayDocId, deleteBatches, fitting, groupByDay, mergeDay } from '../hooks/compact'
 import { parseDocsUsed } from '../hooks/dbtext'
-import { COMPACT_AFTER_MS, DAY_DOC_MAX_BYTES, DAY_MS } from '../hooks/limits'
+import { COMPACT_AFTER_MS, COMPACT_GONE_RESENDS, DAY_DOC_MAX_BYTES, DAY_MS } from '../hooks/limits'
 import { parseDay, utf8Bytes, type Message } from '../hooks/protocol'
 import { relayOf, RelayError } from '../hooks/relay'
 import { enqueue, initialSync, tick } from '../hooks/sync'
@@ -118,6 +118,38 @@ test('a delete pinned to a version that went stale refuses the whole batch: noth
   expect(dayDoc(db, ME)).toBe(null)
   expect(msgIds(db, ME).sort()).toEqual([a.id, b.id].sort())
   expect((await compact(db)).moved).toBe(2)
+  expect(msgIds(db, ME)).toEqual([])
+})
+
+test('a delete whose message is already gone is done: the rest of the batch goes again and the day keeps all', async () => {
+  const db = fakeDb(ME)
+  const [a, b, c] = [human(OLD, 'a'), human(OLD + 1, 'b'), human(OLD + 2, 'c')]
+  seed(db, ME, [a, b, c])
+  // Gone between the read and the batch (a crash, or another of my sessions): the server names no current version.
+  db.beforeWrite = () => {
+    db.beforeWrite = undefined
+    db.docs.delete(`outbox/${ME}/msgs/${b.id}`)
+  }
+  expect((await compact(db)).moved).toBe(3)
+  expect(dayDoc(db, ME)?.msgs.map(m => m.text)).toEqual(['a', 'b', 'c'])
+  expect(msgIds(db, ME)).toEqual([])
+  const sent = batches(db)
+  expect(sent.length).toBe(2)
+  expect(sent[1]?.filter(w => w.op === 'delete').map(w => w.doc_id)).toEqual([a.id, c.id])
+})
+
+test('more gone deletes than the resend limit leave the batch to the next run, which re-reads', async () => {
+  const db = fakeDb(ME)
+  const msgs = [0, 1, 2, 3, 4, 5].map(i => human(OLD + i, `m${i}`))
+  seed(db, ME, msgs)
+  db.beforeWrite = () => {
+    db.beforeWrite = undefined
+    for (const m of msgs.slice(0, COMPACT_GONE_RESENDS + 1)) db.docs.delete(`outbox/${ME}/msgs/${m.id}`)
+  }
+  expect(await compact(db).catch((e: unknown) => (e as RelayError).kind)).toBe('conflict')
+  expect(batches(db).length).toBe(COMPACT_GONE_RESENDS + 1)
+  expect(dayDoc(db, ME)).toBe(null)
+  expect((await compact(db)).moved).toBe(msgs.length - COMPACT_GONE_RESENDS - 1)
   expect(msgIds(db, ME)).toEqual([])
 })
 

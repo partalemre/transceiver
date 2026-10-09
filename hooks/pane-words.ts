@@ -26,6 +26,7 @@ export const GATE_WORD: Record<GateBadge, GateWord> = {
 export function gateDetail(room: RoomView): string {
   const c = room.project?.checks
   if (c === undefined || !c.isConfirmed || c.login === undefined) return 'GitHub eşleşmesi yok'
+  if (c.isPair === false) return 'agent trafiği yalnızca iki kişilik odada'
   if (c.isCollaborator === false) return `@${c.login} collaborator değil`
   if (c.isSessionRepo === false) return 'bu oturum başka bir repoda'
   if (c.isCollaborator === null) return `@${c.login} · GitHub ilk soruda sorulur`
@@ -41,7 +42,7 @@ export function checkRows(room: RoomView): CheckRow[] {
     { text: c?.isConfirmed === true ? `${who} onaylı` : `${who} GitHub'da onaylanmadı`, state: c?.isConfirmed === true },
     { text: c?.login === undefined ? 'collaborator' : `@${c.login} collaborator`, state: c?.isConfirmed === true ? c.isCollaborator : false },
     { text: 'Bu oturumun reposu', state: c?.isSessionRepo ?? null },
-    { text: 'Proje odası', state: true },
+    { text: c?.isPair === false ? 'İki kişilik oda değil' : 'İki kişilik proje odası', state: c?.isPair !== false },
   ]
 }
 

@@ -60,16 +60,17 @@ function get(db: FakeDb, collection: string, docId: string): CallResult {
 }
 
 // The first write the server would refuse, in the measured wording, or null when every write may land. A pinned
-// delete of a doc that is gone is refused as a stale pin (unmeasured: the API says a pinned doc that changed
-// refuses the batch).
+// write whose doc is gone (a delete after a crash) gets the measured "may have been deleted" text.
 function refusal(db: FakeDb, writes: Write[]): string | null {
   for (const [index, w] of writes.entries()) {
     const path = key(w.collection, w.doc_id)
     const prev = db.docs.get(path)
     const r = { index, count: writes.length, path }
     if (prev !== undefined && w.if_version === undefined) return T.batchExists(r)
-    const now = prev?.version ?? 0
-    if (w.if_version !== undefined && w.if_version !== now) return T.batchStalePin({ ...r, pinned: w.if_version, now })
+    if (prev === undefined && w.if_version !== undefined) return T.batchGonePin({ ...r, pinned: w.if_version })
+    if (prev !== undefined && w.if_version !== undefined && w.if_version !== prev.version) {
+      return T.batchStalePin({ ...r, pinned: w.if_version, now: prev.version })
+    }
   }
   return null
 }

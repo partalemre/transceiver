@@ -5,6 +5,7 @@
 // or `gh` the mod keeps on the same head.
 
 import { KEEP_ENTRIES, PAGE_DAYS, PAGE_MAX_CHARS } from './limits'
+import { AUTHOR_FIELDS } from './protocol'
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
 
@@ -54,7 +55,9 @@ const SCRIPT = `
   }
   const watched = new Set()
   // Keyed by author and id: a peer reusing someone else's id never hides their message.
-  const add = (author, id, x) => { if (x && typeof id === "string" && typeof x.text === "string" && typeof x.ts === "number") rows.set(author + "/" + id, { ...x, id, author }) }
+  // The author is the outbox a doc sits in; a doc that names one itself is not the mod's and is left out.
+  const claims = x => ${JSON.stringify(AUTHOR_FIELDS)}.some(k => Object.prototype.hasOwnProperty.call(x, k))
+  const add = (author, id, x) => { if (x && typeof id === "string" && typeof x.text === "string" && typeof x.ts === "number" && !claims(x)) rows.set(author + "/" + id, { ...x, id, author }) }
   db.collection("outbox").onSnapshot(snap => {
     for (const d of snap.docs) {
       if (watched.has(d.id)) continue
@@ -65,7 +68,7 @@ const SCRIPT = `
       })
       // Week-old messages are compacted into one doc per day; a message in both places is one row (keyed by id).
       db.collection("outbox/" + d.id + "/days").orderBy("ts", "desc").limit(${PAGE_DAYS}).onSnapshot(ds => {
-        for (const day of ds.docs) { const x = day.data(); for (const m of (x && Array.isArray(x.msgs) ? x.msgs : [])) add(d.id, m && m.id, m) }
+        for (const day of ds.docs) { const x = day.data(); for (const m of (x && Array.isArray(x.msgs) && !claims(x) ? x.msgs : [])) add(d.id, m && m.id, m) }
         render()
       })
     }

@@ -1,5 +1,5 @@
-import { alreadyStoredPath, errorKind, parseDocs, parseDocsUsed, parseSelfUid, parseWriteVersion } from './dbtext'
-import { COMPACT_PAGE, DAYS_PAGE, HEADS_PAGE, SINCE_PAGE } from './limits'
+import { alreadyStoredPath, errorKind, gonePin, parseDocs, parseDocsUsed, parseSelfUid, parseWriteVersion } from './dbtext'
+import { COMPACT_GONE_RESENDS, COMPACT_PAGE, DAYS_PAGE, HEADS_PAGE, SINCE_PAGE } from './limits'
 import { emptyHead, isUid, isUnreadable, parseDay, parseHead, parseMessage, parseMeta, paths } from './protocol'
 import type { Head, Message, RoomMeta, Unreadable } from './protocol'
 import type { CallResult, ToolHost } from './host'
@@ -216,14 +216,40 @@ async function day(ctx: Ctx, uid: string, docId: string): Promise<DayState | nul
   return { msgs: parseDay(doc.data)?.msgs ?? [], version: doc.version }
 }
 
+type Delete = CompactWrite['deletes'][number]
+
 // One atomic batch: the day doc (pinned once it exists) and the deletes of the messages it now holds, each pinned
 // to the version it was read at. Any doc that moved meanwhile refuses the whole batch.
-async function compactDay(ctx: Ctx, w: CompactWrite): Promise<void> {
+function compactWrites(w: CompactWrite, deletes: readonly Delete[]): Record<string, unknown>[] {
   const ts = w.msgs.reduce((max, m) => Math.max(max, m.ts), 0)
   const pin = w.dayVersion === undefined ? {} : { if_version: w.dayVersion }
   const dayWrite = { op: 'set', collection: paths.days(w.uid), doc_id: w.docId, data: { v: 1, ts, msgs: w.msgs }, ...pin }
-  const dels = w.deletes.map(d => ({ op: 'delete', collection: paths.msgs(w.uid), doc_id: d.id, if_version: d.version }))
-  await exec(ctx, { action: 'batch', writes: [dayWrite, ...dels] })
+  const dels = deletes.map(d => ({ op: 'delete', collection: paths.msgs(w.uid), doc_id: d.id, if_version: d.version }))
+  return [dayWrite, ...dels]
+}
+
+// Which of `deletes` the refusal names as gone (the server named no current version), or -1. writes[0] is the day
+// doc, so a gone day doc is a real conflict.
+function goneDelete(err: unknown, opts: { uid: string; deletes: readonly Delete[] }): number {
+  const gone = isKind(err, 'conflict') ? gonePin(err.message) : null
+  const at = gone === null ? -1 : gone.index - 1
+  return at >= 0 && gone?.path === `${paths.msgs(opts.uid)}/${opts.deletes[at]?.id}` ? at : -1
+}
+
+// A delete whose message is already gone is done: it is dropped and the rest sent again, at most
+// COMPACT_GONE_RESENDS times; past that the conflict goes back to the caller, whose next run re-reads.
+async function compactDay(ctx: Ctx, w: CompactWrite): Promise<void> {
+  let deletes: readonly Delete[] = w.deletes
+  for (let resends = 0; ; resends += 1) {
+    try {
+      await exec(ctx, { action: 'batch', writes: compactWrites(w, deletes) })
+      return
+    } catch (err) {
+      const at = resends < COMPACT_GONE_RESENDS ? goneDelete(err, { uid: w.uid, deletes }) : -1
+      if (at < 0) throw err
+      deletes = deletes.filter((_, i) => i !== at)
+    }
+  }
 }
 
 // The messages a peer moved into day docs after `afterTs`, from their newest days.
