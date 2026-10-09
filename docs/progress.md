@@ -14,7 +14,7 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T7 commands + join | done | `8cbb333` | 121 |
 | T11 step 4 + gate fix | done | `d5e40df` | 170 |
 | T13 budget + responder | done | `542b4fc` | 170 |
-| T14 agent tools + live | done | (see log: feat(tools)) | 260 |
+| T14 agent tools + live | done | `dc992bc` | 260 |
 
 ## T4 review fixes
 
