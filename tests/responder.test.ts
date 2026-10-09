@@ -87,10 +87,13 @@ test('a closed or failing gate sends exactly the denial text, after the claim', 
   }
 })
 
-test('the gate is asked about the outbox author, whatever the message claims to be from', async () => {
+test('the gate is asked about the outbox author; a message claiming an author is never gated or answered', async () => {
   const d = deps()
-  const spoofed = { ...query('status'), from: ME, author: ME } as unknown as Message
-  await respond(d, entry(parseMessage(QID, spoofed) as Message))
+  const spoofed = parseMessage(QID, { ...query('status'), from: ME, author: ME })
+  expect(isUnreadable(spoofed)).toBe(true)
+  expect(await respond(d, entry(spoofed as Message))).toBe('skipped')
+  expect(d.calls).toEqual([])
+  await respond(d, entry(query('status')))
   expect(d.calls).toContain(`gate:${PEER}`)
 })
 

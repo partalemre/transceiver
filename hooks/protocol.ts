@@ -132,10 +132,16 @@ function parseAnswer(x: unknown): Answer | null {
 
 const unreadable = (id: string, reason: string): Unreadable => ({ id, isUnreadable: true, reason })
 
+// The author of a doc is the outbox it sits in, never a field. The mod never writes one of these, so a doc that
+// carries one claims an author it cannot prove (the room's owner may write any outbox, see rooms.ts) and is ignored.
+export const AUTHOR_FIELDS = ['author', 'from', 'sender', 'uid'] as const
+const claimsAuthor = (x: Obj) => AUTHOR_FIELDS.some(k => Object.hasOwn(x, k))
+
 export function parseMessage(id: string, raw: unknown): Message | Unreadable {
   if (!isObj(raw)) return unreadable(id, 'not an object')
   if (raw.v !== PROTOCOL_VERSION) return unreadable(id, 'unknown version')
   if (raw.id !== id || !isId(id)) return unreadable(id, 'id mismatch')
+  if (claimsAuthor(raw)) return unreadable(id, 'claims an author')
   if (!isOneOf(KINDS, raw.kind) || !isCount(raw.ts) || !isText(raw.text)) return unreadable(id, 'bad fields')
   const message: Message = { v: 1, id, ts: raw.ts, kind: raw.kind, text: raw.text }
   if (raw.replyTo !== undefined) {
@@ -183,7 +189,7 @@ export function parseMeta(raw: unknown): RoomMeta | null {
 export type Day = { v: 1; ts: number; msgs: Message[] }
 
 export function parseDay(raw: unknown): Day | null {
-  if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isCount(raw.ts) || !Array.isArray(raw.msgs)) return null
+  if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isCount(raw.ts) || !Array.isArray(raw.msgs) || claimsAuthor(raw)) return null
   const msgs = raw.msgs.flatMap(m => {
     const parsed = parseMessage(isObj(m) && typeof m.id === 'string' ? m.id : '', m)
     return isUnreadable(parsed) ? [] : [parsed]
