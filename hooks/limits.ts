@@ -13,6 +13,9 @@ export const POLL_MAX_MS = 30_000
 export const DISCOVER_MS = 60_000
 export const SHARED_LIST_LIMIT = 100
 export const POLL_BACKOFF = 2
+// Reads that fail in a row before a room says so: one or two are routine (rate limits, another session writing the
+// same sync state) and would only make the warning flicker.
+export const TROUBLE_AFTER_FAILURES = 3
 export const KEEP_ENTRIES = 500
 
 export const ASK_MODEL = 'haiku'

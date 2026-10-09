@@ -1,6 +1,7 @@
 // The pane's model from the stored rooms and the live sync states: pure, so every state of the pane is testable
 // without the engine.
 import { lastCheck } from './gate'
+import { TROUBLE_AFTER_FAILURES } from './limits'
 import { isUnreadable } from './protocol'
 import type { RoomRecord, Settings } from './rooms'
 import type { Created, Draft, EmptyForm, GhAsk, PaneModel, PaneView, RoomView } from './state-types'
@@ -88,7 +89,7 @@ function roomView(room: RoomRecord, input: ModelInput): RoomView {
     gate: project === undefined ? 'unknown' : gateBadge(project.checks),
     ghLogin: project?.checks.isConfirmed === true ? project.checks.login : undefined,
     seed: room.kind === 'project' ? room.repo ?? room.id : peer ?? room.id,
-    unread, isTroubled: (sync?.failures ?? 0) > 0, isBoxBlocked: (sync?.unread.length ?? 0) > 0,
+    unread, isTroubled: (sync?.failures ?? 0) >= TROUBLE_AFTER_FAILURES, isBoxBlocked: (sync?.unread.length ?? 0) > 0,
     isWaiting: room.kind === 'dm' && room.boxes.length === 0 && peer === undefined,
     ...lastOf(room, sync, input),
     ...(peer === undefined ? {} : { peerName: firstName(nameOf(input.names, peer)) }),

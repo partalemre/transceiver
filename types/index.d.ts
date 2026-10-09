@@ -43,7 +43,7 @@ export type RoomView = {
   // The peer's confirmed GitHub login (project rooms), shown beside the gate.
   ghLogin?: string
   seed: string
-  // The room's last poll failed; it is tried again with backoff.
+  // The room's reads failed TROUBLE_AFTER_FAILURES times in a row; it is tried again with backoff.
   isTroubled: boolean
   // Another member's mailbox the last poll could not read: they have not shared it with this person yet.
   isBoxBlocked: boolean

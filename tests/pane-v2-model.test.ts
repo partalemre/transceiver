@@ -4,6 +4,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { commitOf, compactOf, diffStat, hitsOf, tagsOf, testCounts } from '../hooks/answers'
+import { TROUBLE_AFTER_FAILURES } from '../hooks/limits'
 import { checkRows, gateDetail, noticeOf, passedOf, statusOf } from '../hooks/pane-words'
 import { emptyHead } from '../hooks/protocol'
 import { composeOf, isModeType, queryMessage, supportedSpecs } from '../hooks/query-menu'
@@ -11,7 +12,7 @@ import { dative, genitive } from '../hooks/tr'
 import { itemsOf, joined } from '../hooks/traffic'
 import { buildModel } from '../hooks/view'
 import { agoText } from '../hooks/when'
-import { ALPEREN, dmAlperen, grepTraffic, idAt, input, NOW, projectEliti, ROOMS } from './pane-fixtures'
+import { ALPEREN, dmAlperen, dmZeynep, grepTraffic, idAt, input, NOW, projectEliti, ROOMS } from './pane-fixtures'
 
 const MIN = 60_000
 const ELITI = 'partalemre/eliti'
@@ -117,4 +118,11 @@ test('the query menu follows the protocol; slash commands build guarded queries 
 test('Turkish endings follow the name\'s last vowel', () => {
   expect(['Alperen', 'Emre', 'Can', 'Oğuz', 'Ömür', 'Ali'].map(genitive)).toEqual(['Alperen\'in', 'Emre\'nin', 'Can\'ın', 'Oğuz\'un', 'Ömür\'ün', 'Ali\'nin'])
   expect(['Alperen', 'Emre', 'Can', 'Zeynep'].map(dative)).toEqual(['Alperen\'e', 'Emre\'ye', 'Can\'a', 'Zeynep\'e'])
+})
+
+test('a room is troubled only after TROUBLE_AFTER_FAILURES failed reads in a row', () => {
+  const troubledAt = (failures: number) =>
+    buildModel(input({ syncs: { ra: { ...dmAlperen(), failures }, re: projectEliti(), rz: dmZeynep() } })).rooms.find(r => r.id === 'ra')?.isTroubled
+  expect([0, 1, TROUBLE_AFTER_FAILURES - 1].map(troubledAt)).toEqual([false, false, false])
+  expect(troubledAt(TROUBLE_AFTER_FAILURES)).toBe(true)
 })

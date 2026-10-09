@@ -5,11 +5,11 @@
 import { expect, test } from 'claude-code/testing'
 
 import { localDay } from '../hooks/budget'
-import { ASK_DAILY_LIMIT } from '../hooks/limits'
+import { ASK_DAILY_LIMIT, TROUBLE_AFTER_FAILURES } from '../hooks/limits'
 import { paths } from '../hooks/protocol'
 import type { RoomRecord } from '../hooks/rooms'
 import { dmAlperen, dmZeynep, idAt, ME, NOW, projectEliti, ROOMS } from './pane-fixtures'
-import { mountPane, paneWorld, startSession, type WorldOpts } from './pane-world'
+import { mountPane, paneWorld, startSession, type World, type WorldOpts } from './pane-world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const NARROW = 55
@@ -20,6 +20,9 @@ const ELSEWHERE = 'git@github.com:partalemre/other.git'
 const SYNCS = () => ({ ra: dmAlperen(), re: projectEliti({ isDenied: false }), rz: dmZeynep() })
 const DIFF = idAt(18)
 const ENV = idAt(9)
+// Small steps, so a test stops at each failure in turn; enough of them to outlast the longest backoff.
+const POLL_STEP_MS = 250
+const MAX_POLL_TICKS = 400
 
 type Surface = (typeof SURFACES)[number]
 type Open = { surface: Surface; isBypass?: boolean } & WorldOpts
@@ -27,6 +30,15 @@ type Open = { surface: Surface; isBypass?: boolean } & WorldOpts
 const drawn = async (ui: any): Promise<string> => JSON.stringify(await ui.drawn())
 const buttons = async (ui: any, key: string): Promise<number> => (await ui.findAll({ type: 'Button', key })).length
 const inputs = async (ui: any, key: string): Promise<number> => (await ui.findAll({ type: 'Input', key })).length
+
+const TROUBLE = 'Bağlantı sorunu'
+// Reads fail and recover on the room's own backoff: the clock moves until the stored count of failures in a row
+// is the one asked for.
+async function pollUntil(w: World, failures: number): Promise<void> {
+  const failuresNow = () => (w.store['tx.sync.ra'] as { failures?: number } | undefined)?.failures ?? 0
+  for (let tick = 0; tick < MAX_POLL_TICKS && failuresNow() !== failures; tick += 1) await w.clock.advance(POLL_STEP_MS)
+  expect(failuresNow()).toBe(failures)
+}
 
 async function open($: any, on: any, o: Open) {
   const w = paneWorld(on, { rooms: ALL, syncs: SYNCS(), remote: GITHUB, ...o })
@@ -77,6 +89,22 @@ for (const surface of SURFACES) {
     expect(await drawn(ui)).toContain('kutusu henüz seninle paylaşılmadı')
     await ui.press({ key: 'open-ra' })
     expect(await drawn(ui)).toContain('Alperen kutusunu henüz seninle paylaşmadı')
+  })
+
+  test(`${surface}: one or two failed reads say nothing; the third in a row is the room's one line; a good read clears it`, async ($: any, on: any) => {
+    const { w, ui } = await open($, on, { surface })
+    await ui.press({ key: 'open-ra' })
+    const db = w.dbOf(ROOMS.alperen.url)
+    db.isDown = true
+    for (let failures = 1; failures < TROUBLE_AFTER_FAILURES; failures += 1) {
+      await pollUntil(w, failures)
+      expect(await drawn(ui)).not.toContain(TROUBLE)
+    }
+    await pollUntil(w, TROUBLE_AFTER_FAILURES)
+    expect(await drawn(ui)).toContain(TROUBLE)
+    db.isDown = false
+    await pollUntil(w, 0)
+    expect(await drawn(ui)).not.toContain(TROUBLE)
   })
 
   test(`${surface}: an agent exchange is one line until pressed; a refusal stays a line with nothing behind it`, async ($: any, on: any) => {
