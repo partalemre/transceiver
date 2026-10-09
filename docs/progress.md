@@ -12,6 +12,8 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T5 timeline + sync | done | `17a9259` | 98 |
 | T6 rooms + room page | done | `c544a9f` | 111 |
 | T7 commands + join | done | `8cbb333` | 121 |
+| T8 pane | done | `d276ce4`, `68a80ff`, `bfdf86c` | 239 |
+| T9 notify | done | `6b77617` | 243 |
 | T11 step 4 + gate fix | done | `d5e40df` | 170 |
 | T13 budget + responder | done | `542b4fc` | 170 |
 | T14 agent tools + live | done | `dc992bc` | 260 |
@@ -77,7 +79,7 @@ Plan deviations:
 
 ## Open questions
 
-- Publishing the room page from `~/.claude/transceiver/rooms/<id>.html`: the spike measured `ArtifactData`, `Artifact list` and profiles, not `Artifact publish` from a mod. The page file is outside the session's working directory; whether `publish` accepts it (or asks) is unmeasured. If it refuses, write the page under the session's scratchpad or cwd instead.
+- ~~Publishing the room page from `~/.claude/transceiver/rooms/<id>.html`~~: resolved in T8. The Artifact tool takes a `file_path` only under the working directory or Claude's scratchpad, so the page is now written to `<cwd>/.git/transceiver/room-<id>.html` (in a repo) or `<cwd>/.transceiver/room-<id>.html`, and removed after the publish (the folder too). A real publish from a mod is still unmeasured.
 - R2 (guest write from another account) is still unmeasured, as the spike notes; T6's room rules depend on it.
 - The other agent's modules (T10–T12) and the later tasks (T8–T14) must follow the same `$` rule: only `register.tsx` may hold `$`; pass ports (`Host`, or narrower ones like `McpHost` in `github.ts`) into other files.
 
@@ -113,3 +115,30 @@ Open questions (agents):
 - The real `list_repository_collaborators` and `gh api …/collaborators/<login>` answers for a mixed-case owner are unmeasured; the gate lower-cases its comparisons and passes the query's spelling to GitHub, which is case-insensitive.
 - Peers' confirmed logins (`RoomRecord.peers`) are written by the pane (T8); the gate trusts only `isGhConfirmed` + the current head's login.
 
+
+## T8 pane + T9 notify
+
+**Shape.** The `$` rule holds: `register.tsx` binds two ports at `session.start` (`Host`, grown by `cwd`/`isDir`/`remove`/`isConnected`, and `UiHost` in `state.ts`: `setPane` → `$.state.set({ plugin: 'transceiver', key: 'pane' })`, `isPaneShown` via `$.ui.panes()`, `toast`, `status`, `copy`) and owns the `ui.render` hook for `Pane`/`transceiver`, which reads the atom and calls the pure `drawPane(ui, { surface, columns, isLight, model, on })`. `isLight` comes from `MODZ_THEME`, then Claude's `theme` setting (kit `resolveLight`). Handlers (`actions.ts`, `paneHandlers`) run against the bound port, so any module can call `refreshPane()` with no `$` (the agent side does, for drafts). Files: `view.ts` (pure `buildModel`), `state.ts` (session UI state, refresh, injection points `setDraftSource`/`setDraftSettler`), `actions.ts`, `names.ts` (profiles, never stored), `connection.ts`, `theme.ts`, `sig.ts` (Svg with the `signal` role), `when.ts`, `pane.tsx`, `pane-kit.tsx`, `pane-list.tsx`, `pane-chat.tsx`, `pane-bubble.tsx`, `pane-cards.tsx`, `pane-forms.tsx`, `pane-tick.ts`, `notify.ts`.
+
+**What it draws.** Narrow (a docked pane, < 104 cells) shows one view at a time: rooms → chat (‹ Odalar), "Yeni sohbet", "Ayarlar"; wide puts the rooms (38 cells) beside the chat, or "Bir sohbet seç". With no rooms it stays one column (≤ 72 cells) with an onboarding card (three numbered steps, "Arkadaş ekle" primary). Rows: avatar (initials in a colour fixed by uid; a branch tile for a project; an amber clock for a DM nobody joined yet), name, time, last line with its receipt, signal unread badge. Chat: head (avatar, name, "Doğrudan mesaj"/"Proje odası"), for projects the gate pill (`@login · kapı açık` in Moss / `kapı kapalı`), the live pill and its switch with the token warning, day dividers (Bugün/Dün/9 Eki), bubbles (mine in signal tint, theirs on the card colour, one avatar per run of 5 min), time and receipt inside the bubble (◷ sending, `◷ bağlantı bekleniyor` in Amber while not connected, ✓ written, ✓✓ reached, Tide ✓✓ read), agent traffic as Iris cards (question, answer with an inset body and its token count, denial in Flare), the composer (`/ask` hint in project rooms; mobile is read-only with the page link). Cards: error (Flare, single border), room created (link, "Linki kopyala"), Bağlan, invites (Kabul et / Reddet), GitHub question ("X GitHub'da Y mi?", asked once per login: a "Hayır" is stored too), drafts past the ask limit (named asker; "Cevapla"/"Reddet"). Terminal: the same tree with glyphs and theme keys (signal → `planMode`).
+
+**Connecting (spike R1).** Nothing writes until the session is connected: the loop passes `canWrite: host.isConnected()` to `tick`, which then only pulls. Connected = the person pressed "Bağlan" (a `set` of their own head as it is, pinned, with `consent: 'The user pressed "Bağlan" on the Transceiver pane to send messages from this session.'`; any answer but `deny` connects), or created a room (the meta write carried the command's or press's consent), or `classic.SessionStart` reported `permission_mode: 'bypassPermissions'`. A later refused write disconnects. `acknowledge` now takes the newest peer message in the window, not only the tick's fresh ones, so seen/read catch up on what was pulled before connecting.
+
+**T9.** `notify.ts`: `statusText` (`((·)) 3 okunmamış · Alperen` / `· 2 oda`, only while the pane is not shown, set only when it changes) and `toastText` (a person's first line clipped to 60, or `Alperen: 2 yeni mesaj`; agent traffic never). Run from the pane's tick listener; both follow the Ayarlar switches. No code path opens the pane except the person's `/transceiver`; `openPane` no longer sets `closeOnEscape` (a chat pane stays docked).
+
+Deviations from the plan:
+
+- The model lives in one atom written by `refreshPane` (skipped when unchanged; `now` moves by the minute); session-only UI state (view, active room, error, busy, created, composer key, local read marks) is module state in `state.ts`.
+- `PaneModel` grew (`view`, `isConnected`, `settings`, `now`, `busy`, `created`, `composerKey`, `canSettleDrafts`; `RoomView` grew `url`, `repo`, `ghLogin`, `seed`, `isTroubled`, `isWaiting`, `lastIsMine`, `lastReceipt`; `Line` grew `authorUid`, `seed`), all in `types/index.d.ts`.
+- Unread counts honour a local read mark for the room on screen, so a room reads as read before the session may write its read mark.
+- The composer's `Input` key carries a counter bumped after each send, so the field comes back empty.
+- The pane's tick listener is registered before the agent side's, so a failing agent listener never stops a redraw.
+- `TickEvent.tookMs` times each poll ("sinyal 0,7 sn" in the header; hidden at 0).
+
+Previews: `tests/pane-preview.test.tsx` drives the real plugin through the engine (`tests/pane-world.ts`: a store, a per-room fake db seeded with the heads the stored sync saw, the pane's nouns recorded) for 16 states × desktop/terminal × dark/light, and prints `@@TREE@@` lines for `MODZ/tools/preview/render.py`. Behaviour tests (`tests/pane.test.ts`, both surfaces): open + add a room from inside the repo, waiting until "Bağlan" then sending, a refused "Bağlan", invites + GitHub question, live + receipts switches, bypass mode, settings command and bad link/repo; `tests/notify.test.ts` (pane closed: toast + status, no open; pane shown: neither); `tests/pane-model.test.ts`, `tests/room-publish.test.ts`, `tests/sync-gate.test.ts`.
+
+Open questions (pane):
+
+- `render.py` draws a Button by its `label`, so a row's bold name (a Button with `Text` children) previews dim; the real surfaces draw the children. The previews were read with a local copy that draws children.
+- Whether the desktop resets an `Input` drawn again with the same `value=""` is undocumented; the rotating key avoids relying on it, but may drop the focus ring after a send.
+- `Artifact publish` from a mod with `consent`, and `profiles` result shape, are unmeasured (names parse a structured `db_profiles.profiles` map or list, then the text).
