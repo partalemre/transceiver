@@ -1,16 +1,20 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
+import { wireAgents } from './agents'
 import { ARGUMENT_HINT, DESCRIPTION, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, setConnected } from './connection'
-import type { CallResult, Host } from './host'
+import type { AgentHost, CallResult, Host } from './host'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
+import { setTurnRunning } from './live'
 import { drawPane } from './pane'
 import { onPaneTick } from './pane-tick'
 import { onTick, startLoop } from './room-loop'
+import { realPathOf, runnerOf } from './run'
 import { bindPane, patchSession, refreshPane, setPaneShown, type UiHost } from './state'
 import { EMPTY_PANE } from './state-types'
+import { runTool, TOOL_SPECS } from './tools'
 
 // The only place `$` is held: every other module reaches the engine through this port.
 function hostOf($: EngineInterface): Host {
@@ -56,6 +60,39 @@ async function isLightOf($: EngineInterface): Promise<boolean> {
   return resolveLight({ override, theme })
 }
 
+// Other mods' state is read by literal reference only: the engine reads the names from the source.
+async function readState($: EngineInterface, ref: { plugin: string; key: string }): Promise<unknown> {
+  type Read = Promise<{ value?: unknown }>
+  if (ref.plugin === 'test-badge' && ref.key === 'badge') return (await ($.state.get({ plugin: 'test-badge', key: 'badge' } as never) as Read)).value
+  if (ref.plugin === 'plan-steps' && ref.key === 'tasks') return (await ($.state.get({ plugin: 'plan-steps', key: 'tasks' } as never) as Read)).value
+  return undefined
+}
+
+// The agent side's reach (responder, ask, tools, live wake): Host plus commands, files, the model and the session.
+function agentHostOf($: EngineInterface): AgentHost {
+  return {
+    ...hostOf($),
+    run: runnerOf((argv, init) => $.process.run(argv, init)),
+    realPath: realPathOf(abs => $.fs.stat(abs, { resolve: true })),
+    readFile: path => $.fs.read(path),
+    root: () => $.session.root(),
+    readState: (plugin, key) => readState($, { plugin, key }),
+    mcpCall: (server, tool, args) => $.mcp.call(server, tool, args),
+    complete: request => $.model.complete(request),
+    sleep: ms => $.clock.sleep(ms),
+    sendSelf: async text => (await $.session.send({ to: { sessionId: await $.session.id() }, text })).isDelivered,
+    note: async text => { await $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } }) },
+    toast: text => $.ui.toast(text),
+    isConnected: () => isConnected(),
+  }
+}
+
+async function registerTools($: EngineInterface): Promise<void> {
+  for (const spec of TOOL_SPECS) {
+    await $.tool.register(spec).catch(() => $.ui.log(`transceiver: tool ${spec.name} could not be registered`))
+  }
+}
+
 // Asked for by the person's command only; a chat pane stays open beside the transcript (no closeOnEscape).
 async function openPane($: EngineInterface): Promise<void> {
   await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
@@ -70,10 +107,13 @@ export const register: Register = on => {
     // A refused registration must not keep the rooms from polling.
     await $.command.register({ name: 'transceiver', description: DESCRIPTION, argumentHint: ARGUMENT_HINT, immediate: true })
       .catch(() => $.ui.log('transceiver: /transceiver could not be registered'))
-    const host = hostOf($)
-    bindPane({ host, ui: uiOf($) })
+    const agents = agentHostOf($)
+    // The pane listens first, so a failing agent-side listener never keeps it from redrawing.
+    bindPane({ host: agents, ui: uiOf($) })
     onTick(onPaneTick)
-    await startLoop(host)
+    wireAgents(agents)
+    await registerTools($)
+    await startLoop(agents)
     await refreshPane()
     return next(e)
   })
@@ -94,6 +134,19 @@ export const register: Register = on => {
     void refreshPane()
     return next(e)
   }).catch(($, e, next) => next(e))
+  // The agent tools: the model calls them as mcp__transceiver__send, inbox and ask. The ask tool waits inside this
+  // hook's own budget.
+  on('tool.call', { tool: ['mcp__transceiver__send', 'mcp__transceiver__inbox', 'mcp__transceiver__ask'] }, async ($, e, next) => {
+    const name = String(e.tool).slice('mcp__transceiver__'.length)
+    const input = e as unknown as Record<string, unknown>
+    return runTool({ host: agentHostOf($), budgetLeft: () => next.budget.remainingMs }, { name, input })
+  }).catch(() => ({ deny: 'Transceiver: araç tamamlanamadı, birazdan yeniden dene.' }))
+  // Live wake never interrupts a running turn of the main conversation.
+  on('turn.start', async ($, e, next) => { setTurnRunning(true); return next(e) })
+  on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined) setTurnRunning(false)
+    return next(e)
+  })
   on('command.run', { command: 'transceiver' }, async ($, e) => {
     const cmd = parseCommand(e.args)
     if (cmd.verb === 'ayarlar') patchSession({ view: 'settings' })

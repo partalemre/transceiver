@@ -11,8 +11,14 @@ const KEY = 'tx.drafts'
 type Listener = (drafts: Draft[]) => void
 const listeners: Listener[] = []
 
-// The pane listens, so a new or settled draft redraws it.
-export const onDrafts = (fn: Listener) => { listeners.push(fn) }
+// The pane listens, so a new or settled draft redraws it. Returns the unsubscribe.
+export function onDrafts(fn: Listener): () => void {
+  listeners.push(fn)
+  return () => {
+    const at = listeners.indexOf(fn)
+    if (at >= 0) listeners.splice(at, 1)
+  }
+}
 
 const isDraft = (x: unknown): x is Draft =>
   typeof x === 'object' && x !== null && ['roomId', 'qid', 'question', 'asker'].every(k => typeof (x as Record<string, unknown>)[k] === 'string')

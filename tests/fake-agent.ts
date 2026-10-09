@@ -1,9 +1,11 @@
 import type { ModelCompleteRequest, ModelCompleteResult } from 'claude-code'
+import { isConnected, setConnected } from '../hooks/connection'
 import type { AgentHost, CallResult } from '../hooks/host'
 import type { Run } from '../hooks/run'
 import { fakeHost, type FakeHost } from './fake-host'
 
 // An in-memory AgentHost: FakeHost plus scripted commands, files, model replies and the session's own rows.
+// `isOn` is the session's connection (connection.ts), which the room loop reads too; a new fake starts connected.
 export type FakeAgent = FakeHost & AgentHost & {
   isOn: boolean; isDelivered: boolean
   sent: string[]; notes: string[]; toasts: string[]; asked: ModelCompleteRequest[]; files: Record<string, string>
@@ -19,8 +21,8 @@ export const gitIn = (repo: string, more: Run = async () => ({ exitCode: 0, stdo
 
 export function fakeAgent(answer: (input: Record<string, unknown>) => Promise<CallResult>, run: Run = gitIn('partalemre/eliti')): FakeAgent {
   const base = fakeHost(answer)
-  const agent: FakeAgent = Object.assign(base, {
-    isOn: true, isDelivered: false, sent: [] as string[], notes: [] as string[], toasts: [] as string[],
+  const agent = Object.assign(base, {
+    isDelivered: false, sent: [] as string[], notes: [] as string[], toasts: [] as string[],
     asked: [] as ModelCompleteRequest[], files: {} as Record<string, string>,
     reply: () => answered('çünkü'),
     run,
@@ -34,7 +36,9 @@ export function fakeAgent(answer: (input: Record<string, unknown>) => Promise<Ca
     sendSelf: async (text: string) => { agent.sent.push(text); return agent.isDelivered },
     note: async (text: string) => { agent.notes.push(text) },
     toast: (text: string) => { agent.toasts.push(text) },
-    isConnected: () => agent.isOn,
-  })
+    isConnected: () => isConnected(),
+  }) as unknown as FakeAgent
+  Object.defineProperty(agent, 'isOn', { get: () => isConnected(), set: (is: boolean) => setConnected(is) })
+  setConnected(true)
   return agent
 }

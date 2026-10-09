@@ -12,6 +12,9 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T5 timeline + sync | done | `17a9259` | 98 |
 | T6 rooms + room page | done | `c544a9f` | 111 |
 | T7 commands + join | done | `8cbb333` | 121 |
+| T11 step 4 + gate fix | done | `d5e40df` | 170 |
+| T13 budget + responder | done | `542b4fc` | 170 |
+| T14 agent tools + live | done | (see log: feat(tools)) | 260 |
 
 ## T4 review fixes
 
@@ -77,3 +80,36 @@ Plan deviations:
 - Publishing the room page from `~/.claude/transceiver/rooms/<id>.html`: the spike measured `ArtifactData`, `Artifact list` and profiles, not `Artifact publish` from a mod. The page file is outside the session's working directory; whether `publish` accepts it (or asks) is unmeasured. If it refuses, write the page under the session's scratchpad or cwd instead.
 - R2 (guest write from another account) is still unmeasured, as the spike notes; T6's room rules depend on it.
 - The other agent's modules (T10–T12) and the later tasks (T8–T14) must follow the same `$` rule: only `register.tsx` may hold `$`; pass ports (`Host`, or narrower ones like `McpHost` in `github.ts`) into other files.
+
+## T11 leftovers, T13 budget + responder, T14 agent tools + live
+
+**Gate (T11 fix).** Owner, repo and login compare case-insensitively (`sameName` in `gate.ts`), in the gate, the responder's repo check, `projectRoomFor` and live mode. New gate condition: `GateInput.headGh`, the login the peer's head announces *now*, must equal the confirmed login, so a head that later claims another login (a real collaborator's) does not inherit the confirmation. The cache key is the lower-cased `repo#login`.
+
+**Own login on the head (T11 step 4).** `identity.ts` is a tick listener (not inline in `room-loop.step`): in an `active` room, once the session is connected and the tick's writes were not refused, it writes `{ gh }` with `relay.writeHead` (merged, pinned to the cached head) when `ownHead.gh` differs, and hands the new head to the loop with `adoptOwnHead`. The login is `settings.gh` when set and valid, else `gh api user` (a miss is cached for `LOGIN_RETRY_MS`).
+
+**Ports.** `AgentHost = Host & { run, realPath, readFile, root, readState, mcpCall, complete, sleep, sendSelf, note, toast, isConnected }` in `host.ts`, bound by `agentHostOf($)` in `register.tsx`. `isConnected` reads `connection.ts` (the pane's "Bağlan"). `run.ts`'s `runnerOf`/`realPathOf` now take the engine's call as a function (`runnerOf((argv, init) => $.process.run(argv, init))`), since a `$` passed into an imported function is refused. Other mods' state (`tests`, `plan` queries) is read through literal refs in `register.tsx` (`readState`). `mcpCheck` gets `{ mcp: { call: host.mcpCall } }`.
+
+**Responder (`responder.ts`, wired by `responder-wire.ts`).** Order: own/unreadable/non-query → skipped; not connected → skipped *without* marking the query seen (it is answered once connected); then marked seen (a replayed qid is decided once per session); other repo → skipped, never claimed; stale (> `QUERY_TTL_MS`) or far-future (> `QUERY_FUTURE_SKEW_MS`) `ts` → skipped; > 60 queries/min per room → skipped; claim (create-only `outbox/{self}/claims/{qid}`; refused or throwing → skipped); gate (throwing = closed) → exactly `erişim yok`; typed → `answerTyped`; `ask` → question empty or > `ASK_MAX_QUESTION_CHARS` (2000) → denial before budget or model; budget spent → draft; else Haiku. The asker is always the outbox the message was read from, never a field of the message. Every reply passes `hasSecret` on the whole body before the split. Deviations from the plan:
+
+- Candidates are every peer query still in the room's window (`state.entries`), not only the tick's fresh ones, so a query that arrived before connecting is answered after; `seen` (per room, pruned to the window) keeps it to one try per session, and claims keep it to one answer anywhere.
+- Answer parts are structured: `Answer` gained optional `part`/`parts` (1-based, ≤ `MAX_ANSWER_PARTS`, both or neither; `protocol.ts` guards them), `answer.body` is the part alone and `text` is `i/n\n` + part for display. The plan parsed the `i/n` prefix out of the text, which a single-part body starting with `3/4\n` would fool. A refusal is always one part with `body === 'erişim yok'`.
+- After the tick listeners run, a room whose listener queued a message is scheduled at 0 ms instead of the poll delay (`room-loop.ts`), so an answer leaves at once; a write that is refused leaves the pending count unchanged, so this never spins.
+- `onTick` returns an unsubscribe (as do `onDrafts` and every `wire*`); `wireAgents` (`agents.ts`) unwires the previous set on a second `session.start`.
+
+**Ask (`ask.ts`).** `askModel(port, { root, question, nonce })`: `haiku`, effort `low`, `maxTokens` 800, `timeoutMs` 20000; tokens are input + output + both cache counts. Repo facts (status, last 5 subjects, ≤ 200 tracked paths) list only paths `checkRelPath` would serve, so `.env`/key files are never even named. `fence(text, nonce)`: a 16-character random nonce per call on both markers, and any run of `<<<`/`>>>` inside the text is bent to `‹‹‹`/`›››` first, so a peer's text cannot close or open a fence.
+
+**Budget + drafts.** `budget.ts`: pure `takeBudget`, `localDay` from local `Date` fields, `spendAsk(host, roomId)` in the store (`tx.budget`; a refusal writes nothing). `drafts.ts`: `tx.drafts`, one per qid; `settleDraft(host, { qid, isApproved })` (connected only; approve → model answer outside the limit, refuse → the denial; a draft of a left room is dropped). The pane reads them through `state.ts`'s `setDraftSource`/`setDraftSettler`, bound in `agents.ts`, and redraws on `onDrafts`.
+
+**Tools (`tools.ts`).** `TOOL_SPECS` registered in `session.start` (`isDeferred: true`); one `tool.call` hook on the three literal names, with a `.catch` deny (validate lists it as a gating hook with `.catch`). Each tool reaches only `projectRoomFor(rooms, repoHere())`: an active project room of the session's repo (git `origin`, re-read once a minute). Input is checked before the connection, then `bağlantı bekleniyor` until connected; `inbox` only reads and works before connecting. `send` refuses empty, > 16 KB or secret-bearing text. `ask` validates `type`, `path` (file), `question` (ask, ≤ 2000 chars), scans path and question, round-trips the message through `parseMessage`, then waits. **Deviation:** the wait is bounded by the hook's own 10 s budget (`next.budget.remainingMs`, `$.clock.sleep` counts against it, `$` calls do not) as well as `ASK_WAIT_MS`: each step reads the peers' outboxes directly (`heads` + `since`, free of the budget) and sleeps 1 s, stopping with `ASK_WAIT_MARGIN_MS` left, then returns `pending:<qid>`. In practice that is ~8 s of sleeps plus read time, not 20 s. `collectAnswer` joins one author's parts by `part`, never mixes authors and ignores answers from the asker's own outbox. Every peer text handed to the model (inbox, ask result, live wake) is fenced.
+
+**Live (`live.ts`).** A tick listener: only a project room with `isLive` (re-read from the store), of the session's repo, with fresh `agent`/`human`/`answer` messages from a peer, not while a main-loop turn runs (`turn.start`/`turn.complete` without `agentId`), at most once per `LIVE_COOLDOWN_MS` (30 s) per room; text cut to `LIVE_MAX_CHARS` and fenced. `wake` tries `$.session.send({ to: { sessionId } })`, and when not delivered appends a user row (`$.session.append`) plus a toast (spike R4).
+
+Tests: `budget`, `ask`, `responder` (unit, adversarial: spoofed author, replay, other repo, unconnected, closed and throwing gate, secret in typed and ask answers, 10 001-char question, parts), `responder-wire` (real loop + fake db: claim doc, one answer, pre-claimed, changed head login, connect later), `drafts`, `identity`, `tools` (fake db end-to-end ask, fences), `tools-engine` (through the engine's `tool.call`), `live`, gate and protocol additions.
+
+Open questions (agents):
+
+- Live wake under an interactive session is still unmeasured (R4); `$.prompt.submit` ("starts a turn once the session is idle, so background work can wake a quiet session") may be the better primitive than a self-`session.send` if the measured send is not delivered there either.
+- The ask budget lives in `$.store`; two sessions of the same person answering different asks at the same instant could each read 9 and both spend (11 in a day). Claims keep each question to one answer; only the count can overshoot by the number of concurrent sessions.
+- The real `list_repository_collaborators` and `gh api …/collaborators/<login>` answers for a mixed-case owner are unmeasured; the gate lower-cases its comparisons and passes the query's spelling to GitHub, which is case-insensitive.
+- Peers' confirmed logins (`RoomRecord.peers`) are written by the pane (T8); the gate trusts only `isGhConfirmed` + the current head's login.
+
