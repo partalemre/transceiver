@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStat
 // level, and the owner meets every level. So nothing here can stop the room's owner writing another member's
 // subtree, while dropping the prefix rule would hide every outbox from everyone else. `owner` is the highest level
 // (`admin` would add Editors). The mod keys authorship by outbox and ignores a doc that names an author itself
-// (protocol.ts AUTHOR_FIELDS); the residual risk is in docs/progress.md, "Final cleanup".
+// (protocol.ts AUTHOR_FIELDS); the residual risk is in docs/progress.md, "Final cleanup" (checklist 0.10).
 export const ROOM_CAPABILITIES = {
   db: { rules: [
     { path: 'outbox', read: 'view', write: 'owner' },

@@ -19,10 +19,12 @@ function BackRow(ctx: Ctx, o: { eyebrow: string; title: string }): RenderElement
   )
 }
 
-function Field(ctx: Ctx, o: { key: string; placeholder: string; submit: string; onSubmit: (v: string) => void }): RenderElement | null {
+type FieldOpts = { key: string; placeholder: string; submit: string; value?: string; onSubmit: (v: string) => void }
+
+function Field(ctx: Ctx, o: FieldOpts): RenderElement | null {
   if (!('Input' in ctx.ui)) return null
   const { Input } = ctx.ui
-  return <Input key={o.key} placeholder={o.placeholder} submitLabel={o.submit} onSubmit={value => o.onSubmit(value)} />
+  return <Input key={o.key} placeholder={o.placeholder} value={o.value} submitLabel={o.submit} onSubmit={value => o.onSubmit(value)} />
 }
 
 export function AddView(ctx: Ctx): RenderElement {
@@ -41,7 +43,8 @@ export function AddView(ctx: Ctx): RenderElement {
     key: 'add-project',
     children: [
       Head(ctx, { glyph: 'branch', tone: 'run', eyebrow: 'Proje odası', headline: 'Ortak bir repo için', sub: 'İkiniz de o reponun collaborator\'üyseniz agent\'larınız proje hakkında soru sorup cevaplayabilir; geri kalan her şey kapalı kalır.' }),
-      Field(ctx, { key: 'add-repo', placeholder: 'sahip/repo', submit: 'Aç', onSubmit: v => ctx.on.addProject(v) }),
+      // The session's own repo is written in already: the likeliest room, and still editable.
+      Field(ctx, { key: 'add-repo', placeholder: 'sahip/repo', submit: 'Aç', value: ctx.model.sessionRepo ?? undefined, onSubmit: v => ctx.on.addProject(v) }),
     ],
   })
   const join = Frame(ctx, {

@@ -58,9 +58,9 @@ function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): Ren
   return (
     <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>
       {line.replyTo === undefined ? null : Pic(ctx, quotePart({ ...line.replyTo, maxWidth: maxPx }), 'quote')}
-      <Text key="text" color={ctx.look.hi} wrap="wrap">{text}</Text>
+      <Text key="text" color={ctx.look.hi} wrap="wrap">{o.text}</Text>
       {RoomChip(ctx, { line, maxPx })}
-      {o.isLast || isPending ? Stamp(ctx, line, ts) : null}
+      {o.isLast || isPending ? Stamp(ctx, line, o.ts) : null}
     </Box>
   )
 }

@@ -2,7 +2,7 @@ import type { EngineInterface, On, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
-import { ARGUMENT_HINT, DESCRIPTION, parseCommand, runCommand } from './commands'
+import { DESCRIPTION, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
@@ -101,11 +101,10 @@ async function openPane($: EngineInterface): Promise<void> {
   await refreshPane()
 }
 
-// One session.start hook does registration and the loop: the engine refuses two unmatched hooks on one event.
 function onSession(on: On): void {
   on('session.start', async ($, e, next) => {
     // A refused registration must not keep the rooms from polling.
-    await $.command.register({ name: 'transceiver', description: DESCRIPTION, argumentHint: ARGUMENT_HINT, immediate: true })
+    await $.command.register({ name: 'transceiver', description: DESCRIPTION, immediate: true })
       .catch(() => $.ui.log('transceiver: /transceiver could not be registered'))
     const agents = agentHostOf($)
     // The pane listens first, so a failing agent-side listener never keeps it from redrawing.
@@ -140,14 +139,15 @@ function onPane(on: On): void {
   }).catch(($, e, next) => next(e))
 }
 
-// The agent tools: the model calls them as mcp__transceiver__send, inbox and ask. The ask tool waits inside this
-// hook's own budget. Live wake never interrupts a running turn of the main conversation.
-function onAgents(on: On): void {
+function onTools(on: On): void {
+  // The agent tools: the model calls them as mcp__transceiver__send, inbox and ask. The ask tool waits inside this
+  // hook's own budget.
   on('tool.call', { tool: ['mcp__transceiver__send', 'mcp__transceiver__inbox', 'mcp__transceiver__ask'] }, async ($, e, next) => {
     const name = String(e.tool).slice('mcp__transceiver__'.length)
     const input = e as unknown as Record<string, unknown>
     return runTool({ host: agentHostOf($), budgetLeft: () => next.budget.remainingMs }, { name, input })
   }).catch(() => ({ deny: 'Transceiver: araç tamamlanamadı, birazdan yeniden dene.' }))
+  // Live wake never interrupts a running turn of the main conversation.
   on('turn.start', async ($, e, next) => { setTurnRunning(true); return next(e) })
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) setTurnRunning(false)
@@ -170,6 +170,6 @@ function onCommand(on: On): void {
 export const register: Register = on => {
   onSession(on)
   onPane(on)
-  onAgents(on)
+  onTools(on)
   onCommand(on)
 }

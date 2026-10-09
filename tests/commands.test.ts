@@ -107,10 +107,11 @@ test('/transceiver is registered and answers through the engine', async ($, on) 
   const db = fakeDb(ME)
   db.docs.set('meta/room', { data: { v: 1, kind: 'dm', createdAt: 1 }, version: 1 })
   const registered: string[] = []
+  const hints: Array<string | undefined> = []
   mock.store(on)
   mock.clock(on, { now: 1_791_545_100_000 })
   mock.env(on, { HOME: '/home/u' })
-  on('command.register', (_$, e) => { registered.push(e.name); return { value: { command: e.name } } })
+  on('command.register', (_$, e) => { registered.push(e.name); hints.push(e.argumentHint); return { value: { command: e.name } } })
   on('tool.call', async (_$, e) => {
     const out = await callerFor(db)(e as unknown as Record<string, unknown>)
     return (out.deny !== undefined ? { deny: out.deny } : { result: {}, text: out.text ?? '', ...(out.isError === true ? { isError: true } : {}) }) as never
@@ -118,6 +119,8 @@ test('/transceiver is registered and answers through the engine', async ($, on) 
   on('session.start', () => ({ cwd: '/w' }))
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/w' } as never)
   expect(registered).toEqual(['transceiver'])
+  // A bare /transceiver is the whole entry point: the menu shows no verbs to puzzle over.
+  expect(hints).toEqual([undefined])
   const out = await $.command.run({ command: 'transceiver', args: `katıl ${LINK}` } as never)
   expect(out.text).toBe('Transceiver · DM odasına katıldın.')
 })

@@ -166,5 +166,6 @@ export function buildModel(input: ModelInput): PaneModel {
     created: input.session.created, composerKey: input.session.composerKey,
     waiting: input.isConnected ? [] : waitingOf(active, input.syncs), expanded: input.session.expanded,
     ...composerOf(input.session, activeId),
+    sessionRepo: input.sessionRepo ?? null,
   }
 }

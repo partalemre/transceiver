@@ -1,10 +1,10 @@
 import { expect, test } from 'claude-code/testing'
-import { addDraft, loadDrafts } from '../hooks/drafts'
 import { forgetRepo } from '../hooks/here'
-import { DRAFT_TOAST_MS, MAX_DRAFTS_PER_ROOM } from '../hooks/limits'
-import { resolveNames } from '../hooks/names'
+import { localDay } from '../hooks/budget'
+import { loadDrafts } from '../hooks/drafts'
+import { ASK_DAILY_LIMIT, MAX_DRAFTS_PER_ROOM } from '../hooks/limits'
 import { DENIED } from '../hooks/protocol'
-import { draftToastText, storeDraft, wireResponder } from '../hooks/responder-wire'
+import { wireResponder } from '../hooks/responder-wire'
 import { startLoop, stopRoom } from '../hooks/room-loop'
 import { saveRooms, type RoomRecord } from '../hooks/rooms'
 import type { Run } from '../hooks/run'
@@ -14,6 +14,7 @@ import { callerFor, fakeDb, type FakeDb } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
+const SECOND_MS = 1_000
 
 // git answers status; gh says alperenx is a collaborator of partalemre/eliti and nobody else is.
 const run: Run = gitIn('partalemre/eliti', async argv => {
@@ -87,46 +88,42 @@ test('before connecting nothing is written; once connected the waiting query is 
   w.stop()
 })
 
-const NAMED = 'u_NNNNNNNNNNNNNNNNNNNNNN'
-const draftOf = (roomId: string, i: number, asker = NAMED) => ({ roomId, qid: `01K7A${String(i).padStart(21, '0')}`, question: `q${i}`, asker })
+// Second by second: one long jump would pass the toast's quiet before a tick's claims have settled.
+async function tick(w: World, ms: number): Promise<void> {
+  for (let at = 0; at < ms; at += SECOND_MS) await w.host.advance(SECOND_MS)
+}
 
-test('a draft toast names the asker\'s agent and counts its waiting questions', () => {
-  expect(draftToastText({ name: 'Alperen Yıldız', count: 3 })).toBe("Alperen'in agent'ı 3 soru bekletiyor")
-  expect(draftToastText({ name: 'Emre', count: 1 })).toBe("Emre'nin agent'ı 1 soru bekletiyor")
-  expect(draftToastText({ name: '', count: 2 })).toBe('Bir agent 2 soru bekletiyor')
+// Spends the room's day, then puts `n` asks in the peer's outbox, newest last, and names the newest the head.
+async function asksPastLimit(w: World, opts: { roomId: string; n: number }): Promise<void> {
+  await w.host.storeSet('tx.budget', { day: localDay(w.host.clock.now), byRoom: { [opts.roomId]: ASK_DAILY_LIMIT } })
+  let head = ''
+  for (let i = 0; i < opts.n; i++) {
+    const ts = w.host.clock.now + i
+    head = newId(ts)
+    const ask = { v: 1, id: head, ts, kind: 'query', text: `soru ${i}?`, query: { type: 'ask', repo: 'partalemre/eliti', question: `soru ${i}?` } }
+    w.db.docs.set(`outbox/${PEER}/msgs/${head}`, { data: ask, version: 1 })
+  }
+  const headTs = w.host.clock.now + opts.n - 1
+  w.db.docs.set(`outbox/${PEER}`, { data: { v: 1, head, headTs, seenUpTo: '', readUpTo: '', readTs: 0, gh: 'AlperenX' }, version: 2 })
+}
+
+test('a burst of asks past the day limit is told in one toast that says how many wait', async () => {
+  const w = await world({ id: 'RW5' })
+  await asksPastLimit(w, { roomId: 'RW5', n: 3 })
+  await tick(w, 30_000)
+  expect((await loadDrafts(w.host)).length).toBe(3)
+  expect(w.host.toasts.filter(t => t.includes('sınırı doldu'))).toEqual(['Transceiver: günlük soru sınırı doldu, 3 soru onayını bekliyor'])
+  w.stop()
 })
 
-test('only a stored draft toasts, and a burst in one room makes one toast now and one at the window\'s end', async () => {
-  const host = fakeAgent(async () => ({ result: { db_profiles: { profiles: { [NAMED]: { name: 'Alperen Yıldız' } } } } }))
-  await resolveNames(host, { url: 'https://claude.ai/artifact/DT1', uids: [NAMED] })
-  await storeDraft(host, draftOf('DT1', 0))
-  expect(host.toasts).toEqual(["Alperen'in agent'ı 1 soru bekletiyor"])
-  // The same qid again is not a new draft: no toast, ever.
-  await storeDraft(host, draftOf('DT1', 0))
-  await host.advance(DRAFT_TOAST_MS)
-  expect(host.toasts.length).toBe(1)
-  // A burst inside the window: one toast at once, then one at its end with the count by then.
-  await storeDraft(host, draftOf('DT1', 1))
-  await storeDraft(host, draftOf('DT1', 2))
-  await storeDraft(host, draftOf('DT1', 3))
-  expect(host.toasts.length).toBe(2)
-  await host.advance(DRAFT_TOAST_MS - 1)
-  expect(host.toasts.length).toBe(2)
-  await host.advance(1)
-  expect(host.toasts.at(-1)).toBe("Alperen'in agent'ı 4 soru bekletiyor")
-  expect(host.toasts.length).toBe(3)
-  await host.advance(5 * DRAFT_TOAST_MS)
-  expect(host.toasts.length).toBe(3)
-  // Another room has its own window.
-  await storeDraft(host, draftOf('DT2', 4))
-  expect(host.toasts.length).toBe(4)
-})
-
-test('a draft dropped by the per-room cap raises no toast', async () => {
-  const host = fakeAgent(async () => ({}))
-  for (let i = 0; i < MAX_DRAFTS_PER_ROOM; i++) await addDraft(host, draftOf('DT3', i, PEER))
-  await storeDraft(host, draftOf('DT3', MAX_DRAFTS_PER_ROOM, PEER))
-  await host.advance(2 * DRAFT_TOAST_MS)
-  expect(host.toasts).toEqual([])
-  expect((await loadDrafts(host)).length).toBe(MAX_DRAFTS_PER_ROOM)
+test('asks the drafts cannot hold are not told again', async () => {
+  const w = await world({ id: 'RW6' })
+  await asksPastLimit(w, { roomId: 'RW6', n: MAX_DRAFTS_PER_ROOM + 4 })
+  await tick(w, 60_000)
+  const toasts = w.host.toasts.filter(t => t.includes('sınırı doldu'))
+  expect((await loadDrafts(w.host)).length).toBe(MAX_DRAFTS_PER_ROOM)
+  expect(toasts).toEqual([`Transceiver: günlük soru sınırı doldu, ${MAX_DRAFTS_PER_ROOM} soru onayını bekliyor`])
+  await tick(w, 60_000)
+  expect(w.host.toasts.filter(t => t.includes('sınırı doldu')).length).toBe(1)
+  w.stop()
 })

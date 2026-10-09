@@ -10,5 +10,5 @@ export const EMPTY_PANE: PaneModel = {
   invites: [], ghAsk: null, drafts: [], needsSetup: false, isReceiptsOn: true,
   view: 'rooms', isConnected: false, settings: { isReceiptsOn: true, isToastOn: true, isStatusOn: true },
   now: 0, busy: null, created: null, composerKey: 0, canSettleDrafts: false, divider: null, waiting: [], expanded: [],
-  composeMode: null, isSheetOpen: false, hint: null,
+  composeMode: null, isSheetOpen: false, hint: null, sessionRepo: null,
 }

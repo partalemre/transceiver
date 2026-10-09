@@ -57,6 +57,7 @@ const SHOTS: Shot[] = [
   { label: 'error', isBypass: true, presses: ['open-add', 'add-dm'], artifact: () => ({ deny: 'not now' }), sees: 'Oda açılamadı' },
   { label: 'created', isBypass: true, presses: ['open-add', 'add-dm'], sees: 'Linki kopyala' },
   { label: 'add', isBypass: true, presses: ['open-add'], sees: 'Linkle katıl' },
+  { label: 'empty-add', rooms: [], syncs: {}, presses: ['open-add'], sees: 'partalemre/eliti' },
   { label: 'settings', presses: ['open-settings'], sees: 'Okundu bilgisi' },
   { label: 'wide', isBypass: true, presses: ['open-ra'], columns: WIDE, sees: 'Gelirim! Saat kaçta?' },
   { label: 'wide-project', isBypass: true, presses: ['open-re'], columns: WIDE, extra: DRAFT, sees: 'bütçe' },

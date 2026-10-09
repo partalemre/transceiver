@@ -15,6 +15,15 @@ For each item, write the observed result next to it, and paste exact tool texts 
 
 **Already measured (no need to repeat).** These are in `docs/spike-results.md`: reads from a mod need no prompt (R1); the first write of a session needs one approval (R1); the shared list's shape (R3); the error texts for a conflict, an existing doc and a missing doc; and the batch texts, both for message + head and for compaction's deletes (committed delete line, stale delete pin, delete of a doc already gone). `tests/db-texts.ts` holds them word for word.
 
+## Measured solo, 2026-10-09 (one account, engine 2.1.293)
+
+What one person can measure without a second account, on a real room (`claude -p "/transceiver ekle"` in bypass mode, then `ArtifactData` with `as_level`):
+
+- **0.1, bypass half.** `Oda hazır: https://claude.ai/artifact/…` in 2.9 s, no dialog. The page shows "Henüz mesaj yok"; the stored rules are the three of `rooms.ts`; `meta/room` holds `{ v: 1, kind: 'dm', createdAt }`. The normal-mode dialog count is still open.
+- **0.3, platform half.** At `as_level: 'interact'` a write to `outbox/<own uid>/msgs` commits: the `outbox/{self}` `interact` rule lets a guest write their own outbox. The R2 risk is gone at the rule level; the pane's "Bağlan" flow still needs B's run.
+- **0.4.** At `as_level: 'interact'`, writes to `meta` and to `outbox/<another uid>/msgs` are both refused with exactly `no such artifact, collection, or document (or no access — the two are deliberately indistinguishable)`, the text `tests/fake-db.ts` assumes.
+- **Commands.** `/transceiver çık <link>` answers `Transceiver · DM odasından çıkıldı.`; an unknown verb prints the help list.
+
 ## Part 0 · Platform facts still unmeasured
 
 These are the open questions in `docs/progress.md`. The mod depends on each one.
@@ -29,6 +38,8 @@ These are the open questions in `docs/progress.md`. The mod depends on each one.
 | 0.6 | A | **Bypass mode.** Start `claude --permission-mode bypassPermissions` in the eliti clone, `/transceiver`. | No "Bağlan" card; a message goes out with no dialog. | Card shows: `classic.SessionStart` did not carry `permission_mode`. Pressing "Bağlan" still works; record it and leave it. |
 | 0.7 | A | **Composer clears (desktop Code tab).** Send three messages in a row from the pane's composer. | After each send the field is empty and keeps the focus ring. | Text stays in the field: the desktop does not redraw an `Input` whose key changed; report. Field empties but loses focus: note it (known: the key rotates after a send). |
 | 0.8 | A | **R4 live wake, interactive.** A has an idle eliti session with live on (the switch in the project room, item 1.17). B's agent: "transceiver send 'build kırıldı'". | A's session starts a turn by itself and reads the fenced message (`$.session.send` delivered). | No turn, but a toast "Transceiver: proje odasında yeni mesaj var" and a user row: the fallback ran (`isDelivered: false`). Record it; the next step is `$.prompt.submit`. Neither: report. |
+| 0.9 | A | **Delete in a batch (compaction).** In a session, on the spike artifact: `ArtifactData batch` with writes `[{op:'set', collection:'outbox/<A uid>/days', doc_id:'2026-01-01', data:{v:1,ts:1,msgs:[]}}, {op:'delete', collection:'outbox/<A uid>/msgs', doc_id:'<an existing msg id>', if_version:<its version>}]`. Then the same delete again (the doc is gone), pinned to the old version. | First: committed, with a "documents used" line. Second: refused, nothing written. Paste both texts. | First refused: compaction cannot batch deletes; report the text. Second lands or names something else: paste it; `tests/fake-db.ts` assumes a stale-pin refusal. |
+| 0.10 | A | **Rules for the owner.** On a test DM with B in it, ask Claude in A's session: "ArtifactData set on `<room url>`, collection `outbox/<B's uid>/msgs`, doc_id `x`, data `{}`". If it lands, delete that doc the same way. | Lands (paste the text). The db contract (0.2.75) says level rules never limit the artifact's owner and a `{self}` prefix rule must set `write`, so `{ path: 'outbox', write: 'owner' }` is already the narrowest rule that keeps every outbox readable: the owner can write any member's outbox. The intended rule is "each person, the owner included, writes only `outbox/<own uid>`". | **Refused**: the platform already keeps the owner out of a member's outbox; paste the text, and the "Room rules" item in `docs/progress.md` closes with no change. Any other text: paste it. |
 
 ## Part 1 · The T16 walk
 
