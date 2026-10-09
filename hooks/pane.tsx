@@ -16,6 +16,8 @@ export const WIDE_COLUMNS = 104
 const LIST_COLUMNS = 38
 const COLUMN_GAP = 3
 const MIN_COLUMNS = 24
+// With no rooms yet there is nothing to put beside a chat: one column, no wider than reads well.
+const SINGLE_MAX_COLUMNS = 72
 
 export type DrawOpts = {
   surface: RenderSurface
@@ -36,14 +38,11 @@ function MainView(ctx: Ctx): RenderElement | null {
 // With nothing picked, the wide right side says what to do rather than stand empty.
 function Placeholder(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
-  const hasRooms = ctx.model.rooms.length > 0
   return (
     <Box key="placeholder" flexDirection="column" gap={1} paddingTop={2}>
       {Head(ctx, {
-        glyph: 'radio', tone: 'signal', eyebrow: 'Kanal açık',
-        headline: hasRooms ? 'Bir sohbet seç' : 'Telsiz hazır',
-        sub: hasRooms ? 'Soldan bir odaya gir; mesajlar anında burada.' : 'İlk odayı açınca konuşmalar burada akar.',
-        width: pxOf(ctx.columns),
+        glyph: 'radio', tone: 'signal', eyebrow: 'Kanal açık', headline: 'Bir sohbet seç',
+        sub: 'Soldan bir odaya gir; mesajlar anında burada akar.', width: pxOf(ctx.columns),
       })}
     </Box>
   )
@@ -63,7 +62,8 @@ function Wide(ctx: Ctx): RenderElement {
 }
 
 export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
-  const columns = Math.max(MIN_COLUMNS, o.columns)
+  const hasRooms = o.model.rooms.length > 0 || o.model.invites.length > 0
+  const columns = Math.max(MIN_COLUMNS, hasRooms ? o.columns : Math.min(o.columns, SINGLE_MAX_COLUMNS))
   const isWide = columns >= WIDE_COLUMNS
   const look = lookOf({ isText: o.surface === 'terminal' || !('Svg' in ui), isLight: o.isLight })
   const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, model: o.model, on: o.on }

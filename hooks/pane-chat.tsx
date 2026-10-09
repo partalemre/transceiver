@@ -62,7 +62,7 @@ function ProjectBar(ctx: Ctx, room: RoomView): RenderElement | null {
       <Box flexDirection="row" alignItems="center" gap={1} flexWrap="wrap">
         {gate}
         {live}
-        <Button key={`live-${room.id}`} plain label={room.isLive ? 'Canlıyı kapat' : 'Canlıyı aç'} onPress={() => ctx.on.toggleLive(room.id)} />
+        <Button key={`live-${room.id}`} variant="secondary" label={room.isLive ? 'Canlıyı kapat' : 'Canlıyı aç'} onPress={() => ctx.on.toggleLive(room.id)} />
       </Box>
       {Meta(ctx, room.isLive
         ? 'Gelen agent mesajları bu oturumu uyandırır; her uyanış token harcar.'

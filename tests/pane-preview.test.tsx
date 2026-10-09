@@ -42,7 +42,8 @@ const SHOTS: Shot[] = [
   { label: 'settings', presses: ['open-settings'], sees: 'Okundu bilgisi' },
   { label: 'wide', isBypass: true, presses: ['open-ra'], columns: WIDE, sees: 'Gelirim! Saat kaçta?' },
   { label: 'wide-project', isBypass: true, presses: ['open-re'], columns: WIDE, sees: 'erişim yok' },
-  { label: 'wide-empty', rooms: [], syncs: {}, columns: WIDE, sees: 'Telsiz hazır' },
+  { label: 'wide-empty', rooms: [], syncs: {}, columns: WIDE, sees: 'Telsizini aç' },
+  { label: 'wide-rooms', isBypass: true, columns: WIDE, sees: 'Bir sohbet seç' },
 ]
 
 for (const isLight of [false, true]) {
