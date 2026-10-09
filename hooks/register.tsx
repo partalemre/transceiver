@@ -7,6 +7,7 @@ import { isBypassMode, isConnected, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
 import { HUB_PANE, isOpenFor, isSameLine } from './hub'
+import { settleFocus } from './kit/focus'
 import { stamped } from './kit/stamp'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
@@ -124,6 +125,13 @@ function onSession(on: On): void {
     await refreshPane()
     return next(e)
   })
+  // A desktop that comes back keeps showing the tree it had; the engine released that tree's buttons when it
+  // left, so its first click would be refused. Drawing again on attach hands it live buttons.
+  on('session.attach', async ($, e, next) => {
+    const attached = await next(e)
+    $.ui.invalidate('ui.render')
+    return attached
+  })
   // A session started with permissions bypassed may write from the start: no "Bağlan" card (spike R1).
   on('classic.SessionStart', async ($, e, next) => {
     if (isBypassMode(e.permission_mode)) setConnected(true)
@@ -133,6 +141,7 @@ function onSession(on: On): void {
 
 function onPane(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'transceiver' }, async ($, e) => {
+    await settleFocus(e, ms => $.clock.sleep(ms))
     const ui = $.ui.resolve(e)
     const model = (await $.state.get(PANE_STATE)).value ?? EMPTY_PANE
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS
