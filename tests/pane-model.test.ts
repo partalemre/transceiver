@@ -80,3 +80,9 @@ test('times: the clock today, then Dün, then the date', () => {
   expect(rowTime(NOW - 8 * 60_000, NOW)).toBe('14:22')
   expect(rowTime(0, NOW)).toBe('')
 })
+
+test('a draft past the daily limit names its asker, not their uid', () => {
+  const model = buildModel({ ...input(), drafts: [{ roomId: 're', qid: idAt(2), question: 'Neden?', asker: ALPEREN }], canSettleDrafts: true })
+  expect(model.drafts).toEqual([{ roomId: 're', qid: idAt(2), question: 'Neden?', asker: 'Alperen Yıldız' }])
+  expect(model.canSettleDrafts).toBe(true)
+})

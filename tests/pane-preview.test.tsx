@@ -4,7 +4,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { RoomRecord } from '../hooks/rooms'
 import type { RoomSync } from '../hooks/sync'
-import { dmAlperen, dmZeynep, projectEliti, room, ROOMS } from './pane-fixtures'
+import { ALPEREN, dmAlperen, dmZeynep, idAt, projectEliti, room, ROOMS } from './pane-fixtures'
 import { mountPane, paneWorld, startSession, type WorldOpts } from './pane-world'
 
 // The test runner prints console output; the hooks environment's typings have no console.
@@ -24,6 +24,7 @@ type Shot = {
   presses?: string[]
   columns?: number
   artifact?: WorldOpts['artifact']
+  extra?: WorldOpts['extra']
   // A text the drawing must hold.
   sees: string
 }
@@ -38,6 +39,10 @@ const SHOTS: Shot[] = [
   { label: 'project', isBypass: true, presses: ['open-re'], sees: 'erişim yok' },
   { label: 'error', isBypass: true, presses: ['open-add', 'add-dm'], artifact: () => ({ deny: 'not now' }), sees: 'Oda açılamadı' },
   { label: 'created', isBypass: true, presses: ['open-add', 'add-dm'], sees: 'Linki kopyala' },
+  {
+    label: 'draft', isBypass: true, sees: 'Cevapla',
+    extra: { 'tx.drafts': [{ roomId: 're', qid: idAt(2), question: 'Ödeme akışında retry mantığını neden kuyruğa taşıdık?', asker: ALPEREN }] },
+  },
   { label: 'add', isBypass: true, presses: ['open-add'], sees: 'Linkle katıl' },
   { label: 'settings', presses: ['open-settings'], sees: 'Okundu bilgisi' },
   { label: 'wide', isBypass: true, presses: ['open-ra'], columns: WIDE, sees: 'Gelirim! Saat kaçta?' },
@@ -51,7 +56,7 @@ for (const isLight of [false, true]) {
     for (const s of SHOTS) {
       const label = `${s.label}${surface === 'terminal' ? '-terminal' : ''}${isLight ? '-light' : ''}`
       test(`preview: ${label}`, async ($: any, on: any) => {
-        const world = paneWorld(on, { rooms: s.rooms ?? ALL, syncs: s.syncs ?? syncs(), isLight, artifact: s.artifact })
+        const world = paneWorld(on, { rooms: s.rooms ?? ALL, syncs: s.syncs ?? syncs(), isLight, artifact: s.artifact, extra: s.extra })
         await startSession($, world, { isBypass: s.isBypass, surface })
         const ui = await mountPane($, { surface, columns: s.columns ?? NARROW })
         for (const key of s.presses ?? []) await ui.press({ key })

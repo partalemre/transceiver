@@ -135,7 +135,9 @@ export function buildModel(input: ModelInput): PaneModel {
     lines: sync === undefined ? [] : linesOf(sync, input),
     invites: input.rooms.filter(r => r.status === 'invited').map(r => ({ id: r.id, title: r.title, kind: r.kind, repo: r.repo })),
     ghAsk: ghAskOf(input),
-    drafts: input.drafts ?? [], canSettleDrafts: input.canSettleDrafts === true,
+    // A draft names its asker by uid; the pane shows the person's name.
+    drafts: (input.drafts ?? []).map(d => ({ ...d, asker: nameOf(input.names, d.asker) })),
+    canSettleDrafts: input.canSettleDrafts === true,
     isConnected: input.isConnected,
     needsSetup: !input.isConnected && !input.session.isConnectDismissed && hasSynced,
     settings: { isReceiptsOn: input.settings.isReceiptsOn, isToastOn: input.settings.isToastOn, isStatusOn: input.settings.isStatusOn },

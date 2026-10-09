@@ -23,6 +23,7 @@ const SAY = {
   failed: 'Bir şey ters gitti; birazdan tekrar dene.',
   badRepo: 'Repo adını sahip/repo biçiminde yaz (ör. partalemre/eliti).',
   badLink: 'claude.ai/artifact/… biçiminde bir oda linki yapıştır.',
+  draftWaits: 'Önce "Bağlan": cevap bu oturumdan gönderilir.',
 }
 
 type Step = (p: PanePort) => Promise<void>
@@ -178,5 +179,8 @@ export const paneHandlers: PaneHandlers = {
   copy: (text, surface) => run(p => copy(p, { text, surface })),
   dismissCreated: () => run(async () => patchSession({ created: null })),
   dismissError: () => run(async () => patchSession({ error: null })),
-  settleDraft: (qid, isApproved) => run(async () => { await draftSettlerNow()?.(qid, isApproved) }),
+  settleDraft: (qid, isApproved) => run(async () => {
+    const isDone = await draftSettlerNow()?.(qid, isApproved)
+    if (isDone === false && !isConnected()) patchSession({ error: SAY.draftWaits })
+  }),
 }

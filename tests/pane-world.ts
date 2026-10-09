@@ -15,6 +15,8 @@ export type WorldOpts = {
   isShown?: boolean
   // Answers the Artifact tool (publish, list); the default publishes and lists nothing.
   artifact?: (input: Record<string, unknown>) => CallResult
+  // More store entries, as other parts of the mod keep them (drafts, settings).
+  extra?: Record<string, unknown>
 }
 
 export type World = {
@@ -69,6 +71,7 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
   const dbOf = (url: unknown) => dbs.get(String(url)) ?? db
   const store: Record<string, unknown> = { 'tx.rooms': o.rooms ?? [] }
   for (const [id, sync] of Object.entries(o.syncs ?? {})) store[`tx.sync.${id}`] = sync
+  Object.assign(store, o.extra ?? {})
   // The store in the open, so a test reads what the plugin saved.
   on('store.get', (_$: unknown, e: { key: string }) => ({ value: clone(store[e.key]) }))
   on('store.set', (_$: unknown, e: { key: string; value: unknown }) => { store[e.key] = clone(e.value); return { value: undefined } })
