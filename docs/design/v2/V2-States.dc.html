@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Transceiver v2 durumlar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+@keyframes txw{0%{opacity:.12}50%{opacity:1}100%{opacity:.12}}
+.txw1{animation:txw 1.8s ease-in-out infinite}
+.txw2{animation:txw 1.8s ease-in-out .3s infinite}
+.txw3{animation:txw 1.8s ease-in-out .6s infinite}
+@media (prefers-reduced-motion: reduce){.txw1,.txw2,.txw3{animation:none}}
+</style>
+</helmet>
+<div style="width: 1120px; height: 700px; box-sizing: border-box; padding: 24px; background: #121211; color: #F0EEE8; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 20px">
+
+  <section style="background: #191917; border: 1px solid #2E2E2A; border-radius: 16px; padding: 20px; display: flex; gap: 20px">
+    <div style="width: 132px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: #1A2E2B; border: 1px solid #2E5650">
+      <svg width="96" height="96" viewBox="0 0 96 96" fill="none" stroke="#5CC8B8" stroke-width="2.4" stroke-linecap="round">
+        <circle cx="48" cy="48" r="6" fill="#5CC8B8" stroke="none"></circle>
+        <path class="txw1" d="M37 37a15.5 15.5 0 0 0 0 22M59 37a15.5 15.5 0 0 1 0 22"></path>
+        <path class="txw2" d="M28 28a28 28 0 0 0 0 40M68 28a28 28 0 0 1 0 40"></path>
+        <path class="txw3" d="M19 19a41 41 0 0 0 0 58M77 19a41 41 0 0 1 0 58"></path>
+      </svg>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+      <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #5CC8B8">BAŞLA</span>
+      <span style="font-size: 20px; font-weight: 650; line-height: 1.2">Telsizini aç</span>
+      <span style="color: #C2BEB4; line-height: 1.5">Arkadaşlarınla Claude'un içinden yazış. Ortak bir GitHub reposunda agent'larınız da konuşur, taşıma token harcamaz.</span>
+      <ol style="margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C2BEB4">
+        <li style="display: flex; gap: 8px; align-items: center"><span style="width: 20px; height: 20px; border-radius: 10px; background: #5CC8B8; color: #11201E; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span>Oda aç</li>
+        <li style="display: flex; gap: 8px; align-items: center"><span style="width: 20px; height: 20px; border-radius: 10px; border: 1px solid #45443F; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-sizing: border-box">2</span>Linki e-postayla paylaş</li>
+        <li style="display: flex; gap: 8px; align-items: center"><span style="width: 20px; height: 20px; border-radius: 10px; border: 1px solid #45443F; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-sizing: border-box">3</span>Yazış</li>
+      </ol>
+      <div style="flex-grow: 1"></div>
+      <div style="display: flex; gap: 8px">
+        <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: none; background: #5CC8B8; color: #11201E; font: inherit; font-size: 13px; font-weight: 650">Arkadaş ekle</button>
+        <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #45443F; background: transparent; color: #F0EEE8; font: inherit; font-size: 13px">Proje odası</button>
+        <button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: none; background: transparent; color: #C2BEB4; font: inherit; font-size: 13px">Linkle katıl</button>
+      </div>
+    </div>
+  </section>
+
+  <section style="background: #191917; border: 1px solid #2E5650; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="width: 36px; height: 36px; border-radius: 9px; background: #1A2E2B; border: 1px solid #2E5650; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#5CC8B8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 10.5 10.5 7.5"></path><path d="M8.6 4.4 10 3a3.2 3.2 0 0 1 4.5 4.5l-1.4 1.4M9.4 13.6 8 15a3.2 3.2 0 0 1-4.5-4.5l1.4-1.4"></path></svg>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #5CC8B8">BU OTURUM</span>
+        <span style="font-size: 17px; font-weight: 620">Bağlan</span>
+      </span>
+      <span style="margin-left: auto; font-size: 12px; color: #8E8A80">2 mesaj bekliyor</span>
+    </div>
+    <span style="color: #C2BEB4; line-height: 1.5">Okumak serbest. Yazmak için Claude oturum başına bir kez izin ister; Bağlan'a basınca o soru gelir, sonra bu oturum boyunca sormaz.</span>
+    <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: #171715; border: 1px dashed #2E5650">
+      <div style="display: flex; justify-content: space-between; font-size: 13px"><span>Geliyorum, 8'de oradayım.</span><span style="color: #8E8A80">bekliyor</span></div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px"><span>Sende de mi oluyor?</span><span style="color: #8E8A80">bekliyor</span></div>
+    </div>
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; gap: 8px; align-items: center">
+      <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: none; background: #5CC8B8; color: #11201E; font: inherit; font-size: 13px; font-weight: 650">Bağlan ve gönder</button>
+      <button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: none; background: transparent; color: #C2BEB4; font: inherit; font-size: 13px">Şimdi değil</button>
+    </div>
+  </section>
+
+  <section style="background: #191917; border: 1px solid #2E2E2A; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="position: relative; width: 44px; height: 44px">
+        <span style="position: absolute; inset: 0; border-radius: 22px; background: #38251D; border: 1px solid #6A3E2D; display: flex; align-items: center; justify-content: center; font-weight: 650; font-size: 15px; color: #E58A5F">E</span>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #7FB6E8">YENİ DAVET</span>
+        <span style="font-size: 17px; font-weight: 620">Emre seninle yazışmak istiyor</span>
+      </span>
+    </div>
+    <span style="color: #C2BEB4; line-height: 1.5">Kabul edersen birbirinize buradan yazarsınız. Projelerin, oturumların ve klasörlerin hakkında hiçbir şey paylaşılmaz.</span>
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E8A80">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8E8A80" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="10" height="10" rx="2.5"></rect><path d="M5 7h4"></path></svg>
+      <span>claude.ai/artifact/…bWx2 · Doğrudan mesaj · 2 dk önce</span>
+    </div>
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="height: 36px; padding: 0 18px; border-radius: 8px; border: none; background: #5CC8B8; color: #11201E; font: inherit; font-size: 13px; font-weight: 650">Kabul et</button>
+      <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid #45443F; background: transparent; color: #F0EEE8; font: inherit; font-size: 13px">Reddet</button>
+    </div>
+  </section>
+
+  <section style="background: #191917; border: 1px solid #2E2E2A; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="width: 36px; height: 36px; border-radius: 9px; background: #232320; border: 1px solid #2E2E2A; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#C2BEB4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.6"></circle><path d="M3 13.5c.8-2.4 2.8-3.6 5-3.6s4.2 1.2 5 3.6"></path></svg>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80">GITHUB EŞLEŞMESİ · BİR KEZ</span>
+        <span style="font-size: 17px; font-weight: 620">Alperen GitHub'da <span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #5CC8B8">@alperenx</span> mı?</span>
+      </span>
+    </div>
+    <span style="color: #C2BEB4; line-height: 1.5">Evet dersen ortak repolarınızda agent'larınız konuşabilir. Collaborator olmadığı repolar kapalı kalır.</span>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <span style="height: 24px; padding: 0 10px; border-radius: 12px; background: #1B2F25; border: 1px solid #2F5A42; color: #6FC593; font-size: 12px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 3px; background: #6FC593"></span>eliti · collaborator</span>
+      <span style="height: 24px; padding: 0 10px; border-radius: 12px; background: #232320; border: 1px solid #2E2E2A; color: #8E8A80; font-size: 12px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 3px; background: #45443F"></span>tahminx · değil</span>
+    </div>
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="height: 36px; padding: 0 18px; border-radius: 8px; border: none; background: #5CC8B8; color: #11201E; font: inherit; font-size: 13px; font-weight: 650">Evet, o</button>
+      <button type="button" style="height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid #45443F; background: transparent; color: #F0EEE8; font: inherit; font-size: 13px">Hayır</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1120,"height":700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

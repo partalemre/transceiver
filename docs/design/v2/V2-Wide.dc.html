@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Transceiver v2 geniş pane</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#B19CF3}a:hover{color:#CDBEF7}
+@keyframes txw{0%{opacity:.15}50%{opacity:1}100%{opacity:.15}}
+.txw1{animation:txw 1.8s ease-in-out infinite}
+.txw2{animation:txw 1.8s ease-in-out .3s infinite}
+@media (prefers-reduced-motion: reduce){.txw1,.txw2{animation:none}}
+</style>
+</helmet>
+<div style="width: 1120px; height: 720px; box-sizing: border-box; display: flex; background: #191917; color: #F0EEE8; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 14px">
+
+  <nav style="width: 292px; flex-shrink: 0; display: flex; flex-direction: column; background: #171715; border-right: 1px solid #2E2E2A">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px">
+      <span style="width: 36px; height: 36px; border-radius: 9px; background: #1A2E2B; border: 1px solid #2E5650; display: flex; align-items: center; justify-content: center">
+        <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="#5CC8B8" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="1.2" fill="#5CC8B8" stroke="none"></circle><path class="txw1" d="M4.6 4.6a3.4 3.4 0 0 0 0 4.8M9.4 4.6a3.4 3.4 0 0 1 0 4.8"></path><path class="txw2" d="M2.6 2.6a6.2 6.2 0 0 0 0 8.8M11.4 2.6a6.2 6.2 0 0 1 0 8.8"></path></svg>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #5CC8B8">TRANSCEIVER</span>
+        <span style="font-size: 17px; font-weight: 620">Sohbetler</span>
+      </span>
+      <button type="button" aria-label="Yeni sohbet" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #45443F; background: transparent; display: flex; align-items: center; justify-content: center; padding: 0">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#C2BEB4" stroke-width="1.75" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"></path></svg>
+      </button>
+    </div>
+
+    <div style="padding: 10px 16px 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80">PROJELER</div>
+    <a href="V2-Project.dc.html" style="display: flex; gap: 10px; align-items: center; margin: 0 8px; padding: 9px 8px; border-radius: 10px; background: #232320; color: #F0EEE8; text-decoration: none">
+      <span style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 9px; background: #29243D; border: 1px solid #4A3F75; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#B19CF3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="3.5" r="1.6"></circle><circle cx="4" cy="12.5" r="1.6"></circle><circle cx="12" cy="5.5" r="1.6"></circle><path d="M4 5.1v5.8M12 7.1c0 2.6-3.2 2.6-6.6 3.8"></path></svg>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0">
+        <span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px">eliti</span><span style="font-size: 11.5px; color: #8E8A80">14:21</span></span>
+        <span style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #C2BEB4"><span style="width: 6px; height: 6px; border-radius: 3px; background: #6FC593; flex-shrink: 0"></span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">kapı açık · 3 agent sorusu</span></span>
+      </span>
+    </a>
+    <a href="#" style="display: flex; gap: 10px; align-items: center; margin: 2px 8px 0; padding: 9px 8px; border-radius: 10px; color: #F0EEE8; text-decoration: none">
+      <span style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 9px; background: #232320; border: 1px solid #2E2E2A; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#8E8A80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="3.5" r="1.6"></circle><circle cx="4" cy="12.5" r="1.6"></circle><circle cx="12" cy="5.5" r="1.6"></circle><path d="M4 5.1v5.8M12 7.1c0 2.6-3.2 2.6-6.6 3.8"></path></svg>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0">
+        <span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px">tahminx</span><span style="font-size: 11.5px; color: #8E8A80">Dün</span></span>
+        <span style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #8E8A80"><span style="width: 6px; height: 6px; border-radius: 3px; background: #45443F; flex-shrink: 0"></span>kapı kapalı · GitHub eşleşmesi yok</span>
+      </span>
+    </a>
+
+    <div style="padding: 16px 16px 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80">KİŞİLER</div>
+    <a href="V2-DM.dc.html" style="display: flex; gap: 10px; align-items: center; margin: 0 8px; padding: 9px 8px; border-radius: 10px; color: #F0EEE8; text-decoration: none">
+      <span style="position: relative; width: 36px; height: 36px; flex-shrink: 0">
+        <span style="position: absolute; inset: 0; border-radius: 18px; background: #1E2B37; border: 1px solid #2F4A63; display: flex; align-items: center; justify-content: center; font-weight: 650; font-size: 13px; color: #7FB6E8">AY</span>
+        <span style="position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 6px; background: #6FC593; border: 2px solid #171715"></span>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0">
+        <span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 650">Alperen Yıldız</span><span style="font-size: 11.5px; color: #5CC8B8; font-weight: 600">14:19</span></span>
+        <span style="display: flex; justify-content: space-between; align-items: center; gap: 8px"><span style="font-size: 12.5px; color: #F0EEE8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Bu arada yeni branch'i pushladım…</span><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #5CC8B8; color: #11201E; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center">2</span></span>
+      </span>
+    </a>
+    <a href="#" style="display: flex; gap: 10px; align-items: center; margin: 2px 8px 0; padding: 9px 8px; border-radius: 10px; color: #F0EEE8; text-decoration: none">
+      <span style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 18px; background: #351F2E; border: 1px solid #6B3A5C; display: flex; align-items: center; justify-content: center; font-weight: 650; font-size: 13px; color: #E07BC0">Z</span>
+      <span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0">
+        <span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600">Zeynep</span><span style="font-size: 11.5px; color: #8E8A80">Dün</span></span>
+        <span style="display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: #8E8A80"><svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="#7FB6E8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5.5 4 8.5 10 1.5M7 8.5 13.5 1.5"></path></svg><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Teşekkürler, okudum, çok iyi olmuş</span></span>
+      </span>
+    </a>
+
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #2E2E2A; font-size: 12px; color: #8E8A80">
+      <span style="width: 7px; height: 7px; border-radius: 4px; background: #5CC8B8"></span>
+      <span>Bağlı · yoklama 1 sn</span>
+      <a href="#" style="margin-left: auto; color: #C2BEB4; text-decoration: none">Ayarlar</a>
+    </div>
+  </nav>
+
+  <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 10px; padding: 14px 20px 12px; border-bottom: 1px solid #2E2E2A">
+      <span style="font-weight: 620; font-size: 15px; font-family: ui-monospace, 'SF Mono', Menlo, monospace">partalemre/eliti</span>
+      <span style="font-size: 12px; color: #8E8A80">Proje odası · sen ve Alperen</span>
+    </header>
+    <div style="flex-grow: 1; min-height: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow: hidden">
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80"><span style="flex-grow: 1; height: 1px; background: #2E2E2A"></span>BUGÜN<span style="flex-grow: 1; height: 1px; background: #2E2E2A"></span></div>
+      <div style="display: flex; gap: 8px; align-items: flex-end">
+        <span style="width: 24px; height: 24px; flex-shrink: 0; border-radius: 12px; background: #1E2B37; border: 1px solid #2F4A63; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: #7FB6E8">AY</span>
+        <div style="max-width: 70%; background: #1F1F1C; border: 1px solid #2E2E2A; border-radius: 16px 16px 16px 6px; padding: 9px 12px 7px">
+          <div style="line-height: 1.45">Ödeme akışını ayrı branch'e aldım.</div>
+          <div style="text-align: right; font-size: 11px; color: #8E8A80; margin-top: 2px">13:55</div>
+        </div>
+      </div>
+      <section style="align-self: flex-end; width: 76%; border-radius: 14px; background: #1F1F1C; border: 1px solid #4A3F75; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B19CF3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="2.5"></rect><path d="M8 2.2V5M6 9h.01M10 9h.01"></path></svg>
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #B19CF3">SENİN AGENT'IN SORDU</span>
+          <span style="height: 20px; padding: 0 8px; border-radius: 10px; background: #29243D; border: 1px solid #4A3F75; font-size: 11px; font-weight: 600; color: #B19CF3; display: flex; align-items: center; font-family: ui-monospace, 'SF Mono', Menlo, monospace">ask</span>
+          <span style="margin-left: auto; font-size: 11px; color: #8E8A80">14:00</span>
+        </div>
+        <div style="padding: 0 12px 10px; line-height: 1.45">Yeni branch neyi değiştiriyor? Test durumu ne?</div>
+        <div style="display: flex; gap: 10px; padding: 10px 12px 12px; background: #171715; border-top: 1px solid #2E2E2A">
+          <span style="width: 2px; border-radius: 1px; background: #4A3F75; flex-shrink: 0"></span>
+          <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1">
+            <div style="font-size: 11.5px; color: #C2BEB4"><span style="font-weight: 600">Alperen'in agent'ı</span><span style="color: #8E8A80"> · 312 token · 2,1 sn</span></div>
+            <div style="line-height: 1.45">feat/odeme-akisi: ödeme adımı tek ekrana indi, Stripe webhook'u kuyruktan geçiyor. Testler 128 geçti, 0 kaldı.</div>
+          </div>
+        </div>
+      </section>
+      <section style="width: 76%; border-radius: 14px; background: #1F1F1C; border: 1px solid #2E2E2A; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #B19CF3">ALPEREN'İN AGENT'I SORDU</span>
+          <span style="height: 20px; padding: 0 8px; border-radius: 10px; background: #29243D; border: 1px solid #4A3F75; font-size: 11px; font-weight: 600; color: #B19CF3; display: flex; align-items: center; font-family: ui-monospace, 'SF Mono', Menlo, monospace">diff</span>
+          <span style="margin-left: auto; font-size: 11px; color: #8E8A80">14:12</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px 12px; background: #171715; border-top: 1px solid #2E2E2A; font-size: 12px">
+          <span style="font-weight: 600; color: #C2BEB4">Bu makine cevapladı</span>
+          <span style="height: 18px; padding: 0 7px; border-radius: 9px; background: #1A2E2B; border: 1px solid #2E5650; color: #5CC8B8; font-size: 10.5px; font-weight: 700; display: flex; align-items: center">0 token</span>
+          <span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #C2BEB4">3 dosya <span style="color: #6FC593">+41</span> <span style="color: #F2727F">−12</span></span>
+          <a href="#" style="margin-left: auto; font-weight: 600; text-decoration: none">Göster</a>
+        </div>
+      </section>
+      <div style="width: 76%; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: #3B2023; border: 1px solid #74343C">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#F2727F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="2"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg>
+        <span style="font-size: 12.5px">Alperen'in agent'ı <span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #F2727F">.env</span> istedi</span>
+        <span style="margin-left: auto; font-size: 12px; font-weight: 600; color: #F2727F">erişim yok</span>
+        <span style="font-size: 11px; color: #8E8A80">14:21</span>
+      </div>
+    </div>
+    <form style="flex-shrink: 0; padding: 10px 20px 16px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #2E2E2A">
+      <div style="display: flex; gap: 6px; align-items: center">
+        <span style="font-size: 11.5px; color: #8E8A80; margin-right: 2px">Agent'ına sor</span>
+        <button type="button" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #4A3F75; background: #29243D; color: #B19CF3; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px">status</button>
+        <button type="button" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #4A3F75; background: #29243D; color: #B19CF3; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px">diff</button>
+        <button type="button" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #4A3F75; background: #29243D; color: #B19CF3; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px">tests</button>
+        <button type="button" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #4A3F75; background: #29243D; color: #B19CF3; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px">log</button>
+        <button type="button" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #4A3F75; background: #29243D; color: #B19CF3; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px">plan</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center">
+        <label for="wmsg2" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Odaya mesaj</label>
+        <input id="wmsg2" type="text" placeholder="Odaya yaz, /ask ile agent'a sor" style="flex-grow: 1; min-width: 0; height: 44px; box-sizing: border-box; border-radius: 22px; border: 1px solid #45443F; background: #171715; color: #F0EEE8; padding: 0 16px; font: inherit">
+        <button type="submit" aria-label="Gönder" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 22px; border: none; background: #5CC8B8; display: flex; align-items: center; justify-content: center; padding: 0">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#11201E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h10.5M10 5l4 4-4 4"></path></svg>
+        </button>
+      </div>
+    </form>
+  </main>
+
+  <aside style="width: 268px; flex-shrink: 0; border-left: 1px solid #2E2E2A; padding: 18px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+    <section style="display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6FC593" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.8 13 3.6v4c0 3.1-2.1 5.4-5 6.6-2.9-1.2-5-3.5-5-6.6v-4z"></path><path d="m5.6 8 1.7 1.7L10.6 6.4"></path></svg>
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #6FC593">KAPI AÇIK · 4/4</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+        <div style="display: flex; gap: 8px; align-items: center"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#6FC593" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7.2 2.6 2.6L11 4.4"></path></svg>Alperen onaylı</div>
+        <div style="display: flex; gap: 8px; align-items: center"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#6FC593" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7.2 2.6 2.6L11 4.4"></path></svg><span><span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace">@alperenx</span> collaborator</span></div>
+        <div style="display: flex; gap: 8px; align-items: center"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#6FC593" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7.2 2.6 2.6L11 4.4"></path></svg>Bu oturumun reposu</div>
+        <div style="display: flex; gap: 8px; align-items: center"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#6FC593" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7.2 2.6 2.6L11 4.4"></path></svg>Proje odası</div>
+      </div>
+      <span style="font-size: 11.5px; color: #8E8A80">GitHub 3 dk önce kontrol edildi</span>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid #2E2E2A">
+      <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80">ASK BÜTÇESİ</span>
+      <div style="display: flex; align-items: baseline; gap: 6px"><span style="font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums">3</span><span style="color: #8E8A80">/ 10 bugün</span></div>
+      <div style="display: flex; gap: 3px"><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #B19CF3"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #B19CF3"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #B19CF3"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span><span style="flex-grow: 1; height: 6px; border-radius: 3px; background: #34332F"></span></div>
+      <span style="font-size: 11.5px; color: #8E8A80">Gece yarısı sıfırlanır. Dolunca cevap taslağa düşer.</span>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid #2E2E2A">
+      <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80">BUGÜN</span>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 10px; background: #171715"><span style="font-size: 18px; font-weight: 650">14</span><span style="font-size: 11px; color: #8E8A80">sorgu</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 10px; background: #171715"><span style="font-size: 18px; font-weight: 650; color: #5CC8B8">13</span><span style="font-size: 11px; color: #8E8A80">0 token</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 10px; background: #171715"><span style="font-size: 18px; font-weight: 650; color: #F2727F">1</span><span style="font-size: 11px; color: #8E8A80">reddedildi</span></div>
+      </div>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid #2E2E2A">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80">CANLI MOD</span>
+        <button type="button" aria-pressed="false" aria-label="Canlı mod" style="margin-left: auto; width: 36px; height: 20px; border-radius: 10px; border: none; background: #34332F; position: relative; padding: 0"><span style="position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 7px; background: #8E8A80"></span></button>
+      </div>
+      <span style="font-size: 12px; color: #C2BEB4; line-height: 1.45">Açıkken gelen agent mesajı bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.</span>
+    </section>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1120,"height":720}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Transceiver v2 DM</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#5CC8B8}a:hover{color:#8FE0D4}
+@keyframes txw{0%{opacity:.15}50%{opacity:1}100%{opacity:.15}}
+.txw1{animation:txw 1.8s ease-in-out infinite}
+.txw2{animation:txw 1.8s ease-in-out .3s infinite}
+@media (prefers-reduced-motion: reduce){.txw1,.txw2{animation:none}}
+</style>
+</helmet>
+<div style="width: 440px; height: 880px; box-sizing: border-box; display: flex; flex-direction: column; background: #191917; color: #F0EEE8; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 14px">
+  <header style="display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; flex-shrink: 0">
+    <button type="button" aria-label="Odalar" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #2E2E2A; background: transparent; color: #C2BEB4; display: flex; align-items: center; justify-content: center; padding: 0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#C2BEB4" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"></path></svg>
+    </button>
+    <span style="position: relative; width: 40px; height: 40px; flex-shrink: 0">
+      <span style="position: absolute; inset: 0; border-radius: 20px; background: #1E2B37; border: 1px solid #2F4A63; display: flex; align-items: center; justify-content: center; font-weight: 650; font-size: 14px; color: #7FB6E8">AY</span>
+      <span style="position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 6px; background: #6FC593; border: 2px solid #191917"></span>
+    </span>
+    <span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0">
+      <span style="font-weight: 620; font-size: 15px">Alperen Yıldız</span>
+      <span style="font-size: 12px; color: #6FC593">burada · 1 dk önce okudu</span>
+    </span>
+    <span style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 12px; background: #1A2E2B; border: 1px solid #2E5650; font-size: 11.5px; font-weight: 600; color: #5CC8B8">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#5CC8B8" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="1.3" fill="#5CC8B8" stroke="none"></circle><path class="txw1" d="M4.6 4.6a3.4 3.4 0 0 0 0 4.8M9.4 4.6a3.4 3.4 0 0 1 0 4.8"></path><path class="txw2" d="M2.6 2.6a6.2 6.2 0 0 0 0 8.8M11.4 2.6a6.2 6.2 0 0 1 0 8.8"></path></svg>
+      0,7 sn
+    </span>
+  </header>
+  <div style="height: 1px; background: #2E2E2A; margin: 0 16px"></div>
+
+  <div style="flex-grow: 1; min-height: 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80"><span style="flex-grow: 1; height: 1px; background: #2E2E2A"></span>DÜN<span style="flex-grow: 1; height: 1px; background: #2E2E2A"></span></div>
+
+    <div style="align-self: flex-start; max-width: 78%; background: #1F1F1C; border: 1px solid #2E2E2A; border-radius: 16px 16px 16px 6px; padding: 9px 12px 7px">
+      <div style="line-height: 1.45">Yarın deploy'dan önce bir bakar mısın? PR açık.</div>
+      <div style="text-align: right; font-size: 11px; color: #8E8A80; font-variant-numeric: tabular-nums; margin-top: 2px">18:30</div>
+    </div>
+    <div style="align-self: flex-end; max-width: 78%; background: #1A2E2B; border: 1px solid #2E5650; border-radius: 16px 16px 6px 16px; padding: 9px 12px 7px; margin-top: 8px">
+      <div style="line-height: 1.45">Tabii, sabah ilk iş.</div>
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 11px; color: #8E8A80; font-variant-numeric: tabular-nums; margin-top: 2px">18:33
+        <svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="#7FB6E8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5.5 4 8.5 10 1.5M7 8.5 13.5 1.5"></path></svg>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #8E8A80"><span style="flex-grow: 1; height: 1px; background: #2E2E2A"></span>BUGÜN<span style="flex-grow: 1; height: 1px; background: #2E2E2A"></span></div>
+
+    <div style="align-self: flex-end; max-width: 78%; background: #1A2E2B; border: 1px solid #2E5650; border-radius: 16px 16px 6px 16px; padding: 9px 12px 7px">
+      <div style="line-height: 1.45">Baktım, iki küçük yorum bıraktım. Gerisi temiz.</div>
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 11px; color: #8E8A80; font-variant-numeric: tabular-nums; margin-top: 2px">12:55
+        <svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="#7FB6E8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5.5 4 8.5 10 1.5M7 8.5 13.5 1.5"></path></svg>
+      </div>
+    </div>
+
+    <div style="align-self: flex-start; max-width: 78%; background: #1F1F1C; border: 1px solid #2E2E2A; border-radius: 16px 16px 16px 6px; padding: 9px 12px 7px; margin-top: 8px">
+      <div style="line-height: 1.45">Süper, düzelttim bile.</div>
+    </div>
+    <div style="align-self: flex-start; max-width: 78%; background: #1F1F1C; border: 1px solid #2E2E2A; border-radius: 6px 16px 16px 6px; padding: 9px 12px 7px">
+      <div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; margin-bottom: 6px; border-radius: 8px; background: #171715; border-left: 2px solid #5CC8B8">
+        <span style="font-size: 11.5px; font-weight: 600; color: #5CC8B8">Sen</span>
+        <span style="font-size: 12.5px; color: #C2BEB4">Baktım, iki küçük yorum bıraktım…</span>
+      </div>
+      <div style="line-height: 1.45">İkincisine katılmıyorum ama sorun değil, bırakalım.</div>
+      <div style="text-align: right; font-size: 11px; color: #8E8A80; font-variant-numeric: tabular-nums; margin-top: 2px">13:10</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; font-size: 11px; font-weight: 650; color: #5CC8B8"><span style="flex-grow: 1; height: 1px; background: #2E5650"></span>2 yeni mesaj<span style="flex-grow: 1; height: 1px; background: #2E5650"></span></div>
+
+    <div style="align-self: flex-start; max-width: 78%; background: #1F1F1C; border: 1px solid #2E2E2A; border-radius: 16px 16px 16px 6px; padding: 9px 12px 7px">
+      <div style="line-height: 1.45">Akşam maça geliyor musun?</div>
+    </div>
+    <div style="align-self: flex-start; max-width: 78%; background: #1F1F1C; border: 1px solid #2E2E2A; border-radius: 6px 16px 16px 6px; padding: 9px 12px 7px">
+      <div style="line-height: 1.45">Bu arada yeni branch'i pushladım; eliti odasından agent'ına sorabilirsin.</div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #29243D; border: 1px solid #4A3F75">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B19CF3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="4" r="1.6"></circle><circle cx="4" cy="12" r="1.6"></circle><circle cx="12" cy="6" r="1.6"></circle><path d="M4 5.6v4.8M12 7.6c0 2.4-3 2.4-6.4 3.4"></path></svg>
+        <span style="flex-grow: 1; font-size: 12.5px; color: #F0EEE8; font-family: ui-monospace, 'SF Mono', Menlo, monospace">partalemre/eliti</span>
+        <a href="V2-Project.dc.html" style="font-size: 12.5px; font-weight: 600; color: #B19CF3; text-decoration: none">Odaya git</a>
+      </div>
+      <div style="text-align: right; font-size: 11px; color: #8E8A80; font-variant-numeric: tabular-nums; margin-top: 4px">14:19</div>
+    </div>
+
+    <div style="align-self: flex-end; max-width: 78%; background: #1A2E2B; border: 1px dashed #2E5650; border-radius: 16px 16px 6px 16px; padding: 9px 12px 7px; margin-top: 8px; opacity: 0.8">
+      <div style="line-height: 1.45">Geliyorum, 8'de oradayım.</div>
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 11px; color: #8E8A80; margin-top: 2px">gönderiliyor
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#8E8A80" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="4.5"></circle><path d="M6 3.5V6l1.6 1"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <form style="flex-shrink: 0; padding: 10px 16px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #2E2E2A">
+    <div style="display: flex; gap: 8px; align-items: center">
+      <label for="dmmsg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Mesaj</label>
+      <input id="dmmsg" type="text" placeholder="Alperen'e yaz" style="flex-grow: 1; min-width: 0; height: 44px; box-sizing: border-box; border-radius: 22px; border: 1px solid #45443F; background: #171715; color: #F0EEE8; padding: 0 16px; font: inherit">
+      <button type="submit" aria-label="Gönder" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 22px; border: none; background: #5CC8B8; display: flex; align-items: center; justify-content: center; padding: 0">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#11201E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h10.5M10 5l4 4-4 4"></path></svg>
+      </button>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: #8E8A80; padding: 0 6px">
+      <span>Enter gönderir</span>
+      <span>okundu bilgisi açık</span>
+    </div>
+  </form>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":440,"height":880}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
