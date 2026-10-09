@@ -21,6 +21,7 @@ Branch `claude/desktop-modes-transceiver-dev-urqs30` (based on `feat/transceiver
 | T16 simulated E2E | done (real run pending) | `957acf0` | 309 |
 | Release polish | done | `4937999` | 309 |
 | Review pass | done | `cb5e13c` | 356 (all pass at the final check) |
+| House-rule pass | done | `a51e2ea`, `a5ce752`, `65307d0` | 386 |
 
 ## T4 review fixes
 
@@ -250,7 +251,15 @@ Fixed from the review pass's "Reported" list:
 
 Reported, not fixed:
 
-- `kit/` (`ui.tsx` `Eyebrow`, `HeaderBlock`, `Card`, `ButtonRow`, `Highlight`, `StatRow`, `Meter`, `Pill`; `svg-metrics.ts` `wrapText`) takes 4 params by the kit's own `(ui, surface, isLight, opts)` convention. The folder is the shared MODZ kit, identical to `MODZ/kit` and copied in by `bin/kit-sync`, so a local edit would be lost on the next sync; a change belongs in `MODZ/kit`.
-- Nested ternaries remain in 28 places outside `kit/` (among them `actions.ts`, `github.ts`, `pane-*.tsx`, `sig-*.ts`, `query-menu.ts`, `view-lines.ts`, `when.ts`). They were not in this pass's scope.
+- `kit/` helpers over 3 params and the nested ternaries outside `kit/`: both fixed in the house-rule pass below.
+
+At the end of this pass 386 tests pass, `tsc` is clean and `claude plugin validate .` passes.
+
+## House-rule pass
+
+Both items the cleanup pass reported are done.
+
+1. **Kit parameters** (MODZ `622797f`, `2ef71d2`; pulled here in `a51e2ea`). The element helpers (`Eyebrow`, `HeaderBlock`, `Card`, `ButtonRow`, `Highlight`, `StatRow`, `Meter`, `Pill`) take `(draw, opts)`, where `draw` is `{ ui, surface, isLight }` (`DrawCtx` in `kit/ui.tsx`), and `wrapText` takes `(text, { max, maxLines, measure })`. The change was made in `MODZ/kit` and copied in with `bin/kit-sync`, so `hooks/kit` is still byte-identical to it. The kit's own five nested ternaries went in the same MODZ pass. The pane's one kit call, `ButtonRow` in `pane-forms.tsx`, passes `{ ui, surface, isLight: look.isLight }`.
+2. **Nested ternaries** (`a5ce752` pane, `65307d0` the rest). Every chain outside `hooks/kit` is now an early-return helper (`agentOf`, `extraOf`, `markOf`, `pendingStatus`, `Face`, `connectLabel`, `frameTone`, `rowGlyph`, `answererOf`, `tokensOf`, `gateText`, `requireSpec`, `argHint`, `squarePaint`, `altMark`, `flatOf`, `rowTime`, `connectError`, `rowsIn`), a lookup table (`TICKS`, `GATE_DOT`, `TICK_WORD`, `URL_SAFE`) or a named step (`titleBottom`, `usedPaint`). An AST scan over every `.ts`/`.tsx` file finds none left in the repo, `hooks/kit` included. The same input gives the same output everywhere; the test's fake `realPath` dropped a branch that returned what the default already returned.
 
 At the end of this pass 386 tests pass, `tsc` is clean and `claude plugin validate .` passes.
