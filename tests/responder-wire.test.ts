@@ -1,5 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 import { forgetRepo } from '../hooks/here'
+import { localDay } from '../hooks/budget'
+import { loadDrafts } from '../hooks/drafts'
+import { ASK_DAILY_LIMIT, MAX_DRAFTS_PER_ROOM } from '../hooks/limits'
 import { DENIED } from '../hooks/protocol'
 import { wireResponder } from '../hooks/responder-wire'
 import { startLoop, stopRoom } from '../hooks/room-loop'
@@ -11,6 +14,7 @@ import { callerFor, fakeDb, type FakeDb } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
+const SECOND_MS = 1_000
 
 // git answers status; gh says alperenx is a collaborator of partalemre/eliti and nobody else is.
 const run: Run = gitIn('partalemre/eliti', async argv => {
@@ -81,5 +85,45 @@ test('before connecting nothing is written; once connected the waiting query is 
   w.db.isWriteDenied = false
   await w.host.advance(10_000)
   expect(answersIn(w.db).map(a => a?.ok)).toEqual([true])
+  w.stop()
+})
+
+// Second by second: one long jump would pass the toast's quiet before a tick's claims have settled.
+async function tick(w: World, ms: number): Promise<void> {
+  for (let at = 0; at < ms; at += SECOND_MS) await w.host.advance(SECOND_MS)
+}
+
+// Spends the room's day, then puts `n` asks in the peer's outbox, newest last, and names the newest the head.
+async function asksPastLimit(w: World, opts: { roomId: string; n: number }): Promise<void> {
+  await w.host.storeSet('tx.budget', { day: localDay(w.host.clock.now), byRoom: { [opts.roomId]: ASK_DAILY_LIMIT } })
+  let head = ''
+  for (let i = 0; i < opts.n; i++) {
+    const ts = w.host.clock.now + i
+    head = newId(ts)
+    const ask = { v: 1, id: head, ts, kind: 'query', text: `soru ${i}?`, query: { type: 'ask', repo: 'partalemre/eliti', question: `soru ${i}?` } }
+    w.db.docs.set(`outbox/${PEER}/msgs/${head}`, { data: ask, version: 1 })
+  }
+  const headTs = w.host.clock.now + opts.n - 1
+  w.db.docs.set(`outbox/${PEER}`, { data: { v: 1, head, headTs, seenUpTo: '', readUpTo: '', readTs: 0, gh: 'AlperenX' }, version: 2 })
+}
+
+test('a burst of asks past the day limit is told in one toast that says how many wait', async () => {
+  const w = await world({ id: 'RW5' })
+  await asksPastLimit(w, { roomId: 'RW5', n: 3 })
+  await tick(w, 30_000)
+  expect((await loadDrafts(w.host)).length).toBe(3)
+  expect(w.host.toasts.filter(t => t.includes('sınırı doldu'))).toEqual(['Transceiver: günlük soru sınırı doldu, 3 soru onayını bekliyor'])
+  w.stop()
+})
+
+test('asks the drafts cannot hold are not told again', async () => {
+  const w = await world({ id: 'RW6' })
+  await asksPastLimit(w, { roomId: 'RW6', n: MAX_DRAFTS_PER_ROOM + 4 })
+  await tick(w, 60_000)
+  const toasts = w.host.toasts.filter(t => t.includes('sınırı doldu'))
+  expect((await loadDrafts(w.host)).length).toBe(MAX_DRAFTS_PER_ROOM)
+  expect(toasts).toEqual([`Transceiver: günlük soru sınırı doldu, ${MAX_DRAFTS_PER_ROOM} soru onayını bekliyor`])
+  await tick(w, 60_000)
+  expect(w.host.toasts.filter(t => t.includes('sınırı doldu')).length).toBe(1)
   w.stop()
 })

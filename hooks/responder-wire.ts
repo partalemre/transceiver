@@ -1,10 +1,12 @@
+import type { Timer } from 'claude-code'
 import { askModel, newNonce } from './ask'
 import { spendAsk } from './budget'
-import { addDraft } from './drafts'
+import { addDraft, loadDrafts } from './drafts'
 import { makeGate, type GateInput } from './gate'
 import { ghCheck, mcpCheck } from './github'
 import { repoHere } from './here'
 import type { AgentHost } from './host'
+import { DRAFT_TOAST_QUIET_MS } from './limits'
 import { isUnreadable } from './protocol'
 import { answerTyped } from './queries'
 import { callerOf, relayOf } from './relay'
@@ -20,6 +22,7 @@ type Turn = { room: RoomRecord; ev: TickEvent; repo: string | null; root: string
 // Per room, across ticks: the rate window and the queries this session has decided on.
 const rate = new Map<string, number[]>()
 const seenByRoom = new Map<string, Set<string>>()
+const draftToasts = new Map<string, Timer>()
 
 function depsFor(ctx: Ctx, turn: Turn): Deps {
   const { host } = ctx
@@ -42,10 +45,24 @@ function depsFor(ctx: Ctx, turn: Turn): Deps {
       if (!enqueueMessage({ host, room, message })) throw new Error('room not synced')
     },
     addDraft: async draft => {
-      await addDraft(host, draft)
-      host.toast('Transceiver: günlük soru sınırı doldu, bir soru onayını bekliyor')
+      if (await addDraft(host, draft)) tellDrafted(host, room)
     },
   }
+}
+
+async function toastWaiting(host: AgentHost, room: RoomRecord): Promise<void> {
+  const waiting = (await loadDrafts(host)).filter(d => d.roomId === room.id).length
+  host.toast(`Transceiver: günlük soru sınırı doldu, ${waiting} soru onayını bekliyor`)
+}
+
+// A burst of asks past the limit is one toast per room, saying how many wait: each new draft pushes it back.
+function tellDrafted(host: AgentHost, room: RoomRecord): void {
+  draftToasts.get(room.id)?.cancel()
+  draftToasts.set(room.id, host.after(DRAFT_TOAST_QUIET_MS, () => {
+    draftToasts.delete(room.id)
+    toastWaiting(host, room).catch((err: unknown) =>
+      host.log(`transceiver: ${room.title}: drafts toast ${err instanceof Error ? err.name : 'error'}`))
+  }))
 }
 
 const isPeerQuery = (selfUid: string) => (e: Entry) =>

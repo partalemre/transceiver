@@ -144,6 +144,7 @@ test('drafts past the ask limit are capped per room, so a flood of asks cannot g
   for (let i = 0; i < MAX_DRAFTS_PER_ROOM + 5; i++) {
     await addDraft(host, { roomId: 'A', qid: newId(i), question: `q${i}`, asker: PEER })
   }
+  expect(await addDraft(host, { roomId: 'A', qid: newId(MAX_DRAFTS_PER_ROOM + 5), question: 'q', asker: PEER })).toBe(false)
   await addDraft(host, { roomId: 'B', qid: newId(1), question: 'q', asker: PEER })
   const drafts = await loadDrafts(host)
   expect(drafts.filter(d => d.roomId === 'A').length).toBe(MAX_DRAFTS_PER_ROOM)
