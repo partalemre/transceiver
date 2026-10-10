@@ -41,7 +41,6 @@ export const bindPane = (p: PanePort): void => { port = p }
 export const portNow = (): PanePort | null => port
 export const sessionNow = (): SessionUi => session
 export const modelNow = (): PaneModel | null => last
-export const isPaneShownNow = (): boolean => isShown
 
 export function patchSession(patch: Partial<SessionUi>): void {
   session = { ...session, ...patch }

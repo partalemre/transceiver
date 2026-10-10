@@ -10,7 +10,7 @@ import type { RoomSync } from './sync'
 import { unreadCount } from './timeline'
 import { firstName } from './tr'
 import { dividerOf, linesOf, nameOf, previewOf, receiptFor, waitingOf } from './view-lines'
-import { gateBadge, peerHeadOf, peerUids, projectInfo, type RoomSources } from './view-room'
+import { gateBadge, hasSeenMine, peerHeadOf, peerUids, projectInfo, type RoomSources } from './view-room'
 
 export { previewOf, SELF_NAME, SOMEONE } from './view-lines'
 
@@ -91,6 +91,7 @@ function roomView(room: RoomRecord, input: ModelInput): RoomView {
     seed: room.kind === 'project' ? room.repo ?? room.id : peer ?? room.id,
     unread, isTroubled: (sync?.failures ?? 0) >= TROUBLE_AFTER_FAILURES, isBoxBlocked: (sync?.unread.length ?? 0) > 0,
     isWaiting: room.kind === 'dm' && room.boxes.length === 0 && peer === undefined,
+    isUnseen: !hasSeenMine(sync),
     ...lastOf(room, sync, input),
     ...(peer === undefined ? {} : { peerName: firstName(nameOf(input.names, peer)) }),
     peerSeenTs: head.seenTs, peerReadTs: input.settings.isReceiptsOn ? head.readTs : 0,
@@ -113,7 +114,8 @@ function reposOf(input: ModelInput, uid: string, gh: string): NonNullable<GhAsk[
 function ghAskOf(input: ModelInput): GhAsk | null {
   for (const room of input.rooms) {
     const sync = input.syncs[room.id]
-    if (room.status !== 'active' || sync === undefined) continue
+    // The match only opens the agent gate, which only project rooms have.
+    if (room.status !== 'active' || room.kind !== 'project' || sync === undefined) continue
     for (const uid of peerUids(sync)) {
       const gh = sync.peers[uid]?.gh
       const peer = room.peers.find(p => p.uid === uid)

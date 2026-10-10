@@ -51,6 +51,8 @@ export type RoomView = {
   lastReceipt?: Receipt
   // A DM this person opened that no friend has joined yet.
   isWaiting: boolean
+  // No head from the other side has ever marked one of ours seen: they may not have added this mailbox yet.
+  isUnseen: boolean
   // The other person (first peer), for copy ("Alperen'e yaz"); absent until someone joined.
   peerName?: string
   // The peer's head: when it last moved (a send or a read mark) and when they last read; 0 when unknown.

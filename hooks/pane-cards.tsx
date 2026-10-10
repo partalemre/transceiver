@@ -6,7 +6,7 @@ import type { RenderElement } from 'claude-code'
 import { DraftCard } from './pane-agent'
 import { isText, type Ctx } from './pane-kit'
 import { Sentence, Title } from './pane-type'
-import type { Invite } from './state-types'
+import type { Invite, RoomView } from './state-types'
 
 const CARD_PAD = 2
 
@@ -105,6 +105,21 @@ export function CreatedCard(ctx: Ctx): RenderElement | null {
         { key: 'copy-link', label: 'Linki kopyala', variant: 'primary', onPress: () => ctx.on.copy(created.url, ctx.surface) },
         { key: 'created-ok', label: 'Tamam', variant: 'plain', onPress: () => ctx.on.dismissCreated() },
       ]),
+    ],
+  })
+}
+
+// Until the other side has seen one of this mailbox's lines, the steps that let them: share it, send the link.
+export function ShareCard(ctx: Ctx, room: RoomView): RenderElement | null {
+  if (!room.isUnseen) return null
+  const { Text } = ctx.ui
+  return Card(ctx, {
+    key: 'share', line: ctx.look.signal.line,
+    children: [
+      Title(ctx, { key: 'share-title', text: 'Arkadaşın bu kutuyu henüz okumadı' }),
+      Sentence(ctx, { key: 'share-body', text: 'Linki claude.ai’de aç, Paylaş’tan onun e-postasını ekle, sonra linki ona gönder. O, Transceiver’da “Linkim var”a yapıştırır.', paint: 'lo' }),
+      <Text key="share-url" color={ctx.look.signal.fg} wrap="truncate-middle">{room.url}</Text>,
+      Buttons(ctx, [{ key: `share-copy-${room.id}`, label: 'Linki kopyala', variant: 'primary', onPress: () => ctx.on.copy(room.url, ctx.surface) }]),
     ],
   })
 }

@@ -7,7 +7,7 @@ import { GROUP_MS, TIMELINE_LINES } from './limits'
 import { AgentNote, DraftCard, TxLine } from './pane-agent'
 import { RoomInfo } from './pane-aside'
 import { Bubble } from './pane-bubble'
-import { ErrorCard } from './pane-cards'
+import { ErrorCard, GhCard, ShareCard } from './pane-cards'
 import { Composer } from './pane-compose'
 import { isHere, isText, Meta, Pic, roomFace, Rule, type Ctx } from './pane-kit'
 import { TermChat } from './pane-term'
@@ -127,6 +127,8 @@ export function ChatView(ctx: Ctx): RenderElement | null {
       {ChatHead(ctx, room)}
       {Rule(ctx, 'head-rule')}
       {Notice(ctx, room)}
+      {ShareCard(ctx, room)}
+      {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
       {isInfoHere ? RoomInfo(ctx, room) : null}
       {isInfoHere ? Rule(ctx, 'info-rule') : null}
       {Timeline(ctx, room)}

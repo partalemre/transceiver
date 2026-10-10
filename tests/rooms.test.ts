@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import { enqueueMessage, startLoop, stopRoom, syncOf } from '../hooks/room-loop'
 import { roomPageHtml } from '../hooks/room-page'
-import { createRoom, discoverInvites, invitedFrom, loadRooms, loadSettings, placeFound, roomTitle, saveRooms, type RoomRecord } from '../hooks/rooms'
+import { createRoom, discoverInvites, failText, NO_ARTIFACT_TOOLS, invitedFrom, loadRooms, loadSettings, placeFound, roomTitle, saveRooms, type RoomRecord } from '../hooks/rooms'
 import type { RoomMeta } from '../hooks/protocol'
 import { NOT_ROOM_RETRY_MS } from '../hooks/limits'
 import { callerFor, fakeDb, type FakeDb } from './fake-db'
@@ -176,4 +176,9 @@ test('session start runs the loop through the engine, reading rooms from the sto
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/w' } as never)
   await clock.settle()
   expect(db.calls.some(c => c.action === 'list' && c.collection === 'outbox' && c.url === ROOM)).toBe(true)
+})
+
+test('a session without the Artifact tools is told how to turn them on; any other failure keeps its own words', () => {
+  expect(failText(new Error('transceiver: $.tool.call: no tool named "Artifact" in this session'), 'x')).toBe(NO_ARTIFACT_TOOLS)
+  expect(failText(new Error('room publish failed: offline'), 'Oda açılamadı')).toBe('Oda açılamadı')
 })

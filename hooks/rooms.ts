@@ -8,6 +8,15 @@ import { roomPageHtml } from './room-page'
 import { newId } from './ulid'
 
 export type RoomKind = 'dm' | 'project'
+
+// A session an SDK host drives (an IDE, T3 Code, `claude -p`) has the Artifact tools off unless the environment
+// turns them on, so a room can be neither opened nor read there; the generic "check claude.ai" would mislead.
+export const NO_ARTIFACT_TOOLS = 'Bu oturumda claude.ai Artifact araçları kapalı: ~/.claude/settings.json içindeki "env" alanına "CLAUDE_CODE_ARTIFACT": "1" ekle ve oturumu yeniden aç.'
+
+export function failText(err: unknown, fallback: string): string {
+  const text = err instanceof Error ? err.message : String(err)
+  return /no tool named "Artifact/.test(text) ? NO_ARTIFACT_TOOLS : fallback
+}
 export type Peer = { uid: string; gh?: string; isGhConfirmed: boolean }
 // A room is one mailbox per member, each owned by that member. `url` is this person's own mailbox, the only one
 // they write ('' while an invite is not accepted yet); `boxes` are the other members' mailboxes, read only. `room`
