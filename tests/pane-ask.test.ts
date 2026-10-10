@@ -6,6 +6,10 @@ import { expect, test } from 'claude-code/testing'
 import { paths } from '../hooks/protocol'
 import { dmAlperen, dmZeynep, grepTraffic, projectEliti, ROOMS } from './pane-fixtures'
 import { mountPane, paneWorld, startSession, type World } from './pane-world'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const SURFACES = ['terminal', 'desktop'] as const
 const NARROW = 55

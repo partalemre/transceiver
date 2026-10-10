@@ -1,12 +1,13 @@
 // The cards above the rooms, each one thing to decide: connect this session, an invite, the GitHub question, a
 // mailbox just opened, drafts past the day's limit and errors. A card is a title or a sentence and its buttons;
-// the long explanations live in Ayarlar. The terminal draws the same words as lines.
+// the long explanations live in Settings. The terminal draws the same words as lines.
 import type { RenderElement } from 'claude-code'
 
 import { DraftCard } from './pane-agent'
 import { isText, type Ctx } from './pane-kit'
 import { Sentence, Title } from './pane-type'
 import type { Invite, RoomView } from './state-types'
+import { paneWords } from './words-pane'
 
 const CARD_PAD = 2
 
@@ -33,60 +34,55 @@ function Card(ctx: Ctx, o: { key: string; line?: string; children: Array<RenderE
   )
 }
 
-const CONNECT = 'Yazmak için bu oturumda bir kez izin ver.'
-const CONNECT_WAITING = 'Yazdıkların bekliyor; göndermek için bu oturumda bir kez izin ver.'
-
 export function ConnectCard(ctx: Ctx): RenderElement {
-  const text = ctx.model.waiting.length > 0 ? CONNECT_WAITING : CONNECT
+  const w = paneWords()
+  const text = ctx.model.waiting.length > 0 ? w.connectWaiting : w.connect
   return Card(ctx, {
     key: 'connect', line: ctx.look.signal.line,
     children: [
       Sentence(ctx, { key: 'connect-body', text }),
       Buttons(ctx, [
-        { key: 'connect', label: ctx.model.busy === null ? 'Bağlan' : 'Bağlanıyor…', variant: 'primary', onPress: () => ctx.on.connect() },
-        { key: 'connect-later', label: 'Şimdi değil', variant: 'plain', onPress: () => ctx.on.dismissConnect() },
+        { key: 'connect', label: ctx.model.busy === null ? w.connectButton : w.connecting, variant: 'primary', onPress: () => ctx.on.connect() },
+        { key: 'connect-later', label: w.notNow, variant: 'plain', onPress: () => ctx.on.dismissConnect() },
       ]),
     ],
   })
 }
 
-const INVITE_DM = 'Kabul edersen birbirinize buradan yazarsınız.'
-const INVITE_PROJECT = 'Agent\'lar yalnızca ikiniz de collaborator iseniz konuşur.'
-
 export function InviteCard(ctx: Ctx, inv: Invite): RenderElement {
+  const w = paneWords()
   const isProject = inv.kind === 'project'
-  const title = isProject ? `${inv.repo ?? 'Bir proje'} odasına davet edildin` : 'Biri seninle yazışmak istiyor'
+  const title = isProject ? w.invitedTo(inv.repo) : w.someoneWrites
   return Card(ctx, {
     key: `invite-${inv.id}`,
     children: [
       Title(ctx, { key: 'invite-title', text: title }),
-      Sentence(ctx, { key: 'invite-body', text: isProject ? INVITE_PROJECT : INVITE_DM }),
+      Sentence(ctx, { key: 'invite-body', text: isProject ? w.inviteProject : w.inviteDm }),
       Buttons(ctx, [
-        { key: `accept-${inv.id}`, label: 'Kabul et', variant: 'primary', onPress: () => ctx.on.accept(inv.id) },
-        { key: `reject-${inv.id}`, label: 'Reddet', onPress: () => ctx.on.reject(inv.id) },
+        { key: `accept-${inv.id}`, label: w.accept, variant: 'primary', onPress: () => ctx.on.accept(inv.id) },
+        { key: `reject-${inv.id}`, label: w.decline, onPress: () => ctx.on.reject(inv.id) },
       ]),
     ],
   })
 }
 
-const GH_BODY = 'Evet dersen ortak repolarınızda agent\'larınız konuşabilir.'
-
 export function GhCard(ctx: Ctx): RenderElement | null {
   const ask = ctx.model.ghAsk
   if (ask === null) return null
+  const w = paneWords()
   const repos = ask.repos ?? []
   // What GitHub already said about this login, where the gate asked: a fact to decide on.
-  const heard = repos.map(r => `${r.repo.split('/')[1] ?? r.repo}: ${r.isCollaborator ? 'collaborator' : 'değil'}`).join(' · ')
-  const pills = repos.length === 0 ? null : Sentence(ctx, { key: 'gh-repos', text: `GitHub'a göre ${heard}`, paint: 'lo' })
+  const heard = repos.map(r => w.heard({ repo: r.repo.split('/')[1] ?? r.repo, isCollaborator: r.isCollaborator })).join(' · ')
+  const pills = repos.length === 0 ? null : Sentence(ctx, { key: 'gh-repos', text: w.ghSays(heard), paint: 'lo' })
   return Card(ctx, {
     key: 'gh',
     children: [
-      Title(ctx, { key: 'gh-title', text: `${ask.name} GitHub'da @${ask.gh} mı?` }),
-      Sentence(ctx, { key: 'gh-body', text: GH_BODY }),
+      Title(ctx, { key: 'gh-title', text: w.ghTitle({ name: ask.name, gh: ask.gh }) }),
+      Sentence(ctx, { key: 'gh-body', text: w.ghBody }),
       pills,
       Buttons(ctx, [
-        { key: 'gh-yes', label: 'Evet, o', variant: 'primary', onPress: () => ctx.on.answerGh(true) },
-        { key: 'gh-no', label: 'Hayır', onPress: () => ctx.on.answerGh(false) },
+        { key: 'gh-yes', label: w.yes, variant: 'primary', onPress: () => ctx.on.answerGh(true) },
+        { key: 'gh-no', label: w.no, onPress: () => ctx.on.answerGh(false) },
       ]),
     ],
   })
@@ -96,14 +92,15 @@ export function CreatedCard(ctx: Ctx): RenderElement | null {
   const created = ctx.model.created
   if (created === null) return null
   const { Text } = ctx.ui
+  const w = paneWords()
   return Card(ctx, {
     key: 'created', line: ctx.look.signal.line,
     children: [
-      Title(ctx, { key: 'created-title', text: 'Kutun hazır.' }),
+      Title(ctx, { key: 'created-title', text: w.ready }),
       <Text key="created-url" color={ctx.look.signal.fg} wrap="truncate-middle">{created.url}</Text>,
       Buttons(ctx, [
-        { key: 'copy-link', label: 'Linki kopyala', variant: 'primary', onPress: () => ctx.on.copy(created.url, ctx.surface) },
-        { key: 'created-ok', label: 'Tamam', variant: 'plain', onPress: () => ctx.on.dismissCreated() },
+        { key: 'copy-link', label: w.copyLink, variant: 'primary', onPress: () => ctx.on.copy(created.url, ctx.surface) },
+        { key: 'created-ok', label: w.done, variant: 'plain', onPress: () => ctx.on.dismissCreated() },
       ]),
     ],
   })
@@ -113,13 +110,14 @@ export function CreatedCard(ctx: Ctx): RenderElement | null {
 export function ShareCard(ctx: Ctx, room: RoomView): RenderElement | null {
   if (!room.isUnseen) return null
   const { Text } = ctx.ui
+  const w = paneWords()
   return Card(ctx, {
     key: 'share', line: ctx.look.signal.line,
     children: [
-      Title(ctx, { key: 'share-title', text: 'Arkadaşın bu kutuyu henüz okumadı' }),
-      Sentence(ctx, { key: 'share-body', text: 'Linki claude.ai’de aç, Paylaş’tan onun e-postasını ekle, sonra linki ona gönder. O, Transceiver’da “Linkim var”a yapıştırır.', paint: 'lo' }),
+      Title(ctx, { key: 'share-title', text: w.unseenTitle }),
+      Sentence(ctx, { key: 'share-body', text: w.unseenBody, paint: 'lo' }),
       <Text key="share-url" color={ctx.look.signal.fg} wrap="truncate-middle">{room.url}</Text>,
-      Buttons(ctx, [{ key: `share-copy-${room.id}`, label: 'Linki kopyala', variant: 'primary', onPress: () => ctx.on.copy(room.url, ctx.surface) }]),
+      Buttons(ctx, [{ key: `share-copy-${room.id}`, label: w.copyLink, variant: 'primary', onPress: () => ctx.on.copy(room.url, ctx.surface) }]),
     ],
   })
 }
@@ -133,7 +131,7 @@ export function ErrorCard(ctx: Ctx): RenderElement | null {
     <Box key="error" flexDirection="row" alignItems="center" gap={1} borderStyle={isText(ctx) ? 'single' : 'round'} borderColor={danger.line} backgroundColor={danger.tint} paddingX={1}>
       <Text color={danger.fg} wrap="wrap">{error}</Text>
       <Box flexGrow={1} />
-      <Button key="error-ok" label="Kapat" variant="secondary" onPress={() => ctx.on.dismissError()} />
+      <Button key="error-ok" label={paneWords().close} variant="secondary" onPress={() => ctx.on.dismissError()} />
     </Box>
   )
 }

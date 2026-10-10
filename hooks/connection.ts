@@ -1,9 +1,11 @@
 // Whether this session may write to rooms (spike R1). The first artifact write of a session needs the person's
 // approval, so nothing writes until they press "Bağlan" (or create a room, whose publish carries their command
 // as consent). A session in `bypassPermissions` is connected from the start. Until then every write waits and
-// says so with WAITING; reads never wait.
+// says so with waitingText; reads never wait.
 
-export const WAITING = 'bağlantı bekleniyor'
+import { pick } from './kit/lang'
+
+export const waitingText = (): string => pick({ en: 'waiting for connection', tr: 'bağlantı bekleniyor' })
 
 let isOn = false
 let save: ((is: boolean) => void) | null = null

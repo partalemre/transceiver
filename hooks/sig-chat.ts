@@ -3,6 +3,7 @@ import { baseline, num, sans, textEl } from './kit/svg-core'
 import type { Part } from './kit/svg-core'
 import { fitText } from './kit/svg-metrics'
 import type { Piece } from './sig-ui'
+import { pick } from './kit/lang'
 
 const INITIALS_RATIO = 0.36
 const INITIALS_WEIGHT = 650
@@ -21,7 +22,7 @@ export function facePart(o: { initials: string; paint: string; size: number; isH
     textEl({ x: r, y: baseline(0, o.size, fontSize), text: o.initials, paint: o.paint, size: fontSize, weight: INITIALS_WEIGHT, anchor: 'middle' }),
     o.isHere === true ? `<circle cx="${num(cx)}" cy="${num(cx)}" r="${num(dot / 2 + RING / 2)}" class="f-ok s-sheet" stroke-width="${RING}"/>` : '',
   ]
-  return { body: body.join(''), width: o.size, height: o.size, alt: o.isHere === true ? `${o.initials}, burada` : o.initials }
+  return { body: body.join(''), width: o.size, height: o.size, alt: o.isHere === true ? `${o.initials}, ${pick({ en: 'here', tr: 'burada' })}` : o.initials }
 }
 
 const SIGNAL_GRID = 14

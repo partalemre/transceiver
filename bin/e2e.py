@@ -4,6 +4,7 @@ drives the pane (MODZ tools/desk). Each step prints how long it took; exit 1 on 
 Both sessions are this machine's account, so this proves the pane, the relay and the agent gate, not sharing
 across accounts. It publishes four private mailboxes to that account and costs one small model turn.
 Usage: python3 -I bin/e2e.py [run-name]   (MODZ_DESK points at MODZ's tools/desk; REPO_DIR at a GitHub clone)
+The pane speaks English unless MODZ_LANG=tr is exported (the sessions inherit it); the steps wait for its words.
 """
 import os
 import re
@@ -21,6 +22,14 @@ REPO_DIR = os.environ.get('REPO_DIR', os.path.expanduser('~/Projects/MODZ'))
 REPO = os.environ.get('REPO', 'partalemre/MODZ')
 STEP_S = 90
 URL = re.compile(r'https://claude\.ai/artifact/\w+')
+# The words each step waits for, in the pane's language (hooks/kit/lang.ts: a value starting with "tr" is Turkish).
+WORDS = {
+    'en': {'ready': 'Your mailbox is ready', 'unseen': "hasn't read", 'gh': ' on GitHub?'},
+    'tr': {'ready': 'Kutun hazır', 'unseen': 'henüz okumadı', 'gh': "GitHub'da @"},
+}
+SAYS = WORDS['tr' if os.environ.get('MODZ_LANG', '').strip().lower().startswith('tr') else 'en']
+# An answer the other side refused; the wire keeps this wording in every language (hooks/protocol.ts DENIED).
+DENIED = 'erişim yok'
 
 
 class Person:
@@ -59,12 +68,12 @@ class Person:
 def pair(a, b, open_room):
     """A opens a room, B joins by A's link, A adds B's link: the two link swaps a person makes by hand."""
     open_room()
-    url_a = URL.findall(a.wait('A: own mailbox ready', lambda s: 'Kutun hazır' in s))[0]
+    url_a = URL.findall(a.wait('A: own mailbox ready', lambda s: SAYS['ready'] in s))[0]
     a.press('created-ok')
     b.desk.render(PANE)
     b.press('open-join' if 'open-join' in b.keys() else 'open-add')
     b.type('join-link', url_a)
-    url_b = [u for u in URL.findall(b.wait('B: joined, asked to share back', lambda s: 'henüz okumadı' in s)) if u != url_a][0]
+    url_b = [u for u in URL.findall(b.wait('B: joined, asked to share back', lambda s: SAYS['unseen'] in s)) if u != url_a][0]
     a.press('open-add')
     a.type('join-link', url_b)
     a.wait('A: B added', lambda s: 'composer' in ' '.join(a.keys('Input')))
@@ -79,7 +88,7 @@ def chat(a, b):
 
 def ask(a, b):
     for person, who in ((a, 'A'), (b, 'B')):
-        person.wait(f'{who}: GitHub match card in the chat', lambda s: "GitHub'da @" in s)
+        person.wait(f'{who}: GitHub match card in the chat', lambda s: SAYS['gh'] in s)
         person.press('gh-yes')
     seen = len(a.engine.msgs)
     a.engine.say('Call the mcp__transceiver__ask tool with {"type":"status"} once, then reply with the exact tool result text only.')
@@ -87,7 +96,7 @@ def ask(a, b):
     while time.time() - start < STEP_S:
         result = next((m.get('result') for m in a.engine.msgs[seen:] if m.get('type') == 'result'), None)
         if result is not None:
-            ok = '·' in result and 'erişim yok' not in result
+            ok = '·' in result and DENIED not in result
             print(f'{"✔" if ok else "✘"} A\'s agent asked B\'s side for status ({time.time() - start:.1f}s): {result[:120]}')
             return ok
         time.sleep(0.5)

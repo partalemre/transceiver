@@ -14,6 +14,7 @@ import { respond, type Deps } from './responder'
 import { enqueueMessage, onTick, type TickEvent } from './room-loop'
 import { loadRooms, type RoomRecord } from './rooms'
 import type { Entry } from './timeline'
+import { agentWords } from './words-agent'
 
 type Gate = (input: GateInput) => Promise<boolean>
 type Ctx = { host: AgentHost; gate: Gate }
@@ -55,7 +56,7 @@ function depsFor(ctx: Ctx, turn: Turn): Deps {
 
 async function toastWaiting(host: AgentHost, room: RoomRecord): Promise<void> {
   const waiting = (await loadDrafts(host)).filter(d => d.roomId === room.id).length
-  host.toast(`Transceiver: günlük soru sınırı doldu, ${waiting} soru onayını bekliyor`)
+  host.toast(agentWords().limitReached(waiting))
 }
 
 // A burst of asks past the limit is one toast per room, saying how many wait: each new draft pushes it back.

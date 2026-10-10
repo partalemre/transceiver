@@ -19,6 +19,8 @@ export type WorldOpts = {
   extra?: Record<string, unknown>
   // The session's git `origin` (`git remote get-url origin`); absent, the session has no repo.
   remote?: string
+  // The interface in English (no MODZ_LANG); the other pane tests read the Turkish one.
+  isEnglish?: boolean
 }
 
 export type World = {
@@ -82,7 +84,7 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
   on('store.get', (_$: unknown, e: { key: string }) => ({ value: clone(store[e.key]) }))
   on('store.set', (_$: unknown, e: { key: string; value: unknown }) => { store[e.key] = clone(e.value); return { value: undefined } })
   on('store.delete', (_$: unknown, e: { key: string }) => { delete store[e.key]; return { value: undefined } })
-  mock.env(on, { HOME: '/home/u' })
+  mock.env(on, { HOME: '/home/u', ...(o.isEnglish === true ? {} : { MODZ_LANG: 'tr' }) })
   const clock = mock.clock(on, { now: NOW })
   const world: World = { store, db, dbOf, toasts: [], statuses: [], copies: [], logs: [], opens: [], runs: [], calls: [], clock, shown: { isShown: o.isShown ?? true } }
   on('config.list', () => ({ value: [{ key: 'theme', value: o.isLight === true ? 'light' : 'dark' }] }))

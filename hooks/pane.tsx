@@ -1,4 +1,4 @@
-// The `transceiver` pane: one view at a time when narrow (rooms → chat, "Yeni sohbet", "Ayarlar"); when wide the
+// The `transceiver` pane: one view at a time when narrow (rooms → chat, "New chat", "Settings"); when wide the
 // rooms rail and the chat, and a project room's details beside it once asked for. Pure:
 // register.tsx's render hook hands in the element table, the model and the handlers.
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
@@ -12,6 +12,7 @@ import { RoomsColumn } from './pane-list'
 import { Sentence, Title } from './pane-type'
 import type { PaneModel } from './state-types'
 import { lookOf } from './theme'
+import { paneWords } from './words-pane'
 
 // From this many cells the rooms stay beside the chat.
 export const WIDE_COLUMNS = 104
@@ -43,8 +44,8 @@ function Placeholder(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
   return (
     <Box key="placeholder" flexDirection="column" gap={1} paddingTop={2}>
-      {Title(ctx, { key: 'placeholder-title', text: 'Bir sohbet seç' })}
-      {Sentence(ctx, { key: 'placeholder-body', text: 'Soldaki listeden bir oda aç.', paint: 'lo' })}
+      {Title(ctx, { key: 'placeholder-title', text: paneWords().pickChat })}
+      {Sentence(ctx, { key: 'placeholder-body', text: paneWords().pickChatBody, paint: 'lo' })}
     </Box>
   )
 }
@@ -85,7 +86,7 @@ export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   return (
     <Box flexDirection="column" gap={1} width={columns} paddingX={pad} paddingY={pad / 2} backgroundColor={look.sheet}>
       {MainView(inner) ?? RoomsColumn(inner)}
-      {o.surface === 'mobile' ? Meta(inner, 'Telefonda yalnızca okunur; yazmak için odanın sayfasını aç.', 'mobile-note') : null}
+      {o.surface === 'mobile' ? Meta(inner, paneWords().phoneNote, 'mobile-note') : null}
     </Box>
   )
 }

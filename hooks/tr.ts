@@ -28,3 +28,6 @@ export function dative(name: string): string {
 }
 
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name
+
+// English's own ending for whose: Leo's, James'.
+export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}'` : `${name}'s`)

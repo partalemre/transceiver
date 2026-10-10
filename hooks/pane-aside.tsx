@@ -1,15 +1,13 @@
-// A project room's details, shown only when the person asks ("Ayrıntılar", "Neden?"): the gate's four conditions
+// A project room's details, shown only when the person asks ("Details", "Why?"): the gate's four conditions
 // as the gate last saw them, the day's ask budget, what this machine answered today, and the live-mode switch with
 // its warning. Inline under the head when narrow, a column beside the chat when wide; native Text on every
 // surface, so it reads in Claude's theme.
 import type { RenderElement } from 'claude-code'
 
 import { isText, type Ctx } from './pane-kit'
-import { checkedText, checkRows, GATE_WORD, passedOf } from './pane-words'
+import { checkedText, checkRows, gateWord, passedOf } from './pane-words'
 import type { RoomView } from './state-types'
-
-const BUDGET_NOTE = 'Gece yarısı sıfırlanır; dolunca yeni sorular onayını bekler.'
-const LIVE_NOTE = 'Açıkken gelen agent mesajı bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.'
+import { chatWords } from './words-chat'
 
 // A check not yet run is open, then passed or failed.
 function markOf(state: boolean | null): string {
@@ -20,7 +18,7 @@ function markOf(state: boolean | null): string {
 function Gate(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Text } = ctx.ui
   const rows = checkRows(room)
-  const word = GATE_WORD[room.gate]
+  const word = gateWord(room.gate)
   return (
     <Box key="info-gate" flexDirection="column">
       <Text color={ctx.look.role[word.paint as 'ok'].fg} bold>{`${word.glyph} ${word.label} · ${passedOf(rows)}/${rows.length}`}</Text>
@@ -37,9 +35,9 @@ function Today(ctx: Ctx, room: RoomView): RenderElement {
   const limit = p?.askLimit ?? 0
   return (
     <Box key="info-today" flexDirection="column">
-      <Text color={used >= limit ? ctx.look.role.warn.fg : ctx.look.hi}>{`Ask bütçesi ${used}/${limit} bugün`}</Text>
-      <Text color={ctx.look.lo} wrap="wrap">{BUDGET_NOTE}</Text>
-      <Text color={ctx.look.lo} wrap="wrap">{`bugün: ${p?.today.answered ?? 0} sorgu · ${p?.today.modelless ?? 0} 0 token · ${p?.today.denied ?? 0} reddedildi`}</Text>
+      <Text color={used >= limit ? ctx.look.role.warn.fg : ctx.look.hi}>{chatWords().budget({ used, limit })}</Text>
+      <Text color={ctx.look.lo} wrap="wrap">{chatWords().budgetNote}</Text>
+      <Text color={ctx.look.lo} wrap="wrap">{chatWords().today({ answered: p?.today.answered ?? 0, modelless: p?.today.modelless ?? 0, denied: p?.today.denied ?? 0 })}</Text>
     </Box>
   )
 }
@@ -49,10 +47,10 @@ function Live(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="info-live" flexDirection="column">
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Text color={room.isLive ? ctx.look.signal.fg : ctx.look.hi}>{`Canlı mod ${room.isLive ? 'açık' : 'kapalı'}`}</Text>
-        <Button key={`live-${room.id}`} label={room.isLive ? 'Kapat' : 'Aç'} plain onPress={() => ctx.on.toggleLive(room.id)} />
+        <Text color={room.isLive ? ctx.look.signal.fg : ctx.look.hi}>{chatWords().live(room.isLive)}</Text>
+        <Button key={`live-${room.id}`} label={room.isLive ? chatWords().turnOff : chatWords().turnOn} plain onPress={() => ctx.on.toggleLive(room.id)} />
       </Box>
-      <Text color={ctx.look.lo} wrap="wrap">{LIVE_NOTE}</Text>
+      <Text color={ctx.look.lo} wrap="wrap">{chatWords().liveNote}</Text>
     </Box>
   )
 }

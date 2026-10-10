@@ -2,6 +2,7 @@
 // the terminal takes theme keys so it follows the person's own theme (DESIGN.md §2).
 import { palette, ROLE_KEY } from './kit/tokens'
 import type { Role } from './kit/tokens'
+import { upper } from './kit/lang'
 
 export type Tone = { fg?: string; tint?: string; line?: string }
 export type Look = {
@@ -61,9 +62,9 @@ export function avatarRole(seed: string): Role {
   return AVATAR_ROLES[h % AVATAR_ROLES.length] ?? 'read'
 }
 
-// "Alperen Yılmaz" → "AY", "alperenx" → "A"; Turkish casing, so "ilker" → "İ".
+// "Alperen Yılmaz" → "AY", "alperenx" → "A"; in the interface's casing, so Turkish makes "ilker" → "İ".
 export function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)
   const letters = words.length > 1 ? [words[0], words.at(-1)] : [words[0]]
-  return letters.map(w => [...(w ?? '')][0] ?? '').join('').toLocaleUpperCase('tr') || '·'
+  return upper(letters.map(w => [...(w ?? '')][0] ?? '').join('')) || '·'
 }

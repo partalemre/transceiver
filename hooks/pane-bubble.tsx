@@ -4,12 +4,15 @@
 // going out is dashed and says so. System lines sit centred; an unreadable doc says it is one.
 import type { RenderElement } from 'claude-code'
 
+import { waitingText } from './connection'
 import { GlyphPic, isText, Pic, receiptTone, type Ctx } from './pane-kit'
 import { facePart } from './sig-chat'
 import type { Line, RoomView } from './state-types'
 import { avatarRole, initialsOf } from './theme'
 import { messageOf } from './traffic'
 import { clockText } from './when'
+import { chatWords } from './words-chat'
+import { shownSystem } from './words-wire'
 
 const FACE = 24
 const FACE_CELLS = 3
@@ -20,10 +23,10 @@ export type BubbleOpts = { line: Line; isFirst: boolean; isLast: boolean; room: 
 
 const gutterOf = (ctx: Ctx) => Math.max(4, Math.round(ctx.columns * GUTTER_RATIO))
 
-// A message still going out says so, in amber while it waits for "Bağlan".
+// A message still going out says so, in amber while it waits for "Connect".
 function pendingStatus(ctx: Ctx, line: Line): { text: string; color?: string } | null {
   if (line.receipt !== 'pending') return null
-  return ctx.model.isConnected ? { text: 'gönderiliyor', color: ctx.look.lo } : { text: 'bağlantı bekleniyor', color: ctx.look.role.warn.fg }
+  return ctx.model.isConnected ? { text: chatWords().sending, color: ctx.look.lo } : { text: waitingText(), color: ctx.look.role.warn.fg }
 }
 
 // The time, then the receipt ticks or why it has none yet; text, so the host draws it in Claude's theme.
@@ -53,7 +56,7 @@ function Quote(ctx: Ctx, line: Line): RenderElement | null {
   )
 }
 
-// ⌥ partalemre/eliti ··· Odaya git: a shared project room this DM names.
+// ⌥ partalemre/eliti ··· Go to room: a shared project room this DM names.
 function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
   const { Box, Button, Text } = ctx.ui
   const link = line.roomLink
@@ -63,7 +66,7 @@ function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
     <Box key="room-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderColor={run.line} backgroundColor={run.tint} paddingX={1}>
       {GlyphPic(ctx, { glyph: 'branch', paint: 'run', key: 'chip-glyph' })}
       <Box flexGrow={1} flexShrink={1}><Text color={ctx.look.hi} wrap="truncate-end">{link.repo}</Text></Box>
-      <Button key={`goto-${line.id}`} label="Odaya git" plain onPress={() => ctx.on.select(link.roomId)} />
+      <Button key={`goto-${line.id}`} label={chatWords().goToRoom} plain onPress={() => ctx.on.select(link.roomId)} />
     </Box>
   )
 }
@@ -110,9 +113,9 @@ function Side(ctx: Ctx, o: BubbleOpts & { body: RenderElement }): RenderElement 
 export function Bubble(ctx: Ctx, o: BubbleOpts): RenderElement {
   const { Box, Text } = ctx.ui
   const m = messageOf(o.line)
-  if (m === null) return <Box key={`msg-${o.line.id}`} paddingLeft={FACE_CELLS + 1}><Text color={ctx.look.lo} italic>okunamayan mesaj</Text></Box>
+  if (m === null) return <Box key={`msg-${o.line.id}`} paddingLeft={FACE_CELLS + 1}><Text color={ctx.look.lo} italic>{chatWords().unreadable}</Text></Box>
   if (m.kind === 'system' || isText(ctx)) {
-    return <Box key={`msg-${o.line.id}`} justifyContent="center"><Text color={ctx.look.lo} italic wrap="wrap">{m.text}</Text></Box>
+    return <Box key={`msg-${o.line.id}`} justifyContent="center"><Text color={ctx.look.lo} italic wrap="wrap">{shownSystem(m.text)}</Text></Box>
   }
   return Side(ctx, { ...o, body: bubbleBody(ctx, { ...o, text: m.text, ts: m.ts }) })
 }

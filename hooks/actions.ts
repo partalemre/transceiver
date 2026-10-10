@@ -1,5 +1,5 @@
 // What each press and submit in the pane does. Every handler runs against the bound port, catches its own
-// failure (a short Turkish line, never tool text or a message body) and redraws.
+// failure (a short line in the interface's language, never tool text or a message body) and redraws.
 import type { RenderSurface } from 'claude-code'
 
 import { isConnected, setConnected } from './connection'
@@ -11,18 +11,10 @@ import { createRoom, failText, loadRooms, loadSettings, saveRooms, saveSettings,
 import { draftSettlerNow, modelNow, patchSession, portNow, refreshPane, sessionNow, type PanePort } from './state'
 import type { EmptyForm, PaneSettings, PaneView } from './state-types'
 import { readMarkOf } from './view'
+import { stepWords } from './words-steps'
 
-const CONNECT_CONSENT = 'The user pressed "Bağlan" on the Transceiver pane to send messages from this session.'
-const SAY = {
-  notLoaded: 'Oda henüz yüklenmedi; birazdan tekrar dene.',
-  declined: 'Onay verilmedi; yazdıkların sırada bekliyor.',
-  offline: 'Bağlanılamadı; ağ bağlantını kontrol et.',
-  failed: 'Bir şey ters gitti; birazdan tekrar dene.',
-  badRepo: 'Repo adını sahip/repo biçiminde yaz (ör. partalemre/eliti).',
-  badLink: 'claude.ai/artifact/… biçiminde bir oda linki yapıştır.',
-  draftWaits: 'Önce "Bağlan": cevap bu oturumdan gönderilir.',
-  noBox: 'Kendi kutun açılamadı; claude.ai bağlantısını kontrol edip tekrar dene.',
-}
+// A consent quotes the label the person pressed, in the language it was shown in.
+const connectConsent = () => `The user pressed "${stepWords().connectLabel}" on the Transceiver pane to send messages from this session.`
 
 type Step = (p: PanePort) => Promise<void>
 
@@ -30,7 +22,7 @@ type Step = (p: PanePort) => Promise<void>
 function run(step: Step): void {
   const p = portNow()
   if (p === null) return
-  void step(p).catch(() => patchSession({ error: SAY.failed, busy: null })).finally(() => void refreshPane())
+  void step(p).catch(() => patchSession({ error: stepWords().failed, busy: null })).finally(() => void refreshPane())
 }
 
 async function patchRoom(p: PanePort, id: string, patch: Partial<RoomRecord>): Promise<RoomRecord | undefined> {
@@ -51,11 +43,11 @@ async function select(p: PanePort, id: string): Promise<void> {
 async function accept(p: PanePort, id: string): Promise<void> {
   const invite = (await loadRooms(p.host)).find(r => r.id === id && r.status === 'invited')
   if (invite === undefined || sessionNow().busy !== null) return
-  patchSession({ busy: 'Katılınıyor…', error: null })
+  patchSession({ busy: stepWords().busyJoin, error: null })
   await refreshPane()
-  const consent = 'The user pressed "Kabul et" on a Transceiver invite'
+  const consent = `The user pressed "${stepWords().acceptLabel}" on a Transceiver invite`
   const room = await acceptInvite({ host: p.host, invite, consent }).catch(() => null)
-  if (room === null) return patchSession({ busy: null, error: SAY.noBox })
+  if (room === null) return patchSession({ busy: null, error: stepWords().noBox })
   patchSession({ busy: null, created: { url: room.url, title: room.title } })
   await select(p, room.id)
 }
@@ -75,13 +67,13 @@ async function connect(p: PanePort): Promise<void> {
   const rooms = (await loadRooms(p.host)).filter(r => r.status === 'active')
   const room = rooms.find(r => syncOf(r.id) !== undefined)
   const sync = room === undefined ? undefined : syncOf(room.id)
-  if (room === undefined || sync === undefined) return patchSession({ error: SAY.notLoaded })
-  patchSession({ busy: 'Bağlanıyor…', error: null })
+  if (room === undefined || sync === undefined) return patchSession({ error: stepWords().notLoaded })
+  patchSession({ busy: stepWords().busyConnect, error: null })
   await refreshPane()
   const pin = sync.ownVersion > 0 ? { if_version: sync.ownVersion } : {}
   const out = await p.host.tool({
     tool: 'ArtifactData', action: 'set', url: room.url, collection: paths.heads, doc_id: sync.selfUid, data: sync.ownHead,
-    ...pin, consent: CONNECT_CONSENT,
+    ...pin, consent: connectConsent(),
   }).catch(() => null)
   const isOk = out !== null && out.deny === undefined
   setConnected(isOk)
@@ -90,15 +82,15 @@ async function connect(p: PanePort): Promise<void> {
 }
 
 // No answer at all is the network; an answer that is not a yes is a refusal.
-const connectError = (out: unknown): string => (out === null ? SAY.offline : SAY.declined)
+const connectError = (out: unknown): string => (out === null ? stepWords().offline : stepWords().declined)
 
 async function addRoom(p: PanePort, opts: { kind: RoomKind; repo?: string; label: string }): Promise<void> {
   if (sessionNow().busy !== null) return
-  patchSession({ busy: 'Oda açılıyor…', error: null, created: null })
+  patchSession({ busy: stepWords().busyOpen, error: null, created: null })
   await refreshPane()
   const consent = `The user pressed "${opts.label}" on the Transceiver pane`
   const room = await createRoom({ host: p.host, kind: opts.kind, repo: opts.repo, consent }).catch((err: unknown) => err as Error)
-  if (room instanceof Error) return patchSession({ busy: null, error: failText(room, 'Oda açılamadı; claude.ai bağlantısını kontrol edip tekrar dene.') })
+  if (room instanceof Error) return patchSession({ busy: null, error: failText(room, stepWords().roomFailed) })
   await saveRooms(p.host, [...(await loadRooms(p.host)), room])
   pokeRoom(p.host, room)
   patchSession({ busy: null, view: 'rooms', created: { url: room.url, title: room.title } })
@@ -106,10 +98,10 @@ async function addRoom(p: PanePort, opts: { kind: RoomKind; repo?: string; label
 
 async function join(p: PanePort, link: string): Promise<void> {
   const url = joinUrlOf(link)
-  if (url === null) return patchSession({ error: SAY.badLink })
-  patchSession({ busy: 'Katılınıyor…', error: null })
+  if (url === null) return patchSession({ error: stepWords().badLink })
+  patchSession({ busy: stepWords().busyJoin, error: null })
   await refreshPane()
-  const joined = await joinRoom(p.host, url, 'The user pasted a Transceiver link into the pane and pressed "Katıl"')
+  const joined = await joinRoom(p.host, url, `The user pasted a Transceiver link into the pane and pressed "${stepWords().joinLabel}"`)
   const { room } = joined
   // Joining opened this person's own mailbox: the card asks them to share it back.
   const created = joined.isNew && room !== undefined ? { url: room.url, title: room.title } : null
@@ -125,7 +117,7 @@ async function toggleSetting(p: PanePort, key: keyof PaneSettings): Promise<void
 
 async function copy(p: PanePort, opts: { text: string; surface: RenderSurface }): Promise<void> {
   const isCopied = await p.ui.copy(opts.text, opts.surface)
-  p.ui.toast(isCopied ? 'Link kopyalandı.' : 'Kopyalanamadı; linki elle seç.')
+  p.ui.toast(isCopied ? stepWords().copied : stepWords().notCopied)
 }
 
 export type PaneHandlers = {
@@ -172,17 +164,17 @@ export const paneHandlers: PaneHandlers = {
   }),
   toggleSetting: key => run(p => toggleSetting(p, key)),
   openView: view => run(async () => patchSession({ view, error: null })),
-  addDm: () => run(p => addRoom(p, { kind: 'dm', label: 'Arkadaş ekle' })),
+  addDm: () => run(p => addRoom(p, { kind: 'dm', label: stepWords().addDmLabel })),
   addProject: repo => run(p => (isRepo(repo.trim())
-    ? addRoom(p, { kind: 'project', repo: repo.trim(), label: 'Proje odası aç' })
-    : Promise.resolve(patchSession({ error: SAY.badRepo })))),
+    ? addRoom(p, { kind: 'project', repo: repo.trim(), label: stepWords().addProjectLabel })
+    : Promise.resolve(patchSession({ error: stepWords().badRepo })))),
   join: link => run(p => join(p, link)),
   copy: (text, surface) => run(p => copy(p, { text, surface })),
   dismissCreated: () => run(async () => patchSession({ created: null })),
   dismissError: () => run(async () => patchSession({ error: null })),
   settleDraft: (qid, isApproved) => run(async () => {
     const isDone = await draftSettlerNow()?.(qid, isApproved)
-    if (isDone === false && !isConnected()) patchSession({ error: SAY.draftWaits })
+    if (isDone === false && !isConnected()) patchSession({ error: stepWords().draftWaits })
   }),
   askAgent: (roomId, type) => run(p => askAgent(p, { roomId, type })),
   type: (roomId, text) => setTyped(roomId, text),

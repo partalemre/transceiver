@@ -2,11 +2,12 @@ import type { EngineInterface, On, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
-import { DESCRIPTION, parseCommand, runCommand } from './commands'
+import { description, parseCommand, runCommand } from './commands'
 import { isBypassMode, isConnected, persistConnection, restoreConnection, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
 import { HUB_PANE, isOpenFor, isSameLine } from './hub'
+import { setLang } from './kit/lang'
 import { pinned } from './kit/pin'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
@@ -18,6 +19,7 @@ import { realPathOf, runnerOf } from './run'
 import { bindPane, patchSession, refreshPane, setPaneShown, setRepoSource, type UiHost } from './state'
 import { EMPTY_PANE } from './state-types'
 import { runTool, TOOL_SPECS } from './tools'
+import { agentWords } from './words-agent'
 
 // The only place `$` is held: every other module reaches the engine through this port.
 function hostOf($: EngineInterface): Host {
@@ -114,8 +116,10 @@ let stopPaneTick: (() => void) | null = null
 
 function onSession(on: On): void {
   on('session.start', async ($, e, next) => {
+    // The interface language first, before anything is drawn or registered with a description.
+    setLang(await $.env.get('MODZ_LANG').catch(() => undefined))
     // A refused registration must not keep the rooms from polling.
-    await $.command.register({ name: 'transceiver', description: DESCRIPTION, immediate: true })
+    await $.command.register({ name: 'transceiver', description: description(), immediate: true })
       .catch(() => $.ui.log('transceiver: /transceiver could not be registered'))
     persistConnection(is => { void $.state.set(CONNECTION_STATE, is).catch(() => undefined) })
     await restoreConnection(() => $.state.get(CONNECTION_STATE))
@@ -171,7 +175,7 @@ function onTools(on: On): void {
     const name = String(e.tool).slice('mcp__transceiver__'.length)
     const input = e as unknown as Record<string, unknown>
     return runTool({ host: agentHostOf($), budgetLeft: () => next.budget.remainingMs }, { name, input })
-  }).catch(() => ({ deny: 'Transceiver: araç tamamlanamadı, birazdan yeniden dene.' }))
+  }).catch(() => ({ deny: agentWords().toolFailed }))
   // Live wake never interrupts a running turn of the main conversation.
   on('turn.start', async ($, e, next) => { setTurnRunning(true); return next(e) })
   on('turn.complete', async ($, e, next) => {
@@ -189,7 +193,7 @@ function onCommand(on: On): void {
     const text = await runCommand({ host: hostOf($), openPane: () => openPane($), cmd })
     await refreshPane()
     return text === null ? {} : { text }
-  }).catch(() => ({ text: 'Transceiver: komut tamamlanamadı, birazdan yeniden dene.' }))
+  }).catch(() => ({ text: agentWords().commandFailed }))
 }
 
 export const register: Register = on => {

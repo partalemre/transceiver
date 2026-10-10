@@ -1,110 +1,121 @@
-# transceiver
+<p align="center"><sub>TRANSCEIVER · A MOD FOR CLAUDE CODE, PART OF <a href="https://github.com/partalemre/MODZ">MODZ</a></sub></p>
 
-Claude Code'un içinden, ek bir servis kurmadan arkadaşlarınla yazışırsın. Aynı GitHub reposunda collaborator olduğun kişilerin agent'ları da o proje hakkında birbirine soru sorar. `status`, `diff`, `file` gibi sorular model tokeni harcamadan cevaplanır. Herkesin yazdıkları claude.ai'de kendine ait özel bir kutu artifact'inde durur; başka hiçbir yere gitmez.
+<h1 align="center">Your team, inside Claude.</h1>
 
-## Kurulum
+<p align="center">Chat with teammates. Let your agents ask theirs. Zero tokens.</p>
 
+<p align="center"><img src="https://raw.githubusercontent.com/partalemre/MODZ/main/docs/img/team.jpg" width="820" alt="Two Claude Code windows in the same project room: teammates chatting, and one agent's diff question answered by the other machine at zero tokens"></p>
+
+You chat with friends without leaving Claude Code, and on a GitHub repo you share, your agent can ask a teammate's side about the project: `status`, `diff`, `tests`, `log`, a file. The answer is computed on their machine without a model, so it costs no tokens. Everything you write stays in a private claude.ai artifact you own; there is no server of its own.
+
+## Install
+
+```text
+/plugin marketplace add partalemre/MODZ
+/plugin install transceiver@modz
 ```
-/plugin install transceiver --marketplace partalemre/transceiver
-/transceiver
-```
 
-`/transceiver` yazıp Enter'a bas: sohbet penceresi açılır ve her adım orada bir düğmedir.
+Then type `/transceiver`. The pane opens, and every step is a button there.
 
-Claude Code'u bir SDK uygulaması sürüyorsa (T3 Code, bir IDE, `claude -p`) claude.ai Artifact araçları varsayılan olarak kapalıdır ve Transceiver oda açamaz. `~/.claude/settings.json` içine `"env": { "CLAUDE_CODE_ARTIFACT": "1" }` ekleyip oturumu yeniden aç; masaüstü uygulamasında ve terminalde gerekmez. Repo gizliyse arkadaşının da repoyu okuma izni olmalı, yoksa kurulum onda çalışmaz.
+- **Requirements.** Claude Code 2.1.295 or later, signed in with a claude.ai account.
+- **SDK hosts.** If Claude Code runs inside another app (an IDE, T3 Code, `claude -p`), the claude.ai Artifact tools are off by default. Add `"CLAUDE_CODE_ARTIFACT": "1"` to the `env` block of `~/.claude/settings.json` and start a new session. The desktop app and the terminal do not need this.
+- **Language.** The interface is English. Set `MODZ_LANG=tr` for Turkish.
 
-## Nasıl çalışır
+## How it works
 
-Bir oda, her üyenin kendine ait bir **kutusundan** oluşur. Kutuna yalnızca sen yazarsın, odadakiler onu okur. Bu yüzden paylaşırken hangi yetkiyi seçtiğin (Viewer bile yeter) ya da arkadaşının başka bir organizasyonda olması fark etmez.
+A room is made of mailboxes, one per member. Only you write to yours, and the other members read it. This is why the share level you pick (Viewer is enough), or your friend being in another organization, makes no difference.
 
-1. **Oda aç.** Penceredeki **Arkadaş ekle** bir DM odası açar. **Proje odası** ortak bir repo için oda açar; alan, oturumun GitHub reposuyla dolu gelir, istersen değiştirirsin. Pencere kendi kutunun linkini gösterir.
-2. **Kutunu paylaş.** Linki claude.ai'de aç, sayfanın **Paylaş** menüsünden arkadaşının e-postasını ekle ve linki ona gönder. Bu adımı elle yapman gerekiyor, çünkü platformun paylaşım API'si yok.
-3. **Katıl.** Aynı organizasyondaysanız arkadaşının penceresinde en geç bir dakika içinde bir davet kartı çıkar ve **Kabul et**'e basar. Başka bir organizasyondan gelen davetler bu listede görünmez; o durumda arkadaşın linki penceredeki **Linkle katıl** alanına yapıştırır ya da `/transceiver katıl <link>` yazar. Katılmak, onun için de kendi kutusunu açar.
-4. **Kutunu geri paylaş.** Katılan kişi de kendi kutusunun linkini aynı şekilde Paylaş'tan sana açar ve gönderir. Aynı organizasyondaysanız kutusu odana kendiliğinden eklenir; değilse sen de onun linkiyle `/transceiver katıl <link>` yazarsın. Kutusu henüz paylaşılmadıysa pencere "karşı tarafın kutusu okunamıyor" der. Karşı taraf senin kutundan bir mesaj okuyana kadar sohbetin üstünde kendi linkin ve **Linki kopyala** durur.
-5. **Bağlan.** Bir oturumda ilk mesajı yazdığında pencerede **Bağlan** kartı çıkar. Claude, yazmak için bu oturumda bir kez onay ister. Onay verdikten sonra o oturumda başka bir şey sorulmaz. Bağlanmadan önce gelen mesajları okursun ama yazamazsın. `bypassPermissions` ile açılan bir oturum baştan bağlıdır.
-6. **Proje odasında GitHub eşleşmesi.** Her iki taraf da GitHub adını kendi kutusuna yazar. Pencere bir kez "X GitHub'da Y mi?" diye sorar. **Evet** dersen o kişinin agent'ı repo hakkında soru sorabilir.
+1. **Open a room.** In the pane, **Add a friend** opens a DM; **Project room** opens a room for a repo you share, prefilled with the session's repo. The pane shows your mailbox link.
+2. **Share your mailbox.** Open the link on claude.ai, add your friend by email from the page's **Share** menu, and send them the link. This step is manual because claude.ai has no sharing API.
+3. **They join.** In the same organization, an invite card appears in their pane within a minute. From another organization, invites are not listed, so they paste your link into **I have a link** (or type `/transceiver join <link>`). Joining opens their own mailbox.
+4. **They share back.** They share their mailbox with you the same way and send you its link; until you have read one of their lines, their chat keeps that link on screen with **Copy link**. Paste it into **I have a link** on your side.
+5. **Connect.** The first message of a session asks Claude Code for one approval. A session started with permissions bypassed is connected from the start.
+6. **Match GitHub names (project rooms).** Each side writes its GitHub login into its own mailbox, and the chat asks once: "Is Leo @leo on GitHub?". Say yes, and that person's agent may ask about the repo.
 
-Mesajlar pencere açıkken yaklaşık 1 saniyede gelir. Pencere kapalıysa durum satırında okunmamış sayısı görünür ve bir bildirim çıkar. Mesajın altındaki işaretlerin anlamı: ◷ gönderiliyor, ✓ yazıldı, ✓✓ karşıya ulaştı, mavi ✓✓ okundu. Okundu bilgisini kapatırsan WhatsApp'taki gibi iki yönde de kapanır. Kutu linki tarayıcıda açılırsa sohbet değil, Claude Code'dan nasıl katılınacağını anlatan bir sayfa görünür.
+Messages arrive in about a second while the pane is open. With it closed, the status line counts unread messages and a notification shows. Under each message: ◷ sending, ✓ written, ✓✓ delivered, blue ✓✓ read. Turning read receipts off turns them off both ways.
 
-## Komutlar
+## Commands
 
-Hepsi pencerede bir düğme olarak da var; komutlar kısayoldur. Yanlış bir alt komut bu listeyi gösterir.
+Every command is also a button in the pane. The Turkish words (`ekle`, `proje`, `katıl`, `çık`, `kur`, `ayarlar`) work too.
 
-| Komut | Ne yapar |
+| Command | What it does |
 | --- | --- |
-| `/transceiver` | Pencereyi açar |
-| `/transceiver ekle` | Arkadaşın için bir DM odası açar |
-| `/transceiver proje <sahip/repo>` | Ortak bir proje odası açar |
-| `/transceiver katıl <link>` | Bir kutu linkiyle odaya katılır ya da katıldığın odaya karşı tarafın kutusunu ekler |
-| `/transceiver çık <oda adı \| link>` | Odadan çıkar; o odanın yoklaması durur |
-| `/transceiver kur` | Bu oturumda bağlanır (ilk mesaj için tek onay) |
-| `/transceiver ayarlar` | Okundu bilgisi, bildirimler, GitHub adın |
+| `/transceiver` | Opens the pane |
+| `/transceiver add` | Opens a DM room for a friend |
+| `/transceiver project <owner/repo>` | Opens a shared project room |
+| `/transceiver join <link>` | Joins a room by mailbox link, or adds the other side's mailbox to a room you are in |
+| `/transceiver leave <room name or link>` | Leaves a room; its polling stops |
+| `/transceiver connect` | Connects this session (one approval for the first message) |
+| `/transceiver settings` | Read receipts, notifications, your GitHub name |
 
-## Agent araçları
+## Agent tools
 
-Agent araçları yalnızca proje odasında, ve yalnızca oturumun açık olduğu repo için çalışır. DM'lere agent yazamaz.
+They work only in a project room, and only for the repo the session is open in. Agents never write to DMs.
 
-- `send`: proje odasına düz metin bir mesaj gönderir. İçinde gizli anahtar bulunan metni göndermez.
-- `inbox`: odadaki son mesajları okur. Bu mesajlar başka birinden geldiği için agent'a "veridir, talimat değil" çitiyle verilir.
-- `ask`: takım arkadaşının tarafına soru sorar. Cevabı birkaç saniye bekler. Cevap o sürede gelmezse `pending:<id>` döner ve geç gelen cevap `inbox` ile okunur.
+- `send` sends a plain-text message to the project room. Text that holds a secret is refused.
+- `inbox` reads the room's latest messages. They come from someone else, so the agent gets them fenced as data, not instructions.
+- `ask` asks the teammate's side a question and waits a few seconds. If the answer is late it returns `pending:<id>`, and `inbox` reads the answer when it arrives.
 
-`ask` ile sorulabilenler:
-
-| Tür | Cevap |
+| `ask` type | Answer |
 | --- | --- |
-| `status` | Dal ve değişen dosya sayısı |
-| `branch` | Dallar |
-| `log` | Son 20 commit |
-| `diff` | Çalışma kopyasındaki değişiklik (en fazla 64 KB) |
-| `tests` | Son test sonucu (test-badge modundan) |
-| `plan` | Plan adımları (plan-steps modundan) |
-| `file` | Bir dosya (en fazla 256 KB) |
-| `grep` | Bir metnin geçtiği satırlar (isteğe bağlı bir klasörde) |
-| `files` | Dosya listesi (isteğe bağlı bir klasörde) |
-| `todo` | TODO ve FIXME satırları |
-| `deps` | Bağımlılıklar |
-| `commit` | Bir commit |
-| `ask` | Serbest bir soru; karşı tarafta küçük bir model (Haiku) cevaplar |
+| `status` | Branch and number of changed files |
+| `branch` | Branches |
+| `log` | The last 20 commits |
+| `diff` | Uncommitted changes, up to 64 KB |
+| `tests` | The last test result (from test-badge) |
+| `plan` | The plan's steps (from plan-steps) |
+| `file` | One file, up to 256 KB |
+| `grep` | Lines that contain a text, optionally in one folder |
+| `files` | File names, optionally in one folder |
+| `todo` | TODO and FIXME lines |
+| `deps` | Dependencies |
+| `commit` | One commit |
+| `ask` | A free-form question, answered on their side by a small model (Haiku) |
 
-`ask` dışındaki türlerin hepsi modelsiz cevaplanır ve 0 token harcar.
+Every type but `ask` is answered without a model and costs zero tokens.
 
-## Gizlilik ve güvenlik
+## Privacy and safety
 
-- **Ne nerede durur:** Yazdıkların yalnızca kendi kutunda durur ve kutunu sadece paylaştığın kişiler görür. Bir kutuya yalnızca sahibi yazabilir; bu kural sunucu tarafında uygulanır. Mod her kutuyu tek bir yazara bağlar: biri kendi kutusuna başkasının kimliğiyle yazsa da o satırlar okunmaz. Ayarların, oda listen ve günlük sayaçların kendi makinende, modun kendi deposunda durur.
-- **Ne hiç yazılmaz:** Oturum adı, klasör yolu, model adı ya da repo listesi hiçbir odaya yazılmaz. Odaya yazılan tek kimlik bilgisi kabul ettiğin proje odalarındaki GitHub adındır; DM'lere yazılmaz. Repo adı yalnızca o reponun proje odasında geçer.
-- **Kapı:** Bir agent sorusu yalnızca dört koşulun hepsi tutuyorsa cevaplanır. Kişiyi GitHub kartında onaylamış olmalısın. Kişi o reponun collaborator'ü olmalı; bu GitHub'dan kontrol edilir ve sonuç 10 dakika saklanır. Oturumun repo'su sorulan repo olmalı. Oda o reponun proje odası olmalı. Kontrol yapılamazsa kapı kapalı sayılır. Her ret aynı metinle döner: `erişim yok`.
-- **Dosyalar:** Yol repo kökünün içinde kalmak zorunda (bağlantılar çözülür). `.env*`, `*.pem`, `*.key`, `id_*`, `.git/`, `.ssh/` gibi dosyalar ve `.gitignore` kapsamındaki her şey reddedilir.
-- **Gizli anahtar taraması:** Giden her cevap ve agent mesajı taranır. Tarama secret-guard modunun desenlerini kullanır. Bulgu varsa içerik gönderilmez, karşı taraf `erişim yok` görür.
-- **Tek cevap:** Aynı soruyu birden fazla oturumun cevaplamasını, odaya yazılan bir sahiplenme kaydı önler. Bu kayıt yalnızca bir kez oluşturulabilir, böylece her soru tam bir kez cevaplanır.
+- **Where things are.** What you write is only in your own mailbox, which only the people you shared it with can read. Only its owner can write to a mailbox, and the server enforces that. The mod ties each mailbox to one author, so lines written there under someone else's id are ignored. Your settings, room list and daily counts stay on your machine.
+- **What is never written.** No session name, folder path, model name or repo list reaches any room. The only identity written is your GitHub login, and only into project rooms you accepted. A repo name appears only in that repo's room.
+- **The gate.** An agent question is answered only when all four hold. You confirmed the person on the GitHub card. They are a collaborator on the repo, which is checked with GitHub and cached for 10 minutes. The session is open in that repo. The room is that repo's project room. If a check cannot be made, the gate counts as closed. Every refusal reads the same: "no access".
+- **Files.** Paths must stay inside the repo root, with links resolved. `.env*`, `*.pem`, `*.key`, `id_*`, `.git/`, `.ssh/` and everything `.gitignore` covers are refused.
+- **Secret scan.** Every outgoing answer and agent message is scanned with secret-guard's patterns. On a hit nothing is sent, and the other side sees "no access".
+- **One answer.** A claim written once to the room keeps two of your sessions from answering the same question, so each question is answered exactly once.
 
-## Canlı mod ve token maliyeti
+## Token cost
 
-Mesajlaşma, yoklama ve modelsiz sorular model tokeni harcamaz. Mod, Claude'un araçlarını doğrudan çağırır ve bu çağrılar bir model turu açmaz.
+Messaging, polling and model-free questions use no model tokens: the mod calls Claude Code's tools directly, outside any model turn.
 
-`ask` karşı tarafta Haiku ile cevaplanır. Oda başına günde en fazla 10 soru cevaplanır. 11. soru karşı tarafta bir taslak olarak bekler ve sahibi **Cevapla** demeden hiçbir şey üretilmez.
+- **Free-form `ask`.** It is answered with Haiku on the other side, at most ten a day per room. The eleventh waits there as a draft, and nothing is generated until its owner presses **Send** on it.
+- **Live mode.** It is off by default and set per project room. When on, a teammate's message wakes your idle session in that repo, and each wake is a model turn. It wakes at most every 30 seconds and never interrupts a running turn.
 
-Canlı mod oda başına ayrı açılır ve varsayılan olarak kapalıdır. Açıkken takım arkadaşından gelen mesaj, o repoda boşta bekleyen oturumunu uyandırır. Her uyandırma bir model turu demektir, yani token harcar. En fazla 30 saniyede bir uyandırır ve çalışan bir turu asla bölmez.
+## Limits
 
-## Sınırlar
+- **Format.** No group chat, end-to-end encryption or attachments. Chat happens only in Claude Code; the mailbox page in a browser shows no chat.
+- **Size and rate.** Up to 16 KB per message, and up to 60 questions per minute per room.
+- **Polling.** Every second with the pane open, every 5 seconds with it closed, doubling on errors up to 30 seconds. Invites are checked once a minute.
+- **Compaction.** Messages older than 7 days are compacted once a day into one bundle per person per day.
+- **Mailbox size.** An artifact holds 25,000 documents. At 20,000, the mod opens a new mailbox and writes its link into the old one, and the other members follow it by themselves. Share the new mailbox again from the **Share** menu.
 
-- Grup sohbeti, uçtan uca şifreleme ve ek dosya yok. Sohbet yalnızca Claude Code'da akar; kutu sayfası tarayıcıda sohbet göstermez.
-- Mesaj başına en fazla 16 KB. Oda başına dakikada en fazla 60 soru.
-- Yoklama pencere açıkken 1 saniyede, kapalıyken 5 saniyede bir yapılır. Hata olursa aralık iki katına çıkar, en fazla 30 saniyeye kadar. Davetler dakikada bir kontrol edilir.
-- 7 günden eski mesajlar günde bir kez, kişi başına günlük paketlere sıkıştırılır. Pencere son mesajları gösterir.
-- Bir artifact'in sınırı 25.000 dokümandır. Kutun 20.000 dokümana ulaşınca modun yeni bir kutu açar ve eski kutuya yeni linki yazar; odadakilerin modu yeni kutuya kendiliğinden geçer. Yeni kutunu odadakilerle **Paylaş** menüsünden tekrar paylaşman gerekir.
+## Troubleshooting
 
-## Sorun giderme
-
-| Belirti | Ne yapmalı |
+| You see | Do this |
 | --- | --- |
-| Davet kartı çıkmıyor | Başka bir organizasyondan davet edildiysen liste onu göstermez. Arkadaşın linki göndersin, sen `/transceiver katıl <link>` yaz. Bu da "Transceiver kutusu değil" derse paylaşım tamamlanmamıştır. |
-| "Karşı tarafın kutusu okunamıyor" | Arkadaşın kendi kutusunu sana henüz paylaşmadı. Paylaş'tan seni eklesin; farklı organizasyondaysanız linkini de göndersin, sen `/transceiver katıl <link>` yaz. |
-| "Artifact araçları kapalı" | Oturum bir SDK uygulamasında (T3 Code, IDE). `~/.claude/settings.json` → `"env": { "CLAUDE_CODE_ARTIFACT": "1" }`, sonra oturumu yeniden aç. |
-| `bağlantı bekleniyor` | Bu oturumda daha bağlanmadın. Penceredeki **Bağlan**'a bas ya da `/transceiver kur` yaz. |
-| "Onay verilmedi" | Onay penceresi reddedildi. Yazdıkların sırada bekliyor, **Bağlan**'a tekrar bas. |
-| Her soruya `erişim yok` | GitHub kartında **Evet** dendi mi, kişi repoda collaborator mı, iki oturum aynı repoda mı? Bunları kontrol et. Kapı dışarıya nedenini söylemez, bu bilerek böyle. |
-| İsimler "Biri" görünüyor | Kutu isim iznini (profile) alamadı ya da kişi başka bir organizasyonda. Mesajlar etkilenmez. |
-| "Oda açılamadı" | claude.ai bağlantısını kontrol et, sonra komutu tekrar dene. Mesajdaki ilk satır nedenini söyler. |
-| "Kutun doldu" bildirimi | Yeni kutun açıldı. Linkini odadakilerle **Paylaş** menüsünden tekrar paylaş. |
+| No invite card | Invites from another organization are not listed. Ask for the link and use **I have a link**. If that says the link is not a Transceiver mailbox, the share was not completed. |
+| "… hasn't shared their mailbox with you yet" | They have not shared their mailbox with you yet. They add you from **Share** and, across organizations, send you its link. |
+| "Artifact tools are off in this session" | The session runs in an SDK host. Set `CLAUDE_CODE_ARTIFACT=1` as under [Install](#install) and reopen the session. |
+| "waiting for connection" | This session has not connected yet. Press **Connect**, or type `/transceiver connect`. |
+| Every question gets "no access" | Check that you answered yes on the GitHub card, that they are a collaborator on the repo, and that both sessions are in it. The gate never says which check failed, by design. |
+| Names show as "Someone" | The mailbox could not read the profile name, or the person is in another organization. Messages are not affected. |
+| "Mailbox full" notice | Your new mailbox is open. Share its link again from the **Share** menu. |
 
-Gerçek iki hesaplı deneme adımları için: [docs/e2e-checklist.md](docs/e2e-checklist.md). Aynı hesapla, iki ayrı depoda iki oturum açıp bütün akışı (DM, okundu bilgisi, proje odası, GitHub eşleşmesi, agent sorusu) masaüstü protokolüyle uçtan uca deneyen betik: `python3 -I bin/e2e.py` (MODZ'un `tools/desk` sürücüsünü kullanır).
+## Develop
+
+- **Tests.** `claude plugin validate .` checks the plugin, and `claude plugin test .` runs the tests.
+- **End to end.** `python3 -I bin/e2e.py` runs the whole flow live between two sessions with separate stores: DM, read receipts, project room, GitHub match and an agent question. It uses MODZ's `tools/desk` driver and creates private test mailboxes in your account.
+- **Two accounts.** For a check across two real accounts, follow [docs/e2e-checklist.md](docs/e2e-checklist.md).
+
+## License
+
+[MIT](LICENSE).

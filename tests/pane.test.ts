@@ -6,6 +6,10 @@ import { paths } from '../hooks/protocol'
 import type { RoomRecord } from '../hooks/rooms'
 import { ALPEREN, dmAlperen, dmZeynep, idAt, ME, projectEliti, room, ROOMS } from './pane-fixtures'
 import { mountPane, paneWorld, startSession, type World } from './pane-world'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const SURFACES = ['terminal', 'desktop'] as const
 const NARROW = 58

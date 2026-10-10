@@ -2,16 +2,17 @@ import { ASK_MAX_QUESTION_CHARS, GREP_MAX_CHARS, GREP_MIN_CHARS, MAX_PATH_BYTES 
 import { isQueryType, isSearchText, isSha, QUERY_TYPE_NAMES, QUERY_TYPES, utf8Bytes } from './protocol'
 import type { Query, QueryArg, QueryType } from './protocol'
 import { hasSecret } from './scan'
+import { agentWords } from './words-agent'
 
-// What an agent's `ask` tool input becomes: a query the protocol accepts, or the reason it is not sent (Turkish,
-// for the agent to fix its call). Nothing that leaves is unchecked: every argument is scanned for secrets.
-export const SECRET_IN_QUERY = 'Sorgu gönderilmedi: gizli anahtar içeriyor.'
+// What an agent's `ask` tool input becomes: a query the protocol accepts, or the reason it is not sent (in the
+// interface's language, for the agent to fix its call). Nothing that leaves is unchecked: every argument is scanned for secrets.
+export const secretInQuery = (): string => agentWords().secretInQuery
 
-const ARG_ERROR: Record<QueryArg, string> = {
-  path: `path en fazla ${MAX_PATH_BYTES} bayt olmalı.`,
-  text: `text ${GREP_MIN_CHARS}–${GREP_MAX_CHARS} karakterlik, tek satırlık bir metin olmalı.`,
-  sha: 'sha 7–40 karakterlik onaltılık bir commit kimliği olmalı.',
-  question: `question en fazla ${ASK_MAX_QUESTION_CHARS} karakter olmalı.`,
+function argError(arg: QueryArg): string {
+  const w = agentWords()
+  if (arg === 'path') return w.pathTooLong(MAX_PATH_BYTES)
+  if (arg === 'text') return w.badText({ min: GREP_MIN_CHARS, max: GREP_MAX_CHARS })
+  return arg === 'sha' ? w.badSha : w.longQuestion(ASK_MAX_QUESTION_CHARS)
 }
 
 const given = (x: unknown): string | undefined => (typeof x === 'string' && x.trim() !== '' ? x : undefined)
@@ -34,24 +35,24 @@ function argsOf(type: QueryType, input: Record<string, unknown>): Partial<Query>
   const { arg, isArgRequired } = QUERY_TYPES[type]
   const out: Partial<Query> = {}
   const raw = arg === null ? undefined : given(input[arg])
-  if (arg !== null && raw === undefined && isArgRequired) return `${type} için ${arg} gerekli.`
+  if (arg !== null && raw === undefined && isArgRequired) return agentWords().needs({ type, arg })
   if (arg !== null && raw !== undefined) {
     const value = normalised(arg, raw)
-    if (!isArgOk(arg, value)) return ARG_ERROR[arg]
+    if (!isArgOk(arg, value)) return argError(arg)
     out[arg] = value
   }
   if (type !== 'grep') return out
   const path = given(input.path)
-  if (path !== undefined && !isArgOk('path', path)) return ARG_ERROR.path
+  if (path !== undefined && !isArgOk('path', path)) return argError('path')
   return { ...out, ...(path === undefined ? {} : { path }), ...(input.isCaseInsensitive === true ? { isCaseInsensitive: true } : {}) }
 }
 
 export function queryFromInput(input: Record<string, unknown>, repo: string): Query | string {
-  if (!isQueryType(input.type)) return `type şunlardan biri olmalı: ${QUERY_TYPE_NAMES.join(', ')}`
+  if (!isQueryType(input.type)) return agentWords().typeOneOf(QUERY_TYPE_NAMES.join(', '))
   const args = argsOf(input.type, input)
   if (typeof args === 'string') return args
   const texts = [args.path, args.text, args.sha, args.question].filter(t => t !== undefined)
-  if (hasSecret(texts.join('\n'))) return SECRET_IN_QUERY
+  if (hasSecret(texts.join('\n'))) return secretInQuery()
   return { ...args, type: input.type, repo }
 }
 

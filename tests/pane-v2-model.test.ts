@@ -13,6 +13,10 @@ import { itemsOf, joined } from '../hooks/traffic'
 import { buildModel } from '../hooks/view'
 import { agoText } from '../hooks/when'
 import { ALPEREN, dmAlperen, dmZeynep, grepTraffic, idAt, input, NOW, projectEliti, ROOMS } from './pane-fixtures'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const MIN = 60_000
 const ELITI = 'partalemre/eliti'

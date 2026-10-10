@@ -1,12 +1,16 @@
 import { expect, mock, test } from 'claude-code/testing'
 import { enqueueMessage, startLoop, stopRoom, syncOf } from '../hooks/room-loop'
 import { roomPageHtml } from '../hooks/room-page'
-import { createRoom, discoverInvites, failText, NO_ARTIFACT_TOOLS, invitedFrom, loadRooms, loadSettings, placeFound, roomTitle, saveRooms, type RoomRecord } from '../hooks/rooms'
+import { createRoom, discoverInvites, failText, noArtifactTools, invitedFrom, loadRooms, loadSettings, placeFound, roomTitle, saveRooms, type RoomRecord } from '../hooks/rooms'
 import type { RoomMeta } from '../hooks/protocol'
 import { NOT_ROOM_RETRY_MS } from '../hooks/limits'
 import { callerFor, fakeDb, type FakeDb } from './fake-db'
 import { fakeHost, type FakeHost } from './fake-host'
 import type { CallResult } from '../hooks/host'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const ROOM = 'https://claude.ai/artifact/AAA111'
@@ -169,7 +173,7 @@ test('session start runs the loop through the engine, reading rooms from the sto
   const room = { id: 'r3', url: ROOM, kind: 'dm', title: 'Transceiver · DM', status: 'active', isLive: false, room: 'R0000000000000000000000000', boxes: [], peers: [], joinedAt: 1 }
   mock.store(on, { 'tx.rooms': [room] })
   const clock = mock.clock(on, { now: 1_791_545_100_000 })
-  mock.env(on, { HOME: '/home/u' })
+  mock.env(on, { HOME: '/home/u', MODZ_LANG: 'tr' })
   on('tool.call', async (_$, e) => asToolResult(await callerFor(db)(e as unknown as Record<string, unknown>)))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('session.start', () => ({ cwd: '/w' }))
@@ -179,6 +183,6 @@ test('session start runs the loop through the engine, reading rooms from the sto
 })
 
 test('a session without the Artifact tools is told how to turn them on; any other failure keeps its own words', () => {
-  expect(failText(new Error('transceiver: $.tool.call: no tool named "Artifact" in this session'), 'x')).toBe(NO_ARTIFACT_TOOLS)
+  expect(failText(new Error('transceiver: $.tool.call: no tool named "Artifact" in this session'), 'x')).toBe(noArtifactTools())
   expect(failText(new Error('room publish failed: offline'), 'Oda açılamadı')).toBe('Oda açılamadı')
 })

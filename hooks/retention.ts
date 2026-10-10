@@ -7,6 +7,10 @@ import { callerOf, relayOf } from './relay'
 import { forgetRoom, onTick, pokeRoom, type TickEvent } from './room-loop'
 import { createRoom, loadRooms, saveRooms, type RoomRecord } from './rooms'
 import { newId } from './ulid'
+import { agentWords } from './words-agent'
+import { MOVED } from './words-wire'
+
+export { MOVED }
 
 // Retention on the room loop (T15), only while the session may write: once a day each person compacts their own
 // week-old messages, and a person whose own mailbox nears the document limit moves to a new mailbox. The others
@@ -19,9 +23,6 @@ type Moving = { next: RoomRecord; notice: Message }
 
 const compactedKey = (id: string) => `tx.compacted.${id}`
 const movingKey = (id: string) => `tx.rollover.${id}`
-const ROLLOVER_TOAST = 'Transceiver: kutun doldu; yeni kutunu Paylaş ile odadakilere tekrar aç.'
-const ROLLOVER_FAILED = 'Transceiver: kutun doldu ama yeni kutu açılamadı; /transceiver ile tekrar dene.'
-export const MOVED = 'Kutu doldu, yeni kutu: '
 
 // After a failure a room waits RETENTION_RETRY_MS (per room and kind of work); module state, so a reload tries again.
 const retryAt = new Map<string, number>()
@@ -71,7 +72,7 @@ async function moveTo(host: AgentHost, t: Turn & Moving): Promise<void> {
   await host.storeSet(movingKey(room.id), null)
   await forgetRoom(host, room.id)
   pokeRoom(host, next)
-  host.toast(ROLLOVER_TOAST)
+  host.toast(agentWords().rolledOver)
 }
 
 async function rollover(host: AgentHost, t: Turn): Promise<void> {
@@ -83,7 +84,7 @@ async function rollover(host: AgentHost, t: Turn): Promise<void> {
   } catch (err) {
     retryAt.set(key, now + RETENTION_RETRY_MS)
     host.log(`transceiver: ${t.room.title}: rollover ${errName(err)}`)
-    if (!warned.has(key)) host.toast(ROLLOVER_FAILED)
+    if (!warned.has(key)) host.toast(agentWords().rolloverFailed)
     warned.add(key)
   }
 }
