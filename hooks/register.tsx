@@ -7,8 +7,7 @@ import { isBypassMode, isConnected, persistConnection, restoreConnection, setCon
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
 import { HUB_PANE, isOpenFor, isSameLine } from './hub'
-import { settleFocus } from './kit/focus'
-import { stamped } from './kit/stamp'
+import { pinned } from './kit/pin'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
 import { setTurnRunning } from './live'
@@ -110,6 +109,9 @@ async function openPane($: EngineInterface): Promise<void> {
   await refreshPane()
 }
 
+// One pane listener per module: a second session.start without a reload replaces it instead of stacking.
+let stopPaneTick: (() => void) | null = null
+
 function onSession(on: On): void {
   on('session.start', async ($, e, next) => {
     // A refused registration must not keep the rooms from polling.
@@ -121,22 +123,21 @@ function onSession(on: On): void {
     // The pane listens first, so a failing agent-side listener never keeps it from redrawing.
     bindPane({ host: agents, ui: uiOf($) })
     setRepoSource(() => repoHere(agents))
-    onTick(onPaneTick)
+    stopPaneTick?.()
+    stopPaneTick = onTick(onPaneTick)
     wireAgents(agents)
     await registerTools($)
     await startLoop(agents)
     await refreshPane()
     return next(e)
   })
-  // A desktop that comes back keeps showing the tree it had; the engine released that tree's buttons when it
-  // left, so its first click would be refused. Drawing again on attach hands it live buttons.
-  on('session.attach', async ($, e, next) => {
-    const attached = await next(e)
-    $.ui.invalidate('ui.render')
-    return attached
-  })
-  // A session started with permissions bypassed may write from the start: no "Bağlan" card (spike R1).
+  // A session with permissions bypassed may write without a "Bağlan" card (spike R1). An SDK host (an IDE, the
+  // desktop app) leaves the mode out of SessionStart, so the first prompt's mode counts too.
   on('classic.SessionStart', async ($, e, next) => {
+    if (isBypassMode(e.permission_mode)) setConnected(true)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+  on('classic.UserPromptSubmit', async ($, e, next) => {
     if (isBypassMode(e.permission_mode)) setConnected(true)
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -144,11 +145,10 @@ function onSession(on: On): void {
 
 function onPane(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'transceiver' }, async ($, e) => {
-    await settleFocus(e, ms => $.clock.sleep(ms))
     const ui = $.ui.resolve(e)
     const model = (await $.state.get(PANE_STATE)).value ?? EMPTY_PANE
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS
-    return stamped(ui, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers }))
+    return pinned(e, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers }))
   })
   // A press on the MODZ hub's Transceiver row: the pane opens (or an open one comes forward) asking for the keyboard.
   on('state.set', { plugin: 'modz', key: 'open' }, async ($, e, next) => {

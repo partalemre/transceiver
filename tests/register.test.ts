@@ -20,8 +20,8 @@ test('register wires the same ten hooks from its small helpers, each gate with i
   register(on, {} as never)
   expect(seen).toEqual([
     { event: 'session.start', match: null, hasCatch: false },
-    { event: 'session.attach', match: null, hasCatch: false },
     { event: 'classic.SessionStart', match: null, hasCatch: true },
+    { event: 'classic.UserPromptSubmit', match: null, hasCatch: true },
     { event: 'ui.render', match: { component: 'Pane', requestId: 'transceiver' }, hasCatch: false },
     { event: 'state.set', match: { plugin: 'modz', key: 'open' }, hasCatch: true },
     { event: 'ui.close', match: { id: 'transceiver' }, hasCatch: true },

@@ -16,7 +16,9 @@ export function persistConnection(fn: (is: boolean) => void): void {
   save = fn
 }
 
+// A flag that did not change is not written again: every state write redraws the pane.
 export function setConnected(is: boolean): void {
+  if (is === isOn) return
   isOn = is
   save?.(is)
 }

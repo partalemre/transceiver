@@ -49,4 +49,3 @@ export function notifyTick(o: NotifyOpts): void {
   if (text !== null) o.ui.toast(text)
 }
 
-export const resetNotify = (): void => { lastStatus = undefined }

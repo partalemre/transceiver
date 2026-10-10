@@ -59,6 +59,12 @@ export function projectInfo(o: { room: RoomRecord; sync: RoomSync | undefined; s
 }
 
 // The first peer's head: when it last moved (a send or a read mark) and when they last read.
+// In a two-person room the other head's `seenUpTo` names only lines of this mailbox: set once they have read one.
+export function hasSeenMine(sync: RoomSync | undefined): boolean {
+  const [uid] = peerUids(sync)
+  return uid !== undefined && (sync?.peers[uid]?.seenUpTo ?? '') !== ''
+}
+
 export function peerHeadOf(sync: RoomSync | undefined): { seenTs: number; readTs: number } {
   const [uid] = peerUids(sync)
   const head = uid === undefined ? undefined : sync?.peers[uid]

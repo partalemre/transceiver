@@ -79,9 +79,9 @@ test('Alperen: the invite shows within a minute of Emre sharing; Kabul et opens 
   expect(net.rooms.get(w.dmA)?.db.owner).toBe(ALPEREN)
   expect((await roomOf(w.alperen, w.dm))).toMatchObject({ status: 'active', url: w.dmA, boxes: [w.dm] })
   await sched.advance(2_000)
-  // Each head sits in its writer's own mailbox.
-  expect(dbOf(w.dmA)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBe('AlperenX')
-  expect(dbOf(w.dm)?.docs.get(`outbox/${EMRE}`)?.data.gh).toBe('partalemre')
+  // A DM has no agent gate, so neither head carries a GitHub login.
+  expect(dbOf(w.dmA)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBeUndefined()
+  expect(dbOf(w.dm)?.docs.get(`outbox/${EMRE}`)?.data.gh).toBeUndefined()
 })
 
 test('Emre: Alperen shares his mailbox back and it joins Emre\'s DM within a minute', async () => {

@@ -1,7 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DENIED, isRepo, isUnreadable, parseHead, parseMessage, parseMeta, paths, utf8Bytes } from '../hooks/protocol'
 import { isSearchText, isSha, QUERY_TYPE_NAMES, QUERY_TYPES } from '../hooks/protocol'
-import { QUERY_CATALOG } from '../hooks/query-catalog'
 
 const ID = '01K7A0000000000000000000AB'
 const ok = { v: 1, id: ID, ts: 5, kind: 'human', text: 'merhaba' }
@@ -92,16 +91,6 @@ test('the query types keep their wire names, each with the one field it reads', 
     todo: 'path', deps: null, commit: 'sha', ask: 'question',
   })
   expect(QUERY_TYPE_NAMES.filter(t => !QUERY_TYPES[t].isModelless)).toEqual(['ask'])
-})
-
-test('the catalog names every type in Turkish, as plain data', () => {
-  expect(Object.keys(QUERY_CATALOG).sort()).toEqual([...QUERY_TYPE_NAMES].sort())
-  expect(QUERY_CATALOG.grep).toEqual({ label: 'Metin ara', description: 'Repoda bir metni arar' })
-  for (const t of QUERY_TYPE_NAMES) {
-    const { label, description } = QUERY_CATALOG[t]
-    expect(label.length > 0 && label.length <= 20 && description.length > 0 && description.length <= 80).toBe(true)
-    expect(`${label}${description}`.includes('$')).toBe(false)
-  }
 })
 
 test('grep, files, todo, deps and commit queries parse with their fields; a bad field is unreadable', () => {

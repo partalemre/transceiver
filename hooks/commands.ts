@@ -3,7 +3,7 @@ import { joinRoom } from './join'
 import { COMMAND } from './limits'
 import { isRepo } from './protocol'
 import { forgetRoom, pokeRoom } from './room-loop'
-import { createRoom, loadRooms, saveRooms, type RoomKind } from './rooms'
+import { createRoom, failText, loadRooms, saveRooms, type RoomKind } from './rooms'
 
 export type Verb = 'open' | 'ekle' | 'proje' | 'katil' | 'cik' | 'kur' | 'ayarlar' | 'yardim'
 export type Cmd = { verb: Verb; arg: string }
@@ -41,7 +41,7 @@ async function addRoom(deps: CommandDeps, opts: { kind: RoomKind; repo?: string;
   const { host } = deps
   const consent = `The user ran "/${COMMAND} ${opts.typed}"`
   const room = await createRoom({ host, kind: opts.kind, repo: opts.repo, consent }).catch((err: unknown) => err as Error)
-  if (room instanceof Error) return `Oda açılamadı: ${room.message}`
+  if (room instanceof Error) return failText(room, `Oda açılamadı: ${room.message}`)
   await saveRooms(host, [...(await loadRooms(host)), room])
   pokeRoom(host, room)
   await deps.openPane()

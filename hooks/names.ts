@@ -21,7 +21,7 @@ function nameIn(x: unknown): string | null {
 }
 
 // The structured result first (`db_profiles.profiles`, keyed by uid or a list of `{ id, name }`), then the text:
-// a line holding the uid and a quoted name, or `u_…: Name`.
+// a line holding the uid and a quoted name, `u_…: Name`, or `u_… <nonce>| Name` as the tool prints it now.
 export function parseProfiles(out: CallResult, uids: readonly string[]): Record<string, string> {
   const found: Record<string, string> = {}
   const profiles = (out.result as { db_profiles?: { profiles?: unknown } } | undefined)?.db_profiles?.profiles
@@ -41,7 +41,8 @@ export function parseProfiles(out: CallResult, uids: readonly string[]): Record<
     if (found[uid] !== undefined) continue
     const line = (out.text ?? '').split('\n').find(l => l.includes(uid)) ?? ''
     const quoted = /"(?:name|display_name|displayName)"\s*:\s*"([^"]{1,200})"/.exec(line)?.[1]
-    const plain = new RegExp(`${uid}\\W{1,4}([^\\n"{}]{1,200})$`).exec(line)?.[1]
+    // The tool's text puts a per-call nonce before each name: `u_… 35c541bd| Faik Emre Partal`.
+    const plain = new RegExp(`${uid}\\W{1,4}(?:[0-9a-f]{4,32}\\|\\s*)?([^\\n"{}|]{1,200})$`).exec(line)?.[1]
     const name = clean(quoted) ?? clean(plain)
     if (name !== null) found[uid] = name
   }

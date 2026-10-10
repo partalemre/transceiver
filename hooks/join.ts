@@ -2,9 +2,11 @@ import { parseArtifactUrls } from './dbtext'
 import type { Host } from './host'
 import { callerOf, relayOf } from './relay'
 import { pokeRoom } from './room-loop'
-import { createRoom, homeOf, loadRooms, saveRooms, withBox, type RoomRecord } from './rooms'
+import { createRoom, failText, homeOf, loadRooms, saveRooms, withBox, type RoomRecord } from './rooms'
 
 export type Joined = { text: string; room?: RoomRecord; isNew: boolean }
+
+const NOT_A_BOX = 'Bu link bir Transceiver kutusu değil ya da sana paylaşılmamış.'
 
 export const SHARE_BACK = 'Son adım: kendi kutunun linkini claude.ai\'de aç, Paylaş\'tan arkadaşını ekle ve linki ona gönder.'
 
@@ -39,8 +41,9 @@ export async function joinRoom(host: Host, text: string, consent?: string): Prom
   const rooms = (await loadRooms(host)).filter(r => r.status === 'active')
   const held = rooms.find(r => r.url === url || r.boxes.includes(url))
   if (held !== undefined) return { text: 'Bu odaya zaten katıldın.', room: held, isNew: false }
-  const meta = await relayOf(callerOf(host), url).meta().catch(() => null)
-  if (meta === null) return { text: 'Bu link bir Transceiver kutusu değil ya da sana paylaşılmamış.', isNew: false }
+  const meta = await relayOf(callerOf(host), url).meta().catch((err: unknown) => err as Error)
+  if (meta instanceof Error) return { text: failText(meta, NOT_A_BOX), isNew: false }
+  if (meta === null) return { text: NOT_A_BOX, isNew: false }
   const home = homeOf(rooms, { url, meta })
   if (home !== undefined) {
     const room = withBox(home, url)
@@ -49,8 +52,8 @@ export async function joinRoom(host: Host, text: string, consent?: string): Prom
   }
   if (rooms.some(r => r.room === meta.room)) return { text: 'Bu DM\'de zaten bir karşı taraf var.', isNew: false }
   const said = consent ?? `The user ran "/transceiver katıl ${url}"`
-  const room = await createRoom({ host, kind: meta.kind, repo: meta.repo, room: meta.room, boxes: [url], consent: said }).catch(() => null)
-  if (room === null) return { text: 'Odaya katılınamadı; kendi kutun açılamadı. claude.ai bağlantısını kontrol edip tekrar dene.', isNew: false }
+  const room = await createRoom({ host, kind: meta.kind, repo: meta.repo, room: meta.room, boxes: [url], consent: said }).catch((err: unknown) => err as Error)
+  if (room instanceof Error) return { text: failText(room, 'Odaya katılınamadı; kendi kutun açılamadı. claude.ai bağlantısını kontrol edip tekrar dene.'), isNew: false }
   await saveRoom(host, room)
   return { text: `${room.title} odasına katıldın. Kendi kutun: ${room.url}\n${SHARE_BACK}`, room, isNew: true }
 }

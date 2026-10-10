@@ -9,7 +9,7 @@ import { loadRooms, type RoomRecord } from './rooms'
 import { patchSession, sessionNow, type PanePort } from './state'
 import { newId } from './ulid'
 
-export const SAY_COMPOSE = {
+const SAY_COMPOSE = {
   tooLong: 'Mesaj çok uzun (en fazla 16 KB).',
   onlyProject: 'Agent\'a soru yalnızca proje odalarında sorulur.',
   notLoaded: 'Oda henüz yüklenmedi; birazdan tekrar dene.',

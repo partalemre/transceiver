@@ -7,7 +7,7 @@ import { acceptInvite, joinUrlOf, joinRoom } from './join'
 import { askAgent, sendComposed, setTyped, typedOf } from './compose'
 import { isRepo, paths } from './protocol'
 import { pokeRoom, syncOf } from './room-loop'
-import { createRoom, loadRooms, loadSettings, saveRooms, saveSettings, type RoomKind, type RoomRecord } from './rooms'
+import { createRoom, failText, loadRooms, loadSettings, saveRooms, saveSettings, type RoomKind, type RoomRecord } from './rooms'
 import { draftSettlerNow, modelNow, patchSession, portNow, refreshPane, sessionNow, type PanePort } from './state'
 import type { EmptyForm, PaneSettings, PaneView } from './state-types'
 import { readMarkOf } from './view'
@@ -97,8 +97,8 @@ async function addRoom(p: PanePort, opts: { kind: RoomKind; repo?: string; label
   patchSession({ busy: 'Oda açılıyor…', error: null, created: null })
   await refreshPane()
   const consent = `The user pressed "${opts.label}" on the Transceiver pane`
-  const room = await createRoom({ host: p.host, kind: opts.kind, repo: opts.repo, consent }).catch(() => null)
-  if (room === null) return patchSession({ busy: null, error: 'Oda açılamadı; claude.ai bağlantısını kontrol edip tekrar dene.' })
+  const room = await createRoom({ host: p.host, kind: opts.kind, repo: opts.repo, consent }).catch((err: unknown) => err as Error)
+  if (room instanceof Error) return patchSession({ busy: null, error: failText(room, 'Oda açılamadı; claude.ai bağlantısını kontrol edip tekrar dene.') })
   await saveRooms(p.host, [...(await loadRooms(p.host)), room])
   pokeRoom(p.host, room)
   patchSession({ busy: null, view: 'rooms', created: { url: room.url, title: room.title } })

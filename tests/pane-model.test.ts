@@ -68,6 +68,8 @@ test('profile names come from the structured result, a list, or the text; nothin
   const uids = [ALPEREN, ZEYNEP]
   expect(parseProfiles({ result: { db_profiles: { profiles: { [ALPEREN]: { name: ' Alperen  Y ' } } } } }, uids)).toEqual({ [ALPEREN]: 'Alperen Y' })
   expect(parseProfiles({ result: { db_profiles: { profiles: [{ id: ZEYNEP, display_name: 'Zeynep' }] } } }, uids)).toEqual({ [ZEYNEP]: 'Zeynep' })
+  // The text as measured live (2026-10-10): the per-call nonce is not part of the name.
+  expect(parseProfiles({ text: `=== BEGIN ARTIFACT PEOPLE 35c541bd ===\n${ALPEREN} 35c541bd| Alperen Y\n=== END ARTIFACT PEOPLE 35c541bd ===` }, [ALPEREN])).toEqual({ [ALPEREN]: 'Alperen Y' })
   expect(parseProfiles({ text: `- ${ALPEREN}: Alperen\n- {"id":"${ZEYNEP}","name":"Zeynep K"}` }, uids)).toEqual({ [ALPEREN]: 'Alperen', [ZEYNEP]: 'Zeynep K' })
   expect(parseProfiles({ text: 'no names' }, uids)).toEqual({})
 })

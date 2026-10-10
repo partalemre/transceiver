@@ -8,6 +8,7 @@ import { compactOf } from './answers'
 import { TIMELINE_LINES } from './limits'
 import { fullIdOf } from './pane-agent'
 import { RoomInfo } from './pane-aside'
+import { GhCard, ShareCard } from './pane-cards'
 import { firstLineOf, idsOf, isSameRun } from './pane-chat'
 import { placeholderOf } from './pane-compose'
 import { isHere, receiptTone, type Ctx } from './pane-kit'
@@ -200,6 +201,8 @@ export function TermChat(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="chat" flexDirection="column" gap={0}>
       {Top(ctx, room)}
+      {ShareCard(ctx, room)}
+      {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
       {items.length === 0 ? <Text key="none" color={ctx.look.lo}>Henüz mesaj yok. İlk mesajı aşağıdan yaz.</Text> : null}
       {itemsEls(ctx, items)}
       {ctx.model.drafts.filter(d => d.roomId === room.id).map(d => DraftBlock(ctx, d))}

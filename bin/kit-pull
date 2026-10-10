@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Copies the MODZ drawing kit into hooks/kit so the mod ships self-contained.
-# MODZ is found through $MODZ, else as a sibling of this repo (both live under the same Projects folder).
+# Copies the MODZ drawing kit into hooks/kit so the mod ships self-contained: only the kit files the hooks and
+# tests import (MODZ bin/kit-sync follows the imports). MODZ is $MODZ, else a sibling of this repo.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${MODZ:-$(dirname "$ROOT")/MODZ}/kit"
-DEST="$ROOT/hooks/kit"
-[ -d "$SRC" ] || { echo "kit: $SRC not found; set MODZ=/path/to/MODZ" >&2; exit 1; }
-mkdir -p "$DEST"
-for f in "$SRC"/*.ts "$SRC"/*.tsx; do [ -e "$f" ] && cp "$f" "$DEST/"; done
-echo "kit: $(ls "$DEST" | wc -l | tr -d ' ') files -> $DEST"
+MODZ_DIR="${MODZ:-$(dirname "$ROOT")/MODZ}"
+[ -x "$MODZ_DIR/bin/kit-sync" ] || { echo "kit: $MODZ_DIR/bin/kit-sync not found; set MODZ=/path/to/MODZ" >&2; exit 1; }
+"$MODZ_DIR/bin/kit-sync" "$ROOT"
