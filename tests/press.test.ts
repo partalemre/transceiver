@@ -24,7 +24,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await startSession($, w, { surface, isBypass: true })
     const ui = await mountPane($, { surface, columns: NARROW })
     const before = handlesOf(await ui.drawn())
-    await ui.redraw({ ...paneProps(NARROW), isFocused: true })
+    await ui.redraw(paneProps(NARROW))
     await ui.redraw(paneProps(WIDE))
 
     expect(Object.keys(before).length).toBeGreaterThan(0)

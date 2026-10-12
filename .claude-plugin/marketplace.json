@@ -1,6 +1,14 @@
 {
   "name": "transceiver",
-  "owner": { "name": "Partal" },
-  "description": "Transceiver: chat with friends and let agents on a shared GitHub repo trade project facts, all inside Claude Code",
-  "plugins": [{ "name": "transceiver", "source": "./", "description": "Chat and agent relay inside Claude Code" }]
+  "owner": {
+    "name": "Faik Emre Partal"
+  },
+  "description": "Transceiver: team chat inside Claude Code, and zero-token agent questions between teammates on a shared GitHub repo",
+  "plugins": [
+    {
+      "name": "transceiver",
+      "source": "./",
+      "description": "Team chat and zero-token agent questions between teammates"
+    }
+  ]
 }

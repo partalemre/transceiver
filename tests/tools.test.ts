@@ -134,6 +134,15 @@ test('ask sends a typed query and returns the fenced answer once the peer writes
   stopRoom('rt4')
 })
 
+test('in English the agent reads the answer in English, while the wire keeps its own words', async () => {
+  setLang('en')
+  const { host } = await world({ id: 'rt4en', answer: 'main · 2 değişen dosya' })
+  const out = await runTool(ctx(host), { name: 'ask', input: { type: 'status' } })
+  setLang('tr')
+  expect('result' in out && out.result.includes('main · 2 changed files')).toBe(true)
+  stopRoom('rt4en')
+})
+
 test('ask with no answer returns pending, within the hook budget', async () => {
   const { host } = await world({ id: 'rt5' })
   const start = host.clock.now

@@ -1,6 +1,8 @@
 # Two-account E2E checklist
 
-The simulated walk (`tests/e2e.test.ts`) runs two mods against one fake claude.ai that enforces the room rules. It cannot tell us what the real platform does. These steps are the real run. **Emre** (A, owner of `partalemre/eliti`) and **Alperen** (B, a collaborator on it) each use their own account, their own machine and their own Claude Code with the mod installed (`/plugin install transceiver --marketplace partalemre/transceiver`).
+The simulated walk (`tests/e2e.test.ts`) runs two mods against one fake claude.ai that enforces the room rules. It cannot tell us what the real platform does. These steps are the real run. **Emre** (A, owner of `partalemre/eliti`) and **Alperen** (B, a collaborator on it) each use their own account, their own machine and their own Claude Code with the mod installed (`/plugin marketplace add partalemre/MODZ`, then `/plugin install transceiver@modz`).
+
+The pane words quoted below are the Turkish interface: set `"MODZ_LANG": "tr"` in the `env` of `~/.claude/settings.json` on both machines before the run, or read each quote as its English counterpart.
 
 For each item, write the observed result next to it, and paste exact tool texts where it asks. Part 0 must pass before Part 1 means anything. Both people must be online at the same time for 0.2–0.4, 0.8 and most of Part 1.
 

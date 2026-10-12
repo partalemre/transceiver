@@ -28,8 +28,8 @@ WORDS = {
     'tr': {'ready': 'Kutun hazır', 'unseen': 'henüz okumadı', 'gh': "GitHub'da @"},
 }
 SAYS = WORDS['tr' if os.environ.get('MODZ_LANG', '').strip().lower().startswith('tr') else 'en']
-# An answer the other side refused; the wire keeps this wording in every language (hooks/protocol.ts DENIED).
-DENIED = 'erişim yok'
+# An answer the other side refused: the wire's wording (hooks/protocol.ts DENIED) and what an English reader sees.
+DENIED = ('erişim yok', 'No access')
 
 
 class Person:
@@ -96,7 +96,7 @@ def ask(a, b):
     while time.time() - start < STEP_S:
         result = next((m.get('result') for m in a.engine.msgs[seen:] if m.get('type') == 'result'), None)
         if result is not None:
-            ok = '·' in result and DENIED not in result
+            ok = '·' in result and not any(word in result for word in DENIED)
             print(f'{"✔" if ok else "✘"} A\'s agent asked B\'s side for status ({time.time() - start:.1f}s): {result[:120]}')
             return ok
         time.sleep(0.5)

@@ -112,7 +112,7 @@ Messaging, polling and model-free questions use no model tokens: the mod calls C
 
 ## Develop
 
-- **Tests.** `claude plugin validate .` checks the plugin, and `claude plugin test .` runs the tests.
+- **Tests.** `claude plugin validate .` checks the plugin, and `claude plugin test .` runs the tests. `tsc -p .` type-checks it against the types Claude Code writes into `.claude-plugin/types/` when it hot-reloads the mod.
 - **End to end.** `python3 -I bin/e2e.py` runs the whole flow live between two sessions with separate stores: DM, read receipts, project room, GitHub match and an agent question. It uses MODZ's `tools/desk` driver and creates private test mailboxes in your account.
 - **Two accounts.** For a check across two real accounts, follow [docs/e2e-checklist.md](docs/e2e-checklist.md).
 
