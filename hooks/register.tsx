@@ -147,12 +147,21 @@ function onSession(on: On): void {
   }).catch(($, e, next) => next(e))
 }
 
+// The way back to the MODZ hub: this mod's own `home` value, which the hub hears. A press never throws.
+function goHome($: EngineInterface): void {
+  void $.clock.now()
+    .then(at => $.state.set({ plugin: 'transceiver', key: 'home' }, { at }))
+    .catch(() => $.ui.log('transceiver: could not go back to the hub', { to: 'debug' }))
+}
+
 function onPane(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'transceiver' }, async ($, e) => {
     const ui = $.ui.resolve(e)
     const model = (await $.state.get(PANE_STATE)).value ?? EMPTY_PANE
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS
-    return pinned(e, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers }))
+    const isHubOn = (await $.state.get({ plugin: 'modz', key: 'isOn' })).value === true
+    const onHome = isHubOn ? () => goHome($) : undefined
+    return pinned(e, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers, onHome }))
   })
   // A press on the MODZ hub's Transceiver row: the pane opens (or an open one comes forward) asking for the keyboard.
   on('state.set', { plugin: 'modz', key: 'open' }, async ($, e, next) => {

@@ -12,7 +12,7 @@ import { setLang } from '../hooks/kit/lang'
 setLang('tr')
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
-const LINK = 'https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb'
+const LINK = 'https://claude.ai/artifact/AbCdEfGhJkMnPqRsTuVwXy'
 const NEW_ROOM = 'https://claude.ai/artifact/NEW111'
 const ROOM_ID = '01K7A0000000000000000000R1'
 

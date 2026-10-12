@@ -4,6 +4,7 @@
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
+import { HomeButton } from './kit/home'
 import { RoomInfo } from './pane-aside'
 import { ChatView } from './pane-chat'
 import { AddView, SettingsView } from './pane-forms'
@@ -29,6 +30,8 @@ export type DrawOpts = {
   isLight: boolean
   model: PaneModel
   on: PaneHandlers
+  // Given only while the MODZ hub runs: the pane then opens with the way back to it.
+  onHome?: () => void
 }
 
 function MainView(ctx: Ctx): RenderElement | null {
@@ -72,6 +75,12 @@ function Wide(ctx: Ctx, pad: number): RenderElement {
   )
 }
 
+function HomeRow(ui: ElementTable, o: { onHome: (() => void) | undefined; pad: number }): RenderElement | null {
+  const { Box } = ui
+  if (o.onHome === undefined) return null
+  return <Box key="home-pad" paddingX={o.pad} paddingTop={o.pad / 2}>{HomeButton(ui, o.onHome)}</Box>
+}
+
 export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   const hasRooms = o.model.rooms.length > 0 || o.model.invites.length > 0
   const columns = Math.max(MIN_COLUMNS, hasRooms ? o.columns : Math.min(o.columns, SINGLE_MAX_COLUMNS))
@@ -81,10 +90,12 @@ export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   const isWide = columns >= WIDE_COLUMNS
   const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, model: o.model, on: o.on }
   const { Box } = ui
-  if (isWide) return <Box flexDirection="column" width={columns} backgroundColor={look.sheet}>{Wide(ctx, pad)}</Box>
+  const home = HomeRow(ui, { onHome: o.onHome, pad })
+  if (isWide) return <Box flexDirection="column" width={columns} backgroundColor={look.sheet}>{home}{Wide(ctx, pad)}</Box>
   const inner = sized(ctx, columns - pad * 2)
   return (
     <Box flexDirection="column" gap={1} width={columns} paddingX={pad} paddingY={pad / 2} backgroundColor={look.sheet}>
+      {home}
       {MainView(inner) ?? RoomsColumn(inner)}
       {o.surface === 'mobile' ? Meta(inner, paneWords().phoneNote, 'mobile-note') : null}
     </Box>

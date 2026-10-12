@@ -8,7 +8,7 @@ import { upper } from './kit/lang'
 import { Cards } from './pane-cards'
 import { EmptyView } from './pane-empty'
 import { isText, Pic, receiptTone, roomFace, type Ctx } from './pane-kit'
-import { Title } from './pane-type'
+import { BetaTag, Title } from './pane-type'
 import type { RoomView } from './state-types'
 import { rowTime } from './when'
 import { paneWords } from './words-pane'
@@ -107,6 +107,7 @@ function Top(ctx: Ctx): RenderElement {
   return (
     <Box key="list-head" flexDirection="row" alignItems="center" gap={1}>
       {Title(ctx, { key: 'list-title', text: paneWords().chats })}
+      {BetaTag(ctx, 'list-beta')}
       <Box flexGrow={1} />
       <Button key="open-add" label={paneWords().newRoom} plain onPress={() => ctx.on.openView('add')} />
     </Box>

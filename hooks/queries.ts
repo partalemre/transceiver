@@ -11,11 +11,19 @@ export { trimBytes, type QueryCtx } from './queries-core'
 
 const NO_CHANGES = 'değişiklik yok'
 
+// "main...origin/main [ahead 2]" reads "main [ahead 2]": the branch, and how far it is from its upstream.
+export function branchOf(header: string): string {
+  const [name = '', rest = ''] = header.split('...')
+  const drift = /\[([^\]]+)\]\s*$/.exec(rest)?.[1]
+
+  return drift === undefined ? name.trim() : `${name.trim()} [${drift}]`
+}
+
 async function status(ctx: QueryCtx): Promise<Out> {
   const out = await git(ctx, ['status', '--porcelain=v1', '-b'])
   if (out.exitCode !== 0) return denied
   const lines = out.stdout.split('\n').filter(Boolean)
-  const branch = (lines.find(l => l.startsWith('## ')) ?? '').slice('## '.length)
+  const branch = branchOf((lines.find(l => l.startsWith('## ')) ?? '').slice('## '.length))
   const changed = lines.filter(l => !l.startsWith('## ')).length
   return { ok: true, body: `${branch} · ${changed} değişen dosya` }
 }
