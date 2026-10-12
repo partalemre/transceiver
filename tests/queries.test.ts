@@ -20,7 +20,11 @@ const AWS = 'const k = "AKIAIOSFODNN7EXAMPLE";'
 
 test('status summarises branch and changed files', async () => {
   const out = await answerTyped(ctx({ 'status --porcelain=v1': '## main...origin/main [ahead 2]\n M a.dart\n?? b.dart\n' }), q('status'))
-  expect(out).toEqual({ ok: true, body: 'main...origin/main [ahead 2] · 2 değişen dosya' })
+  expect(out).toEqual({ ok: true, body: 'main [ahead 2] · 2 değişen dosya' })
+  const plain = await answerTyped(ctx({ 'status --porcelain=v1': '## feature/x...origin/feature/x\n' }), q('status'))
+  expect(plain).toEqual({ ok: true, body: 'feature/x · 0 değişen dosya' })
+  const local = await answerTyped(ctx({ 'status --porcelain=v1': '## main\n' }), q('status'))
+  expect(local).toEqual({ ok: true, body: 'main · 0 değişen dosya' })
 })
 
 test('file returns content; a secret-bearing file is denied with the same text as any refusal', async () => {
