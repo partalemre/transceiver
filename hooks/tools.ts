@@ -16,6 +16,7 @@ import { hasSecret } from './scan'
 import type { Entry } from './timeline'
 import { newId } from './ulid'
 import { agentWords } from './words-agent'
+import { shownWire } from './words-wire'
 
 export type ToolOut = { result: string } | { deny: string }
 // `budgetLeft` is the calling hook's remaining time (`next.budget.remainingMs`): the ask tool waits inside it.
@@ -41,7 +42,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       + 'file (path), files (optional folder path: tracked file names), grep (text: literal search in tracked files, '
       + 'optional folder path, isCaseInsensitive), todo (optional folder path: TODO/FIXME/HACK/XXX notes), deps '
       + '(dependency manifests at the repo root), commit (sha: message and changed files). ask (question) uses a small '
-      + 'model on their side. Secret files and secrets are never sent: such answers read "erişim yok". Waits a few '
+      + 'model on their side. Secret files and secrets are never sent: such answers read "No access" ("erişim yok" in Turkish). Waits a few '
       + 'seconds, then returns pending:<id>; read a late answer with inbox.',
     inputSchema: {
       type: 'object', required: ['type'],
@@ -94,7 +95,7 @@ async function send(ctx: ToolCtx, input: Input): Promise<ToolOut> {
 function lineOf(entry: Entry): string {
   const m = entry.message
   if (isUnreadable(m)) return agentWords().unreadable
-  if (m.kind === 'answer' && m.answer !== undefined) return `[answer ${m.answer.qid}] ${m.text}`
+  if (m.kind === 'answer' && m.answer !== undefined) return `[answer ${m.answer.qid}] ${shownWire(m.text)}`
   if (m.kind === 'query' && m.query !== undefined) return `[query ${m.id} ${m.query.type}] ${m.text}`
   return `[${m.kind}] ${m.text}`
 }
@@ -151,7 +152,7 @@ async function ask(ctx: ToolCtx, input: Input): Promise<ToolOut> {
   if (!enqueueMessage({ host: ctx.host, room, message })) return { deny: agentWords().notSynced }
   const answer = await waitAnswer(ctx, { room, qid, selfUid, since: now - QUERY_FUTURE_SKEW_MS })
   if (answer === null) return { result: agentWords().pending(qid) }
-  return { result: `${agentWords().answerHead}\n${fence(answer, newNonce(await ctx.host.now()))}` }
+  return { result: `${agentWords().answerHead}\n${fence(shownWire(answer), newNonce(await ctx.host.now()))}` }
 }
 
 export async function runTool(ctx: ToolCtx, opts: { name: string; input: Input }): Promise<ToolOut> {
