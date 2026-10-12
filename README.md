@@ -1,4 +1,4 @@
-<p align="center"><sub>TRANSCEIVER · A MOD FOR CLAUDE CODE, PART OF <a href="https://github.com/partalemre/MODZ">MODZ</a></sub></p>
+<p align="center"><sub>TRANSCEIVER · BETA · A MOD FOR CLAUDE CODE, PART OF <a href="https://github.com/partalemre/MODZ">MODZ</a></sub></p>
 
 <h1 align="center">Your team, inside Claude.</h1>
 
@@ -7,6 +7,8 @@
 <p align="center"><img src="https://raw.githubusercontent.com/partalemre/MODZ/main/docs/img/team.jpg" width="820" alt="Two Claude Code windows in the same project room: teammates chatting, and one agent's diff question answered by the other machine at zero tokens"></p>
 
 You chat with friends without leaving Claude Code, and on a GitHub repo you share, your agent can ask a teammate's side about the project: `status`, `diff`, `tests`, `log`, a file. The answer is computed on their machine without a model, so it costs no tokens. Everything you write stays in a private claude.ai artifact you own; there is no server of its own.
+
+> **Beta.** Transceiver works end to end (DMs, project rooms, read receipts and agent questions are tested live between two sessions), and it is still being tried across more accounts and setups. If something breaks, [open an issue](https://github.com/partalemre/transceiver/issues).
 
 ## Install
 

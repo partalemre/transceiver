@@ -115,6 +115,8 @@ export type PaneModel = {
 export type HubTone = 'idle' | 'live' | 'ok' | 'warn' | 'bad'
 export type HubCard = { pane: string; detail: string; tone: HubTone; at: number }
 export type ModzOpen = { pane: string; at: number }
+// Written under this mod's own `home` when the pane's "← MODZ" button is pressed; the hub comes forward.
+export type ModzHome = { at: number }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -123,8 +125,9 @@ declare module 'claude-code' {
       hub: HubCard
       // Whether this session may write (connection.ts); kept here so a hot reload does not drop it.
       connected: boolean
+      home: ModzHome
     }
     // The MODZ hub's open request this mod listens for; modz owns and writes it.
-    modz: { open: ModzOpen }
+    modz: { open: ModzOpen; isOn: boolean }
   }
 }

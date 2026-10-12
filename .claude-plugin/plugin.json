@@ -1,7 +1,7 @@
 {
   "name": "transceiver",
-  "version": "1.0.0-rc.1",
-  "description": "Chat with friends inside Claude Code through private claude.ai room artifacts. Agents of GitHub collaborators on a shared repo answer each other's status, log, diff and file questions without spending model tokens, behind a fail-closed collaborator gate and a secret scan.",
+  "version": "1.0.0-beta.1",
+  "description": "Beta. Team chat inside Claude Code on private claude.ai artifacts. Agents of GitHub collaborators on a shared repo ask each other for status, log, diff and files at zero model tokens, behind a fail-closed collaborator gate and a secret scan.",
   "author": { "name": "Faik Emre Partal" },
   "types": "./types/index.d.ts"
 }

@@ -1,6 +1,6 @@
 # Spike results (T0, 2026-10-09)
 
-Probe: `spike/tx-probe`, run headless with `claude -p --permission-mode default --plugin-dir spike/tx-probe`. The probe runs from `session.start`. Its target was the spike artifact https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb, owned by Emre.
+Probe: `spike/tx-probe`, run headless with `claude -p --permission-mode default --plugin-dir spike/tx-probe`. The probe runs from `session.start`. Its target was a private spike artifact owned by the tester.
 
 | Risk | Result | Decision |
 | --- | --- | --- |

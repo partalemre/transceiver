@@ -58,8 +58,8 @@ test('an already-exists phrase inside a peer block is not the tool speaking', ()
 })
 
 test('artifact urls are collected once each', () => {
-  const text = 'Published at https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb (Version 1) https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb'
-  expect(parseArtifactUrls(text)).toEqual(['https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb'])
+  const text = 'Published at https://claude.ai/artifact/AbCdEfGhJkMnPqRsTuVwXy (Version 1) https://claude.ai/artifact/AbCdEfGhJkMnPqRsTuVwXy'
+  expect(parseArtifactUrls(text)).toEqual(['https://claude.ai/artifact/AbCdEfGhJkMnPqRsTuVwXy'])
 })
 
 test('error kinds', () => {

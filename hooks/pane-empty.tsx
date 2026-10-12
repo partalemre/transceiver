@@ -4,7 +4,7 @@
 import type { RenderElement } from 'claude-code'
 
 import type { Ctx } from './pane-kit'
-import { Sentence, Title } from './pane-type'
+import { BetaTag, Sentence, Title } from './pane-type'
 import type { EmptyForm } from './state-types'
 import { paneWords } from './words-pane'
 
@@ -33,7 +33,10 @@ export function EmptyView(ctx: Ctx): RenderElement {
   const w = paneWords()
   return (
     <Box key="empty" flexDirection="column" gap={1} paddingTop={1}>
-      {Title(ctx, { key: 'empty-title', text: w.emptyTitle })}
+      <Box key="empty-head" flexDirection="row" alignItems="center" gap={1}>
+        {Title(ctx, { key: 'empty-title', text: w.emptyTitle })}
+        {BetaTag(ctx, 'empty-beta')}
+      </Box>
       {Sentence(ctx, { key: 'empty-body', text: w.emptyBody })}
       <Box key="empty-actions" flexDirection="row" alignItems="center" gap={1} flexWrap="wrap">
         <Button key="add-dm" label={ctx.model.busy ?? w.addFriend} variant="primary" onPress={() => ctx.on.addDm()} />
