@@ -12,6 +12,10 @@ import type { Run } from '../hooks/run'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, gitIn, type FakeAgent } from './fake-agent'
 import { callerFor, fakeDb, type FakeDb } from './fake-db'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'

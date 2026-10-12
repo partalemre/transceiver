@@ -8,13 +8,7 @@ import { enqueueMessage } from './room-loop'
 import { loadRooms, type RoomRecord } from './rooms'
 import { patchSession, sessionNow, type PanePort } from './state'
 import { newId } from './ulid'
-
-const SAY_COMPOSE = {
-  tooLong: 'Mesaj çok uzun (en fazla 16 KB).',
-  onlyProject: 'Agent\'a soru yalnızca proje odalarında sorulur.',
-  notLoaded: 'Oda henüz yüklenmedi; birazdan tekrar dene.',
-  badQuery: 'Bu sorgu gönderilemedi: değeri eksik ya da geçersiz.',
-}
+import { stepWords } from './words-steps'
 
 // What the composer holds per room, as typed: the send button sends it (the field's own Enter sends too).
 const typed = new Map<string, string>()
@@ -36,8 +30,8 @@ async function messageFor(p: PanePort, o: { room: RoomRecord; composed: Composed
   const { composed, room } = o
   if (composed.kind === 'hint') return composed.text
   if (composed.kind === 'text') return { v: 1, id: newId(now), ts: now, kind: 'human', text: composed.text }
-  if (room.kind !== 'project' || !isRepo(room.repo)) return SAY_COMPOSE.onlyProject
-  return queryMessage({ id: newId(now), ts: now, repo: room.repo, type: composed.type, arg: composed.arg }) ?? SAY_COMPOSE.badQuery
+  if (room.kind !== 'project' || !isRepo(room.repo)) return stepWords().onlyProject
+  return queryMessage({ id: newId(now), ts: now, repo: room.repo, type: composed.type, arg: composed.arg }) ?? stepWords().badQuery
 }
 
 // Shown at once as pending; the room's loop sends it, or keeps it waiting until the session is connected. A
@@ -47,10 +41,10 @@ export async function sendComposed(p: PanePort, opts: { roomId: string; text: st
   const room = await activeRoom(p, opts.roomId)
   const composed = composedOf(opts.roomId, text)
   if (room === undefined || (composed.kind === 'text' && text === '')) return
-  if (utf8Bytes(text) > MAX_TEXT_BYTES) return patchSession({ error: SAY_COMPOSE.tooLong })
+  if (utf8Bytes(text) > MAX_TEXT_BYTES) return patchSession({ error: stepWords().tooLong })
   const message = await messageFor(p, { room, composed })
   if (typeof message === 'string') return patchSession({ hint: message })
-  if (!enqueueMessage({ host: p.host, room, message })) return patchSession({ error: SAY_COMPOSE.notLoaded })
+  if (!enqueueMessage({ host: p.host, room, message })) return patchSession({ error: stepWords().notLoaded })
   typed.delete(room.id)
   patchSession({ error: null, hint: null, composeMode: null, sheetRoom: null, composerKey: sessionNow().composerKey + 1 })
 }

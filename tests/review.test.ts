@@ -15,6 +15,10 @@ import { newId } from '../hooks/ulid'
 import { answered, fakeAgent, gitIn } from './fake-agent'
 import { callerFor, fakeDb, writesOf } from './fake-db'
 import { fakeHost } from './fake-host'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'

@@ -5,6 +5,10 @@ import { hubOf, isOpenFor, isSameLine } from '../hooks/hub'
 import type { RoomView } from '../hooks/state-types'
 import { dmAlperen, dmZeynep, projectEliti, ROOMS } from './pane-fixtures'
 import { paneWorld, startSession } from './pane-world'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ALL = [ROOMS.alperen, ROOMS.eliti, ROOMS.zeynep]
 const SYNCS = () => ({ ra: dmAlperen(), re: projectEliti(), rz: dmZeynep() })

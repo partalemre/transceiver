@@ -4,13 +4,15 @@ import { TOAST_CHARS } from './limits'
 import { isUnreadable } from './protocol'
 import type { PaneModel, RoomView } from './state-types'
 import type { Entry } from './timeline'
+import { agentWords } from './words-agent'
 
 export function statusText(rooms: readonly RoomView[], isShown: boolean): string | undefined {
   const total = rooms.reduce((n, r) => n + r.unread, 0)
   if (isShown || total === 0) return undefined
   const from = rooms.filter(r => r.unread > 0)
-  const who = from.length === 1 ? ` · ${from[0]?.title ?? ''}` : ` · ${from.length} oda`
-  return `((·)) ${total} okunmamış${who}`
+  const w = agentWords()
+  const who = from.length === 1 ? ` · ${from[0]?.title ?? ''}` : ` · ${w.rooms(from.length)}`
+  return w.unreadStatus({ total, from: who })
 }
 
 const firstLine = (text: string) => text.split('\n').find(l => l.trim() !== '')?.trim() ?? ''
@@ -21,7 +23,7 @@ export function toastText(opts: { name: string; entries: readonly Entry[] }): st
   const human = opts.entries.filter(e => !isUnreadable(e.message) && e.message.kind === 'human')
   const last = human.at(-1)?.message
   if (last === undefined || isUnreadable(last)) return null
-  if (human.length > 1) return `${opts.name}: ${human.length} yeni mesaj`
+  if (human.length > 1) return `${opts.name}: ${agentWords().newMessages(human.length)}`
   return `${opts.name}: ${clip(firstLine(last.text))}`
 }
 
@@ -43,7 +45,7 @@ export function notifyTick(o: NotifyOpts): void {
   }
   if (!settings.isToastOn || o.isShown || o.fresh.length === 0) return
   const room = o.model.rooms.find(r => r.id === o.roomId)
-  const author = o.names[o.fresh.at(-1)?.author ?? ''] || 'Biri'
+  const author = o.names[o.fresh.at(-1)?.author ?? ''] || agentWords().someone
   const name = room?.kind === 'project' ? `${author} · ${room.title}` : room?.title ?? author
   const text = toastText({ name, entries: o.fresh })
   if (text !== null) o.ui.toast(text)

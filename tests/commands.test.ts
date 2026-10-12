@@ -1,11 +1,15 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { CallResult } from '../hooks/host'
 import { parseCommand, runCommand } from '../hooks/commands'
-import { joinRoom, joinUrlOf, SHARE_BACK } from '../hooks/join'
+import { joinRoom, joinUrlOf, shareBack } from '../hooks/join'
 import { stopRoom } from '../hooks/room-loop'
 import { loadRooms, saveRooms, type RoomRecord } from '../hooks/rooms'
 import { callerFor, fakeDb } from './fake-db'
 import { fakeHost } from './fake-host'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const LINK = 'https://claude.ai/artifact/WY6LgKgyskkYWeg16kuUrb'
@@ -50,7 +54,7 @@ test('joining by link checks the meta, opens the joiner\'s own mailbox with the 
   expect((await joinRoom(host, LINK)).text).toBe('Bu link bir Transceiver kutusu değil ya da sana paylaşılmamış.')
   db.docs.set('meta/room', { data: META, version: 1 })
   const joined = await joinRoom(host, LINK)
-  expect(joined.text).toBe(`Transceiver · partalemre/eliti odasına katıldın. Kendi kutun: ${NEW_ROOM}\n${SHARE_BACK}`)
+  expect(joined.text).toBe(`Transceiver · partalemre/eliti odasına katıldın. Kendi kutun: ${NEW_ROOM}\n${shareBack()}`)
   expect(joined.isNew).toBe(true)
   expect(host.tools.find(t => t.tool === 'Artifact')?.consent).toBe(`The user ran "/transceiver katıl ${LINK}"`)
   const [room] = await loadRooms(host)
@@ -129,7 +133,7 @@ test('/transceiver is registered and answers through the engine', async ($, on) 
   const hints: Array<string | undefined> = []
   mock.store(on, { 'tx.rooms': [{ ...record('r1', 'Transceiver · DM', NEW_ROOM), room: ROOM_ID }] })
   mock.clock(on, { now: 1_791_545_100_000 })
-  mock.env(on, { HOME: '/home/u' })
+  mock.env(on, { HOME: '/home/u', MODZ_LANG: 'tr' })
   on('command.register', (_$, e) => { registered.push(e.name); hints.push(e.argumentHint); return { value: { command: e.name } } })
   on('tool.call', async (_$, e) => {
     const out = await callerFor(db)(e as unknown as Record<string, unknown>)

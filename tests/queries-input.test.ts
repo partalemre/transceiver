@@ -1,6 +1,10 @@
 import { expect, test } from 'claude-code/testing'
 import { isUnreadable, parseMessage } from '../hooks/protocol'
-import { queryFromInput, queryText, SECRET_IN_QUERY } from '../hooks/queries-input'
+import { queryFromInput, queryText, secretInQuery } from '../hooks/queries-input'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const REPO = 'partalemre/eliti'
 const ID = '01K7A0000000000000000000AB'
@@ -40,7 +44,7 @@ test('a missing or malformed argument is a reason, never a query', () => {
 
 test('a secret in any argument is never sent', () => {
   for (const input of [{ type: 'grep', text: 'AKIAIOSFODNN7EXAMPLE' }, { type: 'file', path: 'ghp_' + 'a'.repeat(36) }, { type: 'ask', question: 'key = "AKIAIOSFODNN7EXAMPLE"' }]) {
-    expect(build(input)).toBe(SECRET_IN_QUERY)
+    expect(build(input)).toBe(secretInQuery())
   }
 })
 

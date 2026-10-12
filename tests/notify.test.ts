@@ -7,6 +7,10 @@ import { emptyHead, paths } from '../hooks/protocol'
 import { buildModel } from '../hooks/view'
 import { ALPEREN, dmAlperen, dmZeynep, idAt, input, NOW, projectEliti, ROOMS } from './pane-fixtures'
 import { paneWorld, startSession, type World } from './pane-world'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ALPEREN_BOX = 'https://claude.ai/artifact/RA2x'
 const ALL = [{ ...ROOMS.alperen, boxes: [ALPEREN_BOX] }, ROOMS.eliti, ROOMS.zeynep]

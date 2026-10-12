@@ -4,6 +4,10 @@ import { parseProfiles } from '../hooks/names'
 import { buildModel, previewOf } from '../hooks/view'
 import { dayLabel, rowTime } from '../hooks/when'
 import { ALPEREN, dmAlperen, idAt, input, NOW, projectEliti, room, ROOMS, ZEYNEP } from './pane-fixtures'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 test('rooms sort by their last message; unread, receipts and names come from the sync state', () => {
   const model = buildModel({ ...input(), sessionRepo: 'partalemre/eliti', checkOf: () => ({ isOk: true, at: NOW }) })

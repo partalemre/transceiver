@@ -18,6 +18,10 @@ import {
 import type { FakeAgent } from './fake-agent'
 import { callerAs } from './fake-db'
 import { scheduler } from './fake-host'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const sched = scheduler()
 const net = fakeNet()

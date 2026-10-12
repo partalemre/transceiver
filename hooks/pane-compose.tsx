@@ -1,5 +1,5 @@
-// The composer on the desktop: the field (a placeholder addressed to the room) and "Gönder". A project room adds
-// one "Agent'a sor" button that opens the sheet of every query the protocol takes (one to a row, the free `ask`
+// The composer on the desktop: the field (a placeholder addressed to the room) and "Send". A project room adds
+// one "ask Leo's agent" button that opens the sheet of every query the protocol takes (one to a row, the free `ask`
 // apart in Amber) and a removable mode chip once the field is set to one. A hint line shows only when it has
 // something to say (an unknown command, a missing value).
 import type { RenderElement } from 'claude-code'
@@ -8,7 +8,7 @@ import { ASK_DAILY_LIMIT } from './limits'
 import { GlyphPic, Rule, within, type Ctx } from './pane-kit'
 import { isModeType, specOf, supportedSpecs, type QuerySpec } from './query-menu'
 import type { RoomView } from './state-types'
-import { dative, genitive } from './tr'
+import { chatWords } from './words-chat'
 
 const ASK_TYPE = 'ask'
 // The sheet's border and padding, kept off its rule.
@@ -17,13 +17,14 @@ const SHEET_CHROME_CELLS = 4
 export function placeholderOf(room: RoomView, mode: string | null): string {
   const arg = mode === null ? undefined : specOf(mode)?.arg
   if (arg !== undefined) return arg.placeholder
-  if (room.kind === 'project') return 'Odaya yaz'
-  return room.peerName === undefined ? 'Mesaj yaz' : `${dative(room.peerName)} yaz`
+  const w = chatWords()
+  if (room.kind === 'project') return w.placeProject
+  return room.peerName === undefined ? w.placeAnyone : w.placePeer(room.peerName)
 }
 
 function AskButton(ctx: Ctx, room: RoomView): RenderElement {
   const { Button } = ctx.ui
-  return <Button key={`ask-more-${room.id}`} label={ctx.model.isSheetOpen ? 'Kapat' : 'Agent\'a sor'} variant="secondary" onPress={() => ctx.on.toggleSheet(room.id)} />
+  return <Button key={`ask-more-${room.id}`} label={ctx.model.isSheetOpen ? chatWords().close : chatWords().askAgent(room.peerName)} variant="secondary" onPress={() => ctx.on.toggleSheet(room.id)} />
 }
 
 // One query a row: its name to press, then what it returns.
@@ -47,24 +48,24 @@ function AskRow(ctx: Ctx, o: { room: RoomView; spec: QuerySpec }): RenderElement
         <Button key={`sheet-${ASK_TYPE}`} label="ask …" plain onPress={() => ctx.on.askAgent(o.room.id, ASK_TYPE)} />
         <Text color={ctx.look.lo} wrap="truncate-end">{o.spec.desc}</Text>
       </Box>
-      <Text color={ctx.look.mid}>{`günde ${ASK_DAILY_LIMIT}`}</Text>
+      <Text color={ctx.look.mid}>{chatWords().perDay(ASK_DAILY_LIMIT)}</Text>
     </Box>
   )
 }
 
-// ALPEREN'İN AGENT'INA SOR ··· 12 hazır sorgu · 0 token, the grid, then `ask …` apart.
+// Ask Leo's agent ··· 12 ready queries · 0 tokens, the grid, then `ask …` apart.
 function Sheet(ctx: Ctx, room: RoomView): RenderElement | null {
   const { Box, Text } = ctx.ui
   if (!ctx.model.isSheetOpen) return null
   const specs = supportedSpecs()
   const typed = specs.filter(s => s.type !== ASK_TYPE)
   const ask = specs.find(s => s.type === ASK_TYPE)
-  const title = `${room.peerName === undefined ? 'Karşı tarafın' : genitive(room.peerName)} agent'ına sor`
+  const title = chatWords().sheetTitle(room.peerName)
   return (
     <Box key="sheet" flexDirection="column" gap={1} borderStyle="round" borderColor={ctx.look.lineStrong} backgroundColor={ctx.look.card} paddingX={1} paddingY={1}>
       <Box key="sheet-head" flexDirection="row" gap={1} paddingX={1}>
         <Box flexGrow={1}><Text color={ctx.look.role.run.fg} bold>{title}</Text></Box>
-        <Text color={ctx.look.lo}>{`${typed.length} hazır sorgu · 0 token`}</Text>
+        <Text color={ctx.look.lo}>{chatWords().ready(typed.length)}</Text>
       </Box>
       <Box flexDirection="column">{typed.map(spec => Cell(ctx, { room, spec }))}</Box>
       {ask === undefined ? null : Rule(within(ctx, ctx.columns - SHEET_CHROME_CELLS), 'sheet-rule')}
@@ -94,7 +95,7 @@ function HintRow(ctx: Ctx): RenderElement | null {
 
 export function Composer(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Text } = ctx.ui
-  if (!('Input' in ctx.ui)) return <Text key="read-only" color={ctx.look.lo} wrap="wrap">{'Bu yüzeyde yalnızca okunur. Yazmak için Transceiver\'ı Claude Code\'da aç.'}</Text>
+  if (!('Input' in ctx.ui)) return <Text key="read-only" color={ctx.look.lo} wrap="wrap">{chatWords().readOnly}</Text>
   const { Input, Button } = ctx.ui
   const isProject = room.kind === 'project'
   const mode = ctx.model.composeMode
@@ -105,10 +106,10 @@ export function Composer(ctx: Ctx, room: RoomView): RenderElement {
         {isProject && mode === null ? AskButton(ctx, room) : null}
         {ModeChip(ctx)}
         <Box flexGrow={1} flexDirection="column">
-          <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? 'Gönder' : 'Sor'}
+          <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? chatWords().send : chatWords().ask}
             autoFocus onInput={value => ctx.on.type(room.id, value)} onSubmit={value => ctx.on.send(room.id, value)} />
         </Box>
-        <Button key={`send-${room.id}`} variant="primary" label={mode === null ? 'Gönder' : 'Sor'} onPress={() => ctx.on.sendTyped(room.id)} />
+        <Button key={`send-${room.id}`} variant="primary" label={mode === null ? chatWords().send : chatWords().ask} onPress={() => ctx.on.sendTyped(room.id)} />
       </Box>
       {HintRow(ctx)}
     </Box>

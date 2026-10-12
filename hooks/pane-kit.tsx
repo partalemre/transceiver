@@ -3,7 +3,7 @@
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
-import { WAITING } from './connection'
+import { waitingText } from './connection'
 import type { Part, SvgPic } from './kit/svg-core'
 import { PRESENCE_MS } from './limits'
 import { sigPic } from './sig'
@@ -86,7 +86,7 @@ export type ReceiptTone = { glyph: string; color?: string }
 // ◷ waiting (with why, while the session may not write), ✓ written, ✓✓ reached them, ✓✓ in Tide once read.
 export function receiptTone(ctx: Ctx, receipt: Receipt): ReceiptTone {
   if (receipt === 'pending') {
-    return ctx.model.isConnected ? { glyph: '◷', color: ctx.look.lo } : { glyph: `◷ ${WAITING}`, color: ctx.look.role.warn.fg }
+    return ctx.model.isConnected ? { glyph: '◷', color: ctx.look.lo } : { glyph: `◷ ${waitingText()}`, color: ctx.look.role.warn.fg }
   }
   if (receipt === 'read') return { glyph: '✓✓', color: ctx.look.role.read.fg }
   return { glyph: receipt === 'sent' ? '✓' : '✓✓', color: ctx.look.lo }

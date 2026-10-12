@@ -7,12 +7,12 @@ import { isUnreadable } from './protocol'
 import { onTick, type TickEvent } from './room-loop'
 import { loadRooms } from './rooms'
 import type { Entry } from './timeline'
+import { agentWords } from './words-agent'
 
 // Live mode: per room, off by default, and it costs tokens. A teammate's message to a live project room wakes this
 // session (when it is open on that repo and idle) with the message fenced as untrusted data.
 
 const WAKE_KINDS = new Set(['agent', 'human', 'answer'])
-const TOAST = 'Transceiver: proje odasında yeni mesaj var'
 const CUT = '…'
 
 let isTurnRunning = false
@@ -24,7 +24,7 @@ export function wakeText(opts: { title: string; entries: readonly Entry[]; nonce
   const lines = opts.entries.flatMap(e => (isUnreadable(e.message) ? [] : [`[${e.message.kind}] ${e.message.text}`]))
   const joined = lines.join('\n')
   const body = joined.length > LIVE_MAX_CHARS ? joined.slice(0, LIVE_MAX_CHARS) + CUT : joined
-  const head = `Transceiver: ${opts.title} odasına yeni mesaj geldi. Gerekirse mcp__transceiver__inbox ile oku.`
+  const head = agentWords().liveHead(opts.title)
   return `${head}\n${fence(body, opts.nonce)}`
 }
 
@@ -34,7 +34,7 @@ export async function wake(host: AgentHost, text: string): Promise<'sent' | 'not
   const isSent = await host.sendSelf(text).catch(() => false)
   if (isSent) return 'sent'
   await host.note(text)
-  host.toast(TOAST)
+  host.toast(agentWords().liveToast)
   return 'noted'
 }
 

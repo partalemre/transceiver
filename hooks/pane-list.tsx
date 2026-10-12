@@ -1,14 +1,17 @@
-// The rooms: a title with "+ Yeni", the cards, then one list newest first (face, name, time, the last line with
-// its receipt, the unread badge, the open room tinted). PROJELER and KİŞİLER head it only when both kinds are there.
-// The foot holds "Ayarlar", and a status only when something is wrong. The terminal draws the same as lines.
+// The rooms: a title with "+ New", the cards, then one list newest first (face, name, time, the last line with
+// its receipt, the unread badge, the open room tinted). PROJECTS and PEOPLE head it only when both kinds are there.
+// The foot holds "Settings", and a status only when something is wrong. The terminal draws the same as lines.
 import type { RenderElement } from 'claude-code'
 
+import { waitingText } from './connection'
+import { upper } from './kit/lang'
 import { Cards } from './pane-cards'
 import { EmptyView } from './pane-empty'
 import { isText, Pic, receiptTone, roomFace, type Ctx } from './pane-kit'
 import { Title } from './pane-type'
 import type { RoomView } from './state-types'
 import { rowTime } from './when'
+import { paneWords } from './words-pane'
 
 const FACE = 36
 
@@ -18,9 +21,6 @@ const BADGE_CELLS = 4
 
 const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`)
 
-const BOX_BLOCKED = 'kutusu henüz seninle paylaşılmadı'
-const TROUBLED = 'bağlantı sorunu · yeniden deneniyor'
-
 // A project's branch, a DM nobody joined yet, any other room.
 function rowGlyph(room: RoomView): string {
   if (room.kind === 'project') return '⌥'
@@ -29,10 +29,11 @@ function rowGlyph(room: RoomView): string {
 
 // A row's second line: what is wrong with the room, else its last message (or why there is none yet).
 function lineOf(room: RoomView): { text: string; isWarn: boolean } {
-  if (room.isTroubled) return { text: TROUBLED, isWarn: true }
-  if (room.isBoxBlocked) return { text: BOX_BLOCKED, isWarn: true }
+  const w = paneWords()
+  if (room.isTroubled) return { text: w.troubled, isWarn: true }
+  if (room.isBoxBlocked) return { text: w.boxBlocked, isWarn: true }
   if (room.lastText !== '') return { text: room.lastText, isWarn: false }
-  return { text: room.isWaiting ? 'Arkadaşın kabul edince burada yazışırsınız' : 'Henüz mesaj yok', isWarn: false }
+  return { text: room.isWaiting ? w.acceptsSoon : w.noMessages, isWarn: false }
 }
 
 const hasTicks = (room: RoomView): boolean => room.lastIsMine && room.lastText !== '' && !room.isTroubled && !room.isBoxBlocked
@@ -105,9 +106,9 @@ function Top(ctx: Ctx): RenderElement {
   const { Box, Button } = ctx.ui
   return (
     <Box key="list-head" flexDirection="row" alignItems="center" gap={1}>
-      {Title(ctx, { key: 'list-title', text: 'Sohbetler' })}
+      {Title(ctx, { key: 'list-title', text: paneWords().chats })}
       <Box flexGrow={1} />
-      <Button key="open-add" label="+ Yeni" plain onPress={() => ctx.on.openView('add')} />
+      <Button key="open-add" label={paneWords().newRoom} plain onPress={() => ctx.on.openView('add')} />
     </Box>
   )
 }
@@ -115,7 +116,7 @@ function Top(ctx: Ctx): RenderElement {
 function Section(ctx: Ctx, o: { key: string; title: string | null; rooms: RoomView[] }): RenderElement | null {
   const { Box, Text } = ctx.ui
   if (o.rooms.length === 0) return null
-  const label = <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title?.toLocaleUpperCase('tr')}</Text>
+  const label = <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title === null ? '' : upper(o.title)}</Text>
   return (
     <Box key={o.key} flexDirection="column" gap={isText(ctx) ? 0 : 1}>
       {o.title === null ? null : label}
@@ -128,7 +129,7 @@ function Section(ctx: Ctx, o: { key: string; title: string | null; rooms: RoomVi
 function statusOf(ctx: Ctx): { text: string; paint: 'signal' | 'warn' } | null {
   const m = ctx.model
   if (m.busy !== null) return { text: m.busy, paint: 'signal' }
-  return m.isConnected || m.needsSetup ? null : { text: 'bağlantı bekleniyor', paint: 'warn' }
+  return m.isConnected || m.needsSetup ? null : { text: waitingText(), paint: 'warn' }
 }
 
 function Foot(ctx: Ctx): RenderElement {
@@ -140,7 +141,7 @@ function Foot(ctx: Ctx): RenderElement {
     <Box key="foot" flexDirection="row" alignItems="center" gap={1}>
       {status === null ? null : line}
       <Box flexGrow={1} />
-      <Button key="open-settings" label="Ayarlar" plain dimColor onPress={() => ctx.on.openView('settings')} />
+      <Button key="open-settings" label={paneWords().settings} plain dimColor onPress={() => ctx.on.openView('settings')} />
     </Box>
   )
 }
@@ -156,8 +157,8 @@ export function RoomsColumn(ctx: Ctx): RenderElement {
     <Box key="rooms" flexDirection="column" gap={1} flexGrow={1}>
       {Top(ctx)}
       {Cards(ctx)}
-      {isMixed ? Section(ctx, { key: 'projects', title: 'Projeler', rooms: projects }) : null}
-      {Section(ctx, isMixed ? { key: 'people', title: 'Kişiler', rooms: people } : { key: 'all', title: null, rooms })}
+      {isMixed ? Section(ctx, { key: 'projects', title: paneWords().projects, rooms: projects }) : null}
+      {Section(ctx, isMixed ? { key: 'people', title: paneWords().people, rooms: people } : { key: 'all', title: null, rooms })}
       <Box flexGrow={1} />
       {Foot(ctx)}
     </Box>

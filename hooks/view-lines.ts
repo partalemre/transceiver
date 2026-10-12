@@ -1,32 +1,33 @@
 // The open chat's lines: names, receipts, the message a reply quotes, a shared project room a DM names, and where
 // the "n yeni mesaj" divider goes. Pure.
 import { PREVIEW_CHARS } from './limits'
-import { isUnreadable } from './protocol'
+import { DENIED, isUnreadable } from './protocol'
 import type { Message, Unreadable } from './protocol'
 import type { RoomRecord } from './rooms'
 import type { Line, PaneModel } from './state-types'
 import type { RoomSync } from './sync'
 import { receiptOf, type Entry } from './timeline'
 import { peerUids } from './view-room'
+import { stepWords } from './words-steps'
+import { shownSystem, shownWire } from './words-wire'
 
-export const SELF_NAME = 'sen'
-export const SOMEONE = 'Biri'
-// How a quote names the person's own message.
-const SELF_QUOTE = 'Sen'
+export const selfName = (): string => stepWords().selfName
+export const someone = (): string => stepWords().someone
 
-export const nameOf = (names: Record<string, string>, uid: string): string => names[uid] || SOMEONE
+export const nameOf = (names: Record<string, string>, uid: string): string => names[uid] || someone()
 
 const firstLine = (text: string) => text.split('\n').find(line => line.trim() !== '')?.trim() ?? ''
 
 function flatOf(message: Message): string {
-  if (message.kind === 'query') return `Soru: ${firstLine(message.query?.question ?? message.query?.path ?? message.text)}`
-  if (message.kind === 'answer') return `Cevap: ${message.answer?.ok === false ? 'erişim yok' : firstLine(message.answer?.body ?? message.text)}`
-  return firstLine(message.text)
+  const w = stepWords()
+  if (message.kind === 'query') return w.question(firstLine(message.query?.question ?? message.query?.path ?? message.text))
+  if (message.kind === 'answer') return w.answer(shownWire(message.answer?.ok === false ? DENIED : firstLine(message.answer?.body ?? message.text)))
+  return firstLine(message.kind === 'system' ? shownSystem(message.text) : message.text)
 }
 
 // One line of preview: a query shows as the question, an answer as a reply, an unreadable doc as such.
 export function previewOf(message: Message | Unreadable): string {
-  if (isUnreadable(message)) return 'okunamayan mesaj'
+  if (isUnreadable(message)) return stepWords().unreadable
   const flat = flatOf(message)
   return flat.length > PREVIEW_CHARS ? `${flat.slice(0, PREVIEW_CHARS - 1)}…` : flat
 }
@@ -49,7 +50,7 @@ function replyOf(entry: Entry, byId: Map<string, Entry>, o: LinesInput): Line['r
   const id = isUnreadable(entry.message) ? undefined : entry.message.replyTo
   const target = id === undefined ? undefined : byId.get(id)
   if (target === undefined) return undefined
-  return { name: target.author === o.sync.selfUid ? SELF_QUOTE : nameOf(o.names, target.author), text: previewOf(target.message) }
+  return { name: target.author === o.sync.selfUid ? stepWords().selfQuote : nameOf(o.names, target.author), text: previewOf(target.message) }
 }
 
 const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -75,7 +76,7 @@ export function linesOf(o: LinesInput): Line[] {
     const roomLink = roomLinkOf(entry, o)
     return {
       id: entry.message.id, message: entry.message, isMine, authorUid: entry.author, seed: entry.author,
-      authorName: isMine ? SELF_NAME : nameOf(o.names, entry.author),
+      authorName: isMine ? selfName() : nameOf(o.names, entry.author),
       receipt: isMine ? receiptFor(entry, sync, o.isReceiptsOn) : undefined,
       ...(replyTo === undefined ? {} : { replyTo }),
       ...(roomLink === undefined ? {} : { roomLink }),

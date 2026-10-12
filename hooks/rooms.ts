@@ -6,16 +6,17 @@ import type { RoomMeta } from './protocol'
 import { callerOf, relayOf } from './relay'
 import { roomPageHtml } from './room-page'
 import { newId } from './ulid'
+import { stepWords } from './words-steps'
 
 export type RoomKind = 'dm' | 'project'
 
 // A session an SDK host drives (an IDE, T3 Code, `claude -p`) has the Artifact tools off unless the environment
 // turns them on, so a room can be neither opened nor read there; the generic "check claude.ai" would mislead.
-export const NO_ARTIFACT_TOOLS = 'Bu oturumda claude.ai Artifact araçları kapalı: ~/.claude/settings.json içindeki "env" alanına "CLAUDE_CODE_ARTIFACT": "1" ekle ve oturumu yeniden aç.'
+export const noArtifactTools = (): string => stepWords().noArtifactTools
 
 export function failText(err: unknown, fallback: string): string {
   const text = err instanceof Error ? err.message : String(err)
-  return /no tool named "Artifact/.test(text) ? NO_ARTIFACT_TOOLS : fallback
+  return /no tool named "Artifact/.test(text) ? noArtifactTools() : fallback
 }
 export type Peer = { uid: string; gh?: string; isGhConfirmed: boolean }
 // A room is one mailbox per member, each owned by that member. `url` is this person's own mailbox, the only one
@@ -90,7 +91,7 @@ function urlOf(out: CallResult): string | undefined {
 async function publishPage(opts: { host: Host; file: string; consent?: string }): Promise<string> {
   const out = await opts.host.tool({
     tool: 'Artifact', action: 'publish', file_path: opts.file, icon: 'radio',
-    description: 'Transceiver odası', capabilities: ROOM_CAPABILITIES,
+    description: stepWords().pageDescription, capabilities: ROOM_CAPABILITIES,
     ...(opts.consent === undefined ? {} : { consent: opts.consent }),
   })
   const url = urlOf(out)

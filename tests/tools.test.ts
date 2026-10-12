@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { WAITING } from '../hooks/connection'
+import { waitingText } from '../hooks/connection'
 import { forgetRepo, projectRoomFor } from '../hooks/here'
 import type { CallResult } from '../hooks/host'
 import type { Message } from '../hooks/protocol'
@@ -10,6 +10,10 @@ import { collectAnswer, runTool, TOOL_SPECS } from '../hooks/tools'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, type FakeAgent } from './fake-agent'
 import { callerFor, fakeDb, type FakeDb } from './fake-db'
+import { setLang } from '../hooks/kit/lang'
+
+// These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
+setLang('tr')
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
@@ -105,8 +109,8 @@ test('send refuses secrets, empty and oversized text; nothing writes before the 
     expect('deny' in (await runTool(ctx(host), { name: 'send', input: { text } }))).toBe(true)
   }
   host.isOn = false
-  expect(await runTool(ctx(host), { name: 'send', input: { text: 'selam' } })).toEqual({ deny: WAITING })
-  expect(await runTool(ctx(host), { name: 'ask', input: { type: 'status' } })).toEqual({ deny: WAITING })
+  expect(await runTool(ctx(host), { name: 'send', input: { text: 'selam' } })).toEqual({ deny: waitingText() })
+  expect(await runTool(ctx(host), { name: 'ask', input: { type: 'status' } })).toEqual({ deny: waitingText() })
   expect(syncOf('rt2')?.pending.length).toBe(0)
   stopRoom('rt2')
 })

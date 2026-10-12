@@ -3,12 +3,11 @@ import type { Host } from './host'
 import { callerOf, relayOf } from './relay'
 import { pokeRoom } from './room-loop'
 import { createRoom, failText, homeOf, loadRooms, saveRooms, withBox, type RoomRecord } from './rooms'
+import { stepWords } from './words-steps'
 
 export type Joined = { text: string; room?: RoomRecord; isNew: boolean }
 
-const NOT_A_BOX = 'Bu link bir Transceiver kutusu değil ya da sana paylaşılmamış.'
-
-export const SHARE_BACK = 'Son adım: kendi kutunun linkini claude.ai\'de aç, Paylaş\'tan arkadaşını ekle ve linki ona gönder.'
+export const shareBack = (): string => stepWords().shareBack
 
 export function joinUrlOf(text: string): string | null {
   const trimmed = text.trim()
@@ -37,23 +36,23 @@ export async function acceptInvite(opts: { host: Host; invite: RoomRecord; conse
 // any other link joins its room, which publishes their own mailbox for it.
 export async function joinRoom(host: Host, text: string, consent?: string): Promise<Joined> {
   const url = joinUrlOf(text)
-  if (url === null) return { text: 'Kullanım: /transceiver katıl <https://claude.ai/artifact/…>', isNew: false }
+  if (url === null) return { text: stepWords().joinUsage, isNew: false }
   const rooms = (await loadRooms(host)).filter(r => r.status === 'active')
   const held = rooms.find(r => r.url === url || r.boxes.includes(url))
-  if (held !== undefined) return { text: 'Bu odaya zaten katıldın.', room: held, isNew: false }
+  if (held !== undefined) return { text: stepWords().alreadyIn, room: held, isNew: false }
   const meta = await relayOf(callerOf(host), url).meta().catch((err: unknown) => err as Error)
-  if (meta instanceof Error) return { text: failText(meta, NOT_A_BOX), isNew: false }
-  if (meta === null) return { text: NOT_A_BOX, isNew: false }
+  if (meta instanceof Error) return { text: failText(meta, stepWords().notABox), isNew: false }
+  if (meta === null) return { text: stepWords().notABox, isNew: false }
   const home = homeOf(rooms, { url, meta })
   if (home !== undefined) {
     const room = withBox(home, url)
     await saveRoom(host, room)
-    return { text: `${room.title}: karşı tarafın kutusu eklendi.`, room, isNew: false }
+    return { text: stepWords().boxAdded(room.title), room, isNew: false }
   }
-  if (rooms.some(r => r.room === meta.room)) return { text: 'Bu DM\'de zaten bir karşı taraf var.', isNew: false }
-  const said = consent ?? `The user ran "/transceiver katıl ${url}"`
+  if (rooms.some(r => r.room === meta.room)) return { text: stepWords().dmTaken, isNew: false }
+  const said = consent ?? `The user ran "/transceiver ${stepWords().joinVerb} ${url}"`
   const room = await createRoom({ host, kind: meta.kind, repo: meta.repo, room: meta.room, boxes: [url], consent: said }).catch((err: unknown) => err as Error)
-  if (room instanceof Error) return { text: failText(room, 'Odaya katılınamadı; kendi kutun açılamadı. claude.ai bağlantısını kontrol edip tekrar dene.'), isNew: false }
+  if (room instanceof Error) return { text: failText(room, stepWords().joinFailed), isNew: false }
   await saveRoom(host, room)
-  return { text: `${room.title} odasına katıldın. Kendi kutun: ${room.url}\n${SHARE_BACK}`, room, isNew: true }
+  return { text: `${stepWords().joined({ title: room.title, url: room.url })}\n${shareBack()}`, room, isNew: true }
 }

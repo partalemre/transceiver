@@ -1,6 +1,7 @@
 // A typed answer's compact form for its card: a diff's stat, a test run's counts, a search's first hits, a list's
 // first items, TODO tags by count, a commit's subject and stat. Anything else is its text. Pure; an answer that
 // does not read as its type falls back to text, never to a guess.
+import { pick } from './kit/lang'
 
 export type DiffStat = { files: number; added: number; removed: number }
 export type Hit = { loc: string; text: string }
@@ -15,6 +16,12 @@ export type Compact =
 
 // The first rows a card shows of a search or a list; "Göster" opens the rest.
 export const FIRST_ROWS = 2
+// A list's noun in the reader's language; the bodies themselves keep the wire's words (words-wire.ts).
+const NOUNS = {
+  en: { files: { one: 'file', many: 'files' }, deps: { one: 'dependency', many: 'dependencies' } },
+  tr: { files: { one: 'dosya', many: 'dosya' }, deps: { one: 'bağımlılık', many: 'bağımlılık' } },
+}
+const nounOf = (kind: 'files' | 'deps', n: number): string => (n === 1 ? pick(NOUNS)[kind].one : pick(NOUNS)[kind].many)
 const NONE = new Set(['kayıt yok', 'değişiklik yok', 'eşleşme yok', 'dosya yok', 'bağımlılık dosyası yok', ''])
 const rowsOf = (body: string) => body.split('\n').map(r => r.trimEnd()).filter(r => r.trim() !== '')
 
@@ -82,11 +89,12 @@ function listOf(type: string, body: string): Compact | null {
   const rows = rowsOf(body)
   if (type === 'files') {
     const head = FILES_HEAD.exec(rows[0] ?? '')
-    return head === null ? null : { kind: 'list', count: Number(head[1]), noun: 'dosya', items: rows.slice(1).map(r => r.trim()) }
+    return head === null ? null : { kind: 'list', count: Number(head[1]), noun: nounOf('files', Number(head[1])), items: rows.slice(1).map(r => r.trim()) }
   }
   const heads = rows.map(r => DEPS_HEAD.exec(r)).filter((m): m is RegExpExecArray => m !== null)
   const items = rows.filter(r => r.startsWith('  ') && !r.trim().startsWith('…')).map(r => r.trim())
-  return heads.length === 0 ? null : { kind: 'list', count: heads.reduce((n, m) => n + Number(m[1]), 0), noun: 'bağımlılık', items }
+  const total = heads.reduce((n, m) => n + Number(m[1]), 0)
+  return heads.length === 0 ? null : { kind: 'list', count: total, noun: nounOf('deps', total), items }
 }
 
 function compactTyped(type: string, body: string): Compact | null {

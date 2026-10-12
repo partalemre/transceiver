@@ -11,8 +11,9 @@ import { unreadCount } from './timeline'
 import { firstName } from './tr'
 import { dividerOf, linesOf, nameOf, previewOf, receiptFor, waitingOf } from './view-lines'
 import { gateBadge, hasSeenMine, peerHeadOf, peerUids, projectInfo, type RoomSources } from './view-room'
+import { stepWords } from './words-steps'
 
-export { previewOf, SELF_NAME, SOMEONE } from './view-lines'
+export { previewOf, selfName, someone } from './view-lines'
 
 // What the pane remembers for this session only: where the person is and what they just did.
 export type SessionUi = {
@@ -60,7 +61,7 @@ function titleOf(room: RoomRecord, sync: RoomSync | undefined, names: Record<str
   if (room.kind === 'project') return room.repo ?? room.title
   const [peer] = peerUids(sync)
   if (peer !== undefined) return nameOf(names, peer)
-  return room.boxes.length === 0 ? 'Davet bekleniyor' : 'DM'
+  return room.boxes.length === 0 ? stepWords().invitePending : 'DM'
 }
 
 export const readMarkOf = (sync: RoomSync, local: string | undefined): string =>
