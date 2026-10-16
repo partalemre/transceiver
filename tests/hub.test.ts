@@ -15,12 +15,21 @@ const SYNCS = () => ({ ra: dmAlperen(), re: projectEliti(), rz: dmZeynep() })
 const POLLS_MS = 12_000
 const rooms = (...unread: number[]): RoomView[] => unread.map(count => ({ unread: count }) as RoomView)
 
-// The MODZ hub as far as Transceiver sees it: `/hub-press <pane>` writes the open request a row press writes.
+// The MODZ hub as far as Transceiver sees it: `/hub-press <pane>` writes the open request a row press writes,
+// `/hub-on` switches it on and `/hub-stage <pane>` puts a pane in its one panel.
 const modz = {
   name: 'modz',
   register(on: any) {
     on('command.run', { command: 'hub-press' }, async ($: any, e: any, next: any) => {
       await $.state.set({ plugin: 'modz', key: 'open' }, { pane: e.args, at: 1 })
+      return next(e)
+    })
+    on('command.run', { command: 'hub-on' }, async ($: any, e: any, next: any) => {
+      await $.state.set({ plugin: 'modz', key: 'isOn' }, true)
+      return next(e)
+    })
+    on('command.run', { command: 'hub-stage' }, async ($: any, e: any, next: any) => {
+      await $.state.set({ plugin: 'modz', key: 'stage' }, { pane: e.args, at: 1 })
       return next(e)
     })
   },
@@ -69,4 +78,27 @@ test('a press on the MODZ hub row opens the pane asking for the keyboard', { plu
   expect(w.opens).toEqual([])
   await $.command.run({ command: 'hub-press', args: 'transceiver' })
   expect(w.opens).toEqual([expect.objectContaining({ id: 'transceiver', focus: true })])
+})
+
+test('with the hub on the opened pane reports itself shown, and steps aside when another pane takes the panel', { plugins: [modz] } as never, async ($: any, on: any) => {
+  const shown: unknown[] = []
+  const closed: unknown[] = []
+  on('state.set', { plugin: 'transceiver', key: 'shown' }, (_: unknown, e: any, next: any) => (shown.push(e.value?.pane), next(e)))
+  on('ui.close', (_: unknown, e: any) => (closed.push(e.id), { value: undefined }))
+  const w = paneWorld(on, { rooms: ALL, syncs: SYNCS() })
+  on('command.run', () => ({ text: '' }))
+  await startSession($, w, { isBypass: true })
+
+  await $.command.run({ command: 'hub-press', args: 'transceiver' })
+  // The hub is off: nothing to step aside for.
+  expect(shown).toEqual([])
+  await $.command.run({ command: 'hub-on', args: '' })
+  await $.command.run({ command: 'hub-press', args: 'transceiver' })
+  expect(shown).toEqual(['transceiver'])
+  await $.command.run({ command: 'hub-stage', args: 'transceiver' })
+  expect(closed).toEqual([])
+  await $.command.run({ command: 'hub-stage', args: 'files' })
+  // The close redraws the pane's model in the background: let it finish inside the test.
+  await w.clock.settle()
+  expect(closed).toEqual(['transceiver'])
 })

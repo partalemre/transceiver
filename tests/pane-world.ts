@@ -21,6 +21,8 @@ export type WorldOpts = {
   remote?: string
   // The interface in English (no MODZ_LANG); the other pane tests read the Turkish one.
   isEnglish?: boolean
+  // Where the clock starts; NOW by default.
+  now?: number
 }
 
 export type World = {
@@ -85,7 +87,7 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
   on('store.set', (_$: unknown, e: { key: string; value: unknown }) => { store[e.key] = clone(e.value); return { value: undefined } })
   on('store.delete', (_$: unknown, e: { key: string }) => { delete store[e.key]; return { value: undefined } })
   mock.env(on, { HOME: '/home/u', ...(o.isEnglish === true ? {} : { MODZ_LANG: 'tr' }) })
-  const clock = mock.clock(on, { now: NOW })
+  const clock = mock.clock(on, { now: o.now ?? NOW })
   const world: World = { store, db, dbOf, toasts: [], statuses: [], copies: [], logs: [], opens: [], runs: [], calls: [], clock, shown: { isShown: o.isShown ?? true } }
   on('config.list', () => ({ value: [{ key: 'theme', value: o.isLight === true ? 'light' : 'dark' }] }))
   on('command.register', (_$: unknown, e: { name: string }) => ({ value: { command: e.name } }))

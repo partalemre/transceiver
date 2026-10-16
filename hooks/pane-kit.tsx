@@ -4,6 +4,7 @@ import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
 import { waitingText } from './connection'
+import { paneMotion } from './kit/moving'
 import type { Part, SvgPic } from './kit/svg-core'
 import { PRESENCE_MS } from './limits'
 import { sigPic } from './sig'
@@ -33,14 +34,18 @@ export const isText = (ctx: Ctx): boolean => ctx.look.isText || !('Svg' in ctx.u
 export const pxOf = (columns: number): number => Math.max(MIN_PX, columns * PX_PER_CELL)
 export const within = (ctx: Ctx, columns: number): Ctx => ({ ...ctx, columns, px: pxOf(columns) })
 
-export function SvgOf(ctx: Ctx, pic: SvgPic, key?: string): RenderElement | null {
+// The pane's drawings on the desktop (kit/moving.ts): reset as the pane opens, so they cascade in each time.
+export const motion = paneMotion()
+
+// `key` names the drawing's one place in the whole pane (a room's, a message's), so it moves with what it draws.
+export function SvgOf(ctx: Ctx, pic: SvgPic, key: string): RenderElement | null {
   if (!('Svg' in ctx.ui)) return null
   const { Svg } = ctx.ui
-  return <Svg key={key} source={pic.source} alt={pic.alt} width={pic.width} height={pic.height} />
+  return <Svg key={key} {...motion.pic(key, pic)} />
 }
 
 // A Part drawn as its own Svg, or its alt as text where the surface has no Svg.
-export function Pic(ctx: Ctx, part: Part, key?: string): RenderElement {
+export function Pic(ctx: Ctx, part: Part, key: string): RenderElement {
   const { Text } = ctx.ui
   return SvgOf(ctx, sigPic(part), key) ?? <Text key={key} color={ctx.look.lo}>{part.alt}</Text>
 }
