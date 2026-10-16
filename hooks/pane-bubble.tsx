@@ -64,7 +64,7 @@ function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
   const run = ctx.look.role.run
   return (
     <Box key="room-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderColor={run.line} backgroundColor={run.tint} paddingX={1}>
-      {GlyphPic(ctx, { glyph: 'branch', paint: 'run', key: 'chip-glyph' })}
+      {GlyphPic(ctx, { glyph: 'branch', paint: 'run', key: `chip-glyph-${line.id}` })}
       <Box flexGrow={1} flexShrink={1}><Text color={ctx.look.hi} wrap="truncate-end">{link.repo}</Text></Box>
       <Button key={`goto-${line.id}`} label={chatWords().goToRoom} plain onPress={() => ctx.on.select(link.roomId)} />
     </Box>

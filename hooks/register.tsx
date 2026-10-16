@@ -14,6 +14,7 @@ import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
 import { setTurnRunning } from './live'
 import { drawPane } from './pane'
+import { motion } from './pane-kit'
 import { onPaneTick } from './pane-tick'
 import { onTick, startLoop } from './room-loop'
 import { realPathOf, runnerOf } from './run'
@@ -118,6 +119,7 @@ async function reportShown($: EngineInterface): Promise<void> {
 
 // Asked for by the person only (the command, the MODZ hub row); a chat pane stays open beside the transcript.
 async function openPane($: EngineInterface): Promise<void> {
+  motion.reset()
   const opened = await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
   setPaneShown(true)
   if (opened.isPlaced) await reportShown($)

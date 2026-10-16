@@ -26,7 +26,7 @@ function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="chat-head" flexDirection="row" alignItems="center" gap={1}>
       {ctx.isWide ? null : <Button key="back" label="‹" plain onPress={() => ctx.on.back()} />}
-      {Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), 'chat-face')}
+      {Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), `chat-face-${room.id}`)}
       <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         <Text bold color={ctx.look.hi} wrap="truncate-end">{room.title}</Text>
         {status === null ? null : <Text color={status.isHere ? ctx.look.role.ok.fg : ctx.look.lo} wrap="truncate-end">{status.text}</Text>}

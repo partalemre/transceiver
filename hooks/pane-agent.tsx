@@ -88,12 +88,13 @@ function Detail(ctx: Ctx, tx: Tx): RenderElement {
   return <Box key="detail" flexDirection="column" gap={1} backgroundColor={ctx.look.inset} paddingX={1} paddingY={1}>{kids}</Box>
 }
 
-// The asker's face, the robot for this side's agent, a lock for a refusal.
-function Lead(ctx: Ctx, o: { line: Line | undefined; isDenied: boolean }): RenderElement {
-  if (o.isDenied) return GlyphPic(ctx, { glyph: 'lock', paint: 'danger', key: 'lead' })
-  if (o.line === undefined || o.line.isMine) return GlyphPic(ctx, { glyph: 'robot', paint: 'run', key: 'lead' })
+// The asker's face, the robot for this side's agent, a lock for a refusal; keyed by its exchange or note.
+function Lead(ctx: Ctx, o: { line: Line | undefined; isDenied: boolean; id: string }): RenderElement {
+  const key = `lead-${o.id}`
+  if (o.isDenied) return GlyphPic(ctx, { glyph: 'lock', paint: 'danger', key })
+  if (o.line === undefined || o.line.isMine) return GlyphPic(ctx, { glyph: 'robot', paint: 'run', key })
   const face = tinyFace({ initials: initialsOf(o.line.authorName), paint: avatarRole(o.line.seed), size: LEAD })
-  return Pic(ctx, rowPart({ width: LEAD, height: LEAD, left: [face], alt: '' }), 'lead')
+  return Pic(ctx, rowPart({ width: LEAD, height: LEAD, left: [face], alt: '' }), key)
 }
 
 export function TxLine(ctx: Ctx, tx: Tx): RenderElement {
@@ -104,7 +105,7 @@ export function TxLine(ctx: Ctx, tx: Tx): RenderElement {
   return (
     <Box key={`tx-${tx.id}`} flexDirection="column" gap={1}>
       <Box flexDirection="row" alignItems="center" gap={1}>
-        {Lead(ctx, { line: tx.query, isDenied })}
+        {Lead(ctx, { line: tx.query, isDenied, id: tx.id })}
         <Box flexGrow={1} flexShrink={1}><Text color={isDenied ? ctx.look.role.danger.fg : ctx.look.mid} wrap="truncate-end">{s.text}</Text></Box>
         {isDenied ? null : Toggle(ctx, { key: `open-tx-${tx.id}`, id: tx.id, open: chatWords().hide, closed: viewLabel(tx) })}
       </Box>
@@ -120,7 +121,7 @@ export function AgentNote(ctx: Ctx, line: Line): RenderElement {
   return (
     <Box key={`msg-${line.id}`} flexDirection="column" gap={1}>
       <Box flexDirection="row" alignItems="center" gap={1}>
-        {Lead(ctx, { line, isDenied: false })}
+        {Lead(ctx, { line, isDenied: false, id: line.id })}
         <Box flexGrow={1}><Text color={ctx.look.role.run.fg} bold>{chatWords().wrote(agentOf(line))}</Text></Box>
         <Text color={ctx.look.lo}>{m === null ? '' : clockText(m.ts)}</Text>
       </Box>
