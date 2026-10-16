@@ -15,7 +15,7 @@ function recorder(): { on: On; seen: Seen[] } {
   return { on, seen }
 }
 
-test('register wires the same ten hooks from its small helpers, each gate with its catch', () => {
+test('register wires the same eleven hooks from its small helpers, each gate with its catch', () => {
   const { on, seen } = recorder()
   register(on, {} as never)
   expect(seen).toEqual([
@@ -24,6 +24,7 @@ test('register wires the same ten hooks from its small helpers, each gate with i
     { event: 'classic.UserPromptSubmit', match: null, hasCatch: true },
     { event: 'ui.render', match: { component: 'Pane', requestId: 'transceiver' }, hasCatch: false },
     { event: 'state.set', match: { plugin: 'modz', key: 'open' }, hasCatch: true },
+    { event: 'state.set', match: { plugin: 'modz', key: 'stage' }, hasCatch: true },
     { event: 'ui.close', match: { id: 'transceiver' }, hasCatch: true },
     { event: 'tool.call', match: { tool: ['mcp__transceiver__send', 'mcp__transceiver__inbox', 'mcp__transceiver__ask'] }, hasCatch: true },
     { event: 'turn.start', match: null, hasCatch: false },

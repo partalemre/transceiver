@@ -9,6 +9,7 @@ import type { AgentHost, CallResult, Host } from './host'
 import { HUB_PANE, isOpenFor, isSameLine } from './hub'
 import { setLang } from './kit/lang'
 import { pinned } from './kit/pin'
+import { isOffStage, shownOf } from './kit/stage'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
 import { setTurnRunning } from './live'
@@ -104,10 +105,22 @@ async function registerTools($: EngineInterface): Promise<void> {
   }
 }
 
+// With the MODZ hub on, the opened pane takes its one panel, so the hub and every other pane step aside
+// (MODZ kit/stage.ts). A failed note of that is only logged: the pane is open either way.
+async function reportShown($: EngineInterface): Promise<void> {
+  try {
+    if ((await $.state.get({ plugin: 'modz', key: 'isOn' })).value !== true) return
+    await $.state.set({ plugin: 'transceiver', key: 'shown' }, shownOf(HUB_PANE, await $.clock.now()))
+  } catch {
+    $.ui.log('transceiver: could not tell the hub the pane is shown', { to: 'debug' })
+  }
+}
+
 // Asked for by the person only (the command, the MODZ hub row); a chat pane stays open beside the transcript.
 async function openPane($: EngineInterface): Promise<void> {
-  await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
+  const opened = await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
   setPaneShown(true)
+  if (opened.isPlaced) await reportShown($)
   await refreshPane()
 }
 
@@ -167,6 +180,12 @@ function onPane(on: On): void {
   on('state.set', { plugin: 'modz', key: 'open' }, async ($, e, next) => {
     const done = await next(e)
     if (isOpenFor(e.value, HUB_PANE)) await openPane($)
+    return done
+  }).catch(($, e, next) => next(e))
+  // Another pane took the hub's one panel: this one steps aside rather than wait as a tab.
+  on('state.set', { plugin: 'modz', key: 'stage' }, async ($, e, next) => {
+    const done = await next(e)
+    if (isOffStage(e.value, HUB_PANE)) await $.ui.close({ id: PANE_ID })
     return done
   }).catch(($, e, next) => next(e))
   // Closed by the person: no read marks from here on; toasts and the status line take over.
