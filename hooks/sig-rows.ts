@@ -9,7 +9,7 @@ import { glyphPiece, type GlyphName } from './sig-ui'
 export const ROOM_ROW_H = 34
 const ICON = 16
 const NAME_X = 26
-const NAME = { size: 13, weight: 560 }
+const NAME = { size: 13, weight: 500 }
 const NOTE = { size: 12, weight: 400 }
 const GAP = 10
 // A last line is drawn only with this much room left for it.
@@ -59,49 +59,53 @@ export function roomRowPic(o: RoomRowOpts): SvgPic {
   return themed(toPic({ body, width: o.width, height: ROOM_ROW_H, alt }), o.isLight)
 }
 
-const BRIDGE_H = 60
-const MARK = 20
-const LINE_Y = 16
-const LABEL_Y = 48
-const COLUMN = 0.22
-const LINE_GAP = 20
-const PACKET = 2.5
-const TRAVEL_MS = 720
-const LABEL = { size: 12, weight: 500 }
+const DEVICE_H = 26
+const DEVICE_GAP = 6
+const RAIL_X = ICON / 2
+const PACKET = 2
+const TRAVEL_MS = 520
 
+export type Device = { name: string; note: string; isWaiting: boolean }
 export type BridgeOpts = {
-  width: number; here: string; there: string | null; waitWord: string; alt: string
+  width: number; here: Device; there: Device; alt: string
   // The newest message: naming it is what makes the drawing new, so the one pass runs once per message.
   lastId: string; lastIsMine: boolean; isLight: boolean
 }
 
-function packet(o: BridgeOpts, line: { from: number; to: number }): string {
-  if (o.lastId === '' || o.there === null) return ''
-  const [start, end] = o.lastIsMine ? [line.from, line.to] : [line.to, line.from]
+function deviceRow(o: { device: Device; y: number; width: number }): string {
+  const { device, y } = o
+  const note = textEl({ x: o.width, y: y + baseline(0, DEVICE_H, NOTE.size), text: device.note, paint: 'lo', ...NOTE, anchor: 'end' })
+  const room = o.width - NAME_X - textWidth(device.note, NOTE.size, NOTE.weight) - GAP
+  const name = fitText(device.name, room, t => textWidth(t, NAME.size, NAME.weight))
+  return [
+    place(glyphPiece('laptop', { size: ICON, paint: device.isWaiting ? 'lo' : 'hi', stroke: 1.5 }).body, 0, y + (DEVICE_H - ICON) / 2),
+    textEl({ x: NAME_X, y: y + baseline(0, DEVICE_H, NAME.size), text: name, paint: device.isWaiting ? 'lo' : 'hi', ...NAME }),
+    note,
+  ].join('')
+}
+
+function packet(o: BridgeOpts, rail: { from: number; to: number }): string {
+  if (o.lastId === '' || o.there.isWaiting) return ''
+  const [start, end] = o.lastIsMine ? [rail.from, rail.to] : [rail.to, rail.from]
   const css = [
-    `@keyframes tx-go{0%{opacity:0;transform:translateX(0)}18%{opacity:1}82%{opacity:1}100%{opacity:0;transform:translateX(${num(end - start)}px)}}`,
+    `@keyframes tx-go{0%{opacity:0;transform:translateY(0)}20%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translateY(${num(end - start)}px)}}`,
     `.tx-go{opacity:0;animation:tx-go ${TRAVEL_MS}ms cubic-bezier(.2,.8,.2,1) .2s both}`,
     '@media (prefers-reduced-motion: reduce){.tx-go{animation:none}}',
   ].join('')
-  return `<style>${css}</style><circle data-id="${escapeXml(o.lastId)}" cx="${num(start)}" cy="${LINE_Y}" r="${PACKET}" class="f-edit tx-go"/>`
+  return `<style>${css}</style><circle data-id="${escapeXml(o.lastId)}" cx="${RAIL_X}" cy="${num(start)}" r="${PACKET}" class="f-edit tx-go"/>`
 }
 
-// Two computers and the line between them: solid once both are in, dashed while the other is awaited. A message going
-// over it is the pane's one moment of motion: a dot crosses once, the way the message went.
+// The two computers, one to a line so a long name is read whole in a narrow pane, and the line between them: solid once
+// both are in, dashed while the other is awaited. A message crossing it is the pane's one moment of motion.
 export function bridgePic(o: BridgeOpts): SvgPic {
-  const left = Math.round(o.width * COLUMN)
-  const right = o.width - left
-  const isAlone = o.there === null
-  const line = { from: left + LINE_GAP, to: right - LINE_GAP }
-  const mark = (cx: number, paint: string) => place(glyphPiece('laptop', { size: MARK, paint, stroke: 1.5 }).body, cx - MARK / 2, LINE_Y - MARK / 2)
-  const room = o.width / 2 - GAP
-  const label = (cx: number, text: string, paint: string) =>
-    textEl({ x: cx, y: LABEL_Y, text: fitText(text, room, t => textWidth(t, LABEL.size, LABEL.weight)), paint, ...LABEL, anchor: 'middle' })
+  const lower = DEVICE_H + DEVICE_GAP
+  const rail = { from: (DEVICE_H + ICON) / 2 - 1, to: lower + (DEVICE_H - ICON) / 2 + 1 }
+  const isAlone = o.there.isWaiting
   const body = [
-    mark(left, 'hi'), mark(right, isAlone ? 'lo' : 'hi'),
-    `<path d="M${line.from} ${LINE_Y}H${line.to}" class="${isAlone ? 's-lo' : 's-mid'}" stroke-width="1.5" fill="none"${isAlone ? ' stroke-dasharray="3 5"' : ''}/>`,
-    label(left, o.here, 'hi'), label(right, o.there ?? o.waitWord, isAlone ? 'lo' : 'hi'),
-    packet(o, line),
+    deviceRow({ device: o.here, y: 0, width: o.width }),
+    `<path d="M${RAIL_X} ${rail.from}V${rail.to}" class="${isAlone ? 's-lo' : 's-mid'}" stroke-width="1.5" fill="none"${isAlone ? ' stroke-dasharray="2 3"' : ''}/>`,
+    deviceRow({ device: o.there, y: lower, width: o.width }),
+    packet(o, rail),
   ].join('')
-  return themed(toPic({ body, width: o.width, height: BRIDGE_H, alt: o.alt }), o.isLight)
+  return themed(toPic({ body, width: o.width, height: lower + DEVICE_H, alt: o.alt }), o.isLight)
 }

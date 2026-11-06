@@ -90,11 +90,12 @@ export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   const isWide = columns >= WIDE_COLUMNS
   const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, model: o.model, on: o.on }
   const { Box } = ui
-  const home = HomeRow(ui, { onHome: o.onHome, pad })
+  // Inside a room the way back is its own: one back control at a time.
+  const home = o.model.view === 'chat' && !isWide ? null : HomeRow(ui, { onHome: o.onHome, pad })
   if (isWide) return <Box flexDirection="column" width={columns} backgroundColor={look.sheet}>{home}{Wide(ctx, pad)}</Box>
   const inner = sized(ctx, columns - pad * 2)
   return (
-    <Box flexDirection="column" gap={1} width={columns} paddingX={pad} paddingY={pad / 2} backgroundColor={look.sheet}>
+    <Box flexDirection="column" gap={1} {...(isText ? { width: columns } : { flexGrow: 1, minWidth: 0 })} paddingX={pad} paddingY={pad / 2} backgroundColor={look.sheet}>
       {home}
       {MainView(inner) ?? RoomsColumn(inner)}
       {o.surface === 'mobile' ? Meta(inner, paneWords().phoneNote, 'mobile-note') : null}

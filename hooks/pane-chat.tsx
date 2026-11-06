@@ -67,7 +67,7 @@ export const idsOf = (item: Item): string[] =>
 export function isSameRun(a: Item | undefined, b: Item | undefined): boolean {
   if (a?.kind !== 'line' || b?.kind !== 'line') return false
   const [x, y] = [messageOf(a.line), messageOf(b.line)]
-  if (x?.kind !== 'human' || y?.kind !== 'human') return false
+  if (x === null || y === null || x?.kind === 'system' || y?.kind === 'system' || x?.kind !== y?.kind) return false
   return a.line.authorUid === b.line.authorUid && y.ts - x.ts <= GROUP_MS && dayKey(x.ts) === dayKey(y.ts)
 }
 
@@ -76,7 +76,7 @@ type Slot = { items: Item[]; i: number; room: RoomView; isRuleNext: boolean; isR
 function itemEl(ctx: Ctx, o: Slot): RenderElement {
   const item = o.items[o.i]
   if (item?.kind !== 'line') return TxLine(ctx, item as Tx)
-  if (messageOf(item.line)?.kind === 'agent') return AgentNote(ctx, item.line)
+  if (messageOf(item.line)?.kind === 'agent' && o.room.kind !== 'devices') return AgentNote(ctx, item.line)
   const isFirst = o.isRuleHere || !isSameRun(o.items[o.i - 1], item)
   const isLast = o.isRuleNext || !isSameRun(item, o.items[o.i + 1])
   return Bubble(ctx, { line: item.line, isFirst, isLast, room: o.room })
@@ -134,7 +134,7 @@ export function ChatView(ctx: Ctx): RenderElement | null {
       {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
       {isInfoHere ? RoomInfo(ctx, room) : null}
       {isInfoHere ? Rule(ctx, 'info-rule') : null}
-      {Timeline(ctx, room)}
+      <Box key="timeline-grow" flexDirection="column" flexGrow={1}>{Timeline(ctx, room)}</Box>
       {ctx.isWide ? null : ErrorCard(ctx)}
       {ConnectBanner(ctx)}
       {Composer(ctx, room)}

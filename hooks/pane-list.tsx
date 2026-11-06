@@ -4,6 +4,7 @@
 import type { RenderElement } from 'claude-code'
 
 import { waitingText } from './connection'
+import { DAY_MS } from './limits'
 import { Cards } from './pane-cards'
 import { EmptyView } from './pane-empty'
 import { paneHead } from './kit/pane-head'
@@ -20,6 +21,8 @@ import { paneWords } from './words-pane'
 const ROW_CHROME_CELLS = 8
 const BADGE_CELLS = 4
 
+const STALE_INVITE_MS = 7 * DAY_MS
+
 const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`)
 
 // A project's branch, a DM nobody joined yet, any other room.
@@ -35,6 +38,7 @@ function lineOf(room: RoomView): { text: string; isWarn: boolean } {
   if (room.isTroubled) return { text: w.troubled, isWarn: true }
   if (room.isBoxBlocked) return { text: w.boxBlocked, isWarn: true }
   if (room.lastText !== '') return { text: room.lastText, isWarn: false }
+  if (room.kind === 'devices' && room.isWaiting) return { text: w.bridgeRowWaiting, isWarn: false }
   return { text: room.isWaiting ? w.acceptsSoon : w.noMessages, isWarn: false }
 }
 
@@ -146,7 +150,8 @@ export function RoomsColumn(ctx: Ctx): RenderElement {
   const rooms = ctx.model.rooms
   if (rooms.length === 0) return <Box key="rooms" flexDirection="column" gap={1}>{Top(ctx)}{Cards(ctx)}{EmptyView(ctx)}</Box>
   const projects = rooms.filter(r => r.kind === 'project')
-  const people = rooms.filter(r => r.kind === 'dm')
+  // A friend who never came for a week stops taking up the list; the room returns as soon as they join.
+  const people = rooms.filter(r => r.kind === 'dm' && !(r.isWaiting && ctx.model.now - r.lastTs > STALE_INVITE_MS))
   const devices = rooms.filter(r => r.kind === 'devices')
   const isMixed = projects.length > 0 && people.length > 0
   return (

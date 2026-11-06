@@ -113,7 +113,7 @@ export const ROOMS = {
   zeynep: room({ id: 'rz' }),
 }
 
-export const SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
+export const SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true, isSoundOn: true }
 
 export function input(o: { rooms?: RoomRecord[]; syncs?: Record<string, RoomSync>; session?: Partial<SessionUi>; isConnected?: boolean } = {}): ModelInput {
   const rooms = o.rooms ?? [ROOMS.alperen, ROOMS.eliti, ROOMS.zeynep]

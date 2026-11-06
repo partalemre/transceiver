@@ -53,7 +53,7 @@ test('nothing is published before connecting, into a room not accepted, or after
 test('the login set in the settings wins over gh, and a bad gh answer publishes nothing', async () => {
   const { db, host, runs } = await setup('not a login!')
   expect(await shareLogin(host, ev())).toBe(false)
-  await saveSettings(host, { isReceiptsOn: true, isToastOn: true, isStatusOn: true, gh: 'AlperenX' })
+  await saveSettings(host, { isReceiptsOn: true, isToastOn: true, isStatusOn: true, isSoundOn: true, gh: 'AlperenX' })
   expect(await shareLogin(host, ev())).toBe(true)
   expect(db.docs.get(`outbox/${ME}`)?.data.gh).toBe('AlperenX')
   expect(runs()).toBe(1)

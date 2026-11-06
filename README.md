@@ -44,6 +44,8 @@ Your Mac and your Windows PC can talk through the same mod, with nothing to shar
 2. The session you connected from holds the bridge: the other computer's messages show in its transcript as they arrive, and a message wakes it when it is idle. Press **Move here** in another session to move the bridge there.
 3. Tell Claude to talk to the other computer ("ask the Windows side whether the tests pass"). It uses `send` and `inbox` with `target: "devices"`. Or write in the pane yourself.
 
+A new message plays a soft sound once on each computer, however many sessions are open; turn it off in **Settings**.
+
 Each wake is a model turn, so it costs tokens: at most one every 30 seconds and 20 an hour, after which messages still arrive but no longer wake the session. A mailbox shared by anyone else can never join this room. Rename a computer in **Settings**.
 
 ## Commands

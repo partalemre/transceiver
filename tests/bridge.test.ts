@@ -5,7 +5,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { bridgeLine, flushWake, isLinkedHere, linkHere, onBridgeTick, resetBridge, showSent } from '../hooks/bridge'
 import { setConnected } from '../hooks/connection'
-import { connectDevices, deviceLabels, devicesRoomOf, findDevices, machineName } from '../hooks/devices'
+import { connectDevices, deviceLabels, devicesRoomOf, findDevices, machineName, removeArgv } from '../hooks/devices'
 import type { AgentHost, CallResult } from '../hooks/host'
 import { shareDeviceName } from '../hooks/identity'
 import { joinRoom } from '../hooks/join'
@@ -13,6 +13,7 @@ import { BRIDGE_WAKES_PER_HOUR, LIVE_COOLDOWN_MS } from '../hooks/limits'
 import { setTurnRunning } from '../hooks/live'
 import type { Message } from '../hooks/protocol'
 import { relayOf } from '../hooks/relay'
+import { onSoundTick } from '../hooks/sound'
 import { errorLine } from '../hooks/room-loop'
 import { DEVICES_TITLE, discoverInvites, loadRooms, type RoomRecord } from '../hooks/rooms'
 import { initialSync, tick, type RoomSync } from '../hooks/sync'
@@ -231,4 +232,27 @@ test('a background error reaches the debug log with its first line, and never wi
   expect(errorLine(new Error('hook failed\nsecond line'))).toBe('Error: hook failed')
   expect(errorLine(new Error('key ghp_abcdefghijklmnopqrstuvwxyz0123456789'))).toBe('Error')
   expect(errorLine('nope')).toBe('error')
+})
+
+test('a new message rings once across the sessions of a computer, never for history, and not when turned off', async () => {
+  const { sched, acc, pc } = await connected()
+  const other = machine(acc, { name: 'DESKTOP-EMRE', session: 'session-2', sched })
+  other.store = pc.store
+  const room = await roomOf(pc)
+  const author = `${ME}@box1`
+  const event = async (id: string, ago: number) => ({ room, state: initialSync(ME), isDenied: false, fresh: [{ author, message: message(id, (await pc.now()) - ago, 'x') }] })
+  expect(await onSoundTick(pc, await event(ID(1), 3_600_000))).toBe(false)
+  const news = await event(ID(2), 0)
+  expect(await onSoundTick(pc, news)).toBe(true)
+  expect(await onSoundTick(other, news)).toBe(false)
+  expect(pc.dings + other.dings).toBe(1)
+  await pc.advance(5_000)
+  await pc.storeSet('tx.settings', { isSoundOn: false })
+  expect(await onSoundTick(pc, await event(ID(3), 0))).toBe(false)
+})
+
+test('removing a file: rm on a Mac, cmd on Windows, whose paths take backslashes', () => {
+  expect(removeArgv({ path: 'C:/w/.transceiver/a.html', isDir: false, isWindows: true })).toEqual(['cmd', '/c', 'del', 'C:\\w\\.transceiver\\a.html'])
+  expect(removeArgv({ path: 'C:/w/.transceiver', isDir: true, isWindows: true })).toEqual(['cmd', '/c', 'rmdir', 'C:\\w\\.transceiver'])
+  expect(removeArgv({ path: '/w/a', isDir: false, isWindows: false })).toEqual(['rm', '-f', '--', '/w/a'])
 })

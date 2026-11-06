@@ -19,6 +19,7 @@ export function placeholderOf(room: RoomView, mode: string | null): string {
   if (arg !== undefined) return arg.placeholder
   const w = chatWords()
   if (room.kind === 'project') return w.placeProject
+  if (room.kind === 'devices') return w.placeAnyone
   return room.peerName === undefined ? w.placeAnyone : w.placePeer(room.peerName)
 }
 
@@ -102,14 +103,15 @@ export function Composer(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="composer" flexDirection="column" gap={1}>
       {isProject ? Sheet(ctx, room) : null}
-      <Box key="field-row" flexDirection="row" alignItems="center" gap={1}>
+      <Box key="field-row" flexDirection="row" alignItems="center" gap={1} minWidth={0}>
         {isProject && mode === null ? AskButton(ctx, room) : null}
         {ModeChip(ctx)}
-        <Box flexGrow={1} flexDirection="column">
+        <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
           <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? chatWords().send : chatWords().ask}
             autoFocus onInput={value => ctx.on.type(room.id, value)} onSubmit={value => ctx.on.send(room.id, value)} />
         </Box>
-        <Button key={`send-${room.id}`} variant="primary" label={mode === null ? chatWords().send : chatWords().ask} onPress={() => ctx.on.sendTyped(room.id)} />
+        {/* The desktop's field draws its own send button from `submitLabel`. */}
+        {ctx.surface === 'desktop' ? null : <Button key={`send-${room.id}`} variant="primary" label={mode === null ? chatWords().send : chatWords().ask} onPress={() => ctx.on.sendTyped(room.id)} />}
       </Box>
       {HintRow(ctx)}
     </Box>

@@ -5,6 +5,7 @@ import { wireIdentity } from './identity'
 import { wireLive } from './live'
 import { wireResponder } from './responder-wire'
 import { wireRetention } from './retention'
+import { wireSound } from './sound'
 import { refreshPane, setDraftSettler, setDraftSource } from './state'
 
 // The agent side on the room loop: the responder, the gh login on the head, live wake, retention (compaction and
@@ -15,7 +16,7 @@ let unwire: Array<() => void> = []
 export function wireAgents(host: AgentHost): void {
   for (const off of unwire) off()
   unwire = [
-    wireResponder(host), wireIdentity(host), wireLive(host), wireRetention(host), wireBridge(host),
+    wireResponder(host), wireIdentity(host), wireLive(host), wireRetention(host), wireBridge(host), wireSound(host),
     onDrafts(() => { void refreshPane().catch(() => undefined) }),
   ]
   setDraftSource(() => loadDrafts(host))

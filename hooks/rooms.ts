@@ -26,11 +26,11 @@ export type RoomRecord = {
   id: string; room: string; url: string; boxes: string[]; kind: RoomKind; repo?: string; title: string
   status: 'active' | 'invited' | 'left'; isLive: boolean; peers: Peer[]; joinedAt: number
 }
-export type Settings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; label?: string; gh?: string }
+export type Settings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; isSoundOn: boolean; label?: string; gh?: string }
 
 const ROOMS_KEY = 'tx.rooms'
 const SETTINGS_KEY = 'tx.settings'
-const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
+const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true, isSoundOn: true }
 
 // Only the mailbox's owner writes it; everyone it is shared with reads it. The platform lets an outside visitor
 // (another organization, invited by email) and every Viewer read, and lets nobody but the owner write at every

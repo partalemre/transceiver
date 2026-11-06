@@ -3,7 +3,7 @@ import type { EngineInterface, On, Register } from 'claude-code'
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
 import { description, parseCommand, runCommand } from './commands'
-import { machineName } from './devices'
+import { devicesRoomOf, machineName, removeArgv } from './devices'
 import { isBypassMode, isConnected, persistConnection, restoreConnection, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
@@ -18,11 +18,14 @@ import { drawPane } from './pane'
 import { motion } from './pane-kit'
 import { onPaneTick } from './pane-tick'
 import { onTick, startLoop } from './room-loop'
+import { loadRooms } from './rooms'
 import { realPathOf, runnerOf } from './run'
 import { bindPane, patchSession, refreshPane, setPaneShown, setRepoSource, type UiHost } from './state'
 import { EMPTY_PANE } from './state-types'
 import { runTool, TOOL_SPECS } from './tools'
 import { agentWords } from './words-agent'
+
+const WINDOWS_SOUND = "(New-Object Media.SoundPlayer \"$env:WINDIR\\Media\\Windows Notify Messaging.wav\").PlaySync()"
 
 // Asked once per load: the pane reads it on every redraw.
 let machine: Promise<string> | null = null
@@ -40,6 +43,14 @@ function hostOf($: EngineInterface): Host {
     writeFile: (path, text) => $.fs.write(path, text),
     log: text => $.ui.log(text, { to: 'debug' }),
     say: text => $.ui.log(text),
+    ding: async () => {
+      // `$.audio.play` has no player on Windows, so there a sound the system ships plays instead.
+      if ((await $.env.get('OS').catch(() => undefined)) === 'Windows_NT') {
+        await $.process.run(['powershell', '-NoProfile', '-Command', WINDOWS_SOUND], { timeoutMs: RUN_TIMEOUT_MS })
+        return
+      }
+      await $.audio.play({ asset: 'sounds/message.wav' })
+    },
     sessionId: () => $.session.id(),
     deviceName: () => {
       machine ??= $.env.get('OS').catch(() => undefined).then(os => machineName({ run: runnerOf((argv, init) => $.process.run(argv, init)), os }))
@@ -49,8 +60,8 @@ function hostOf($: EngineInterface): Host {
     isDir: async path => (await $.fs.stat(path).catch(() => null))?.kind === 'dir',
     remove: async path => {
       const isDir = (await $.fs.stat(path).catch(() => null))?.kind === 'dir'
-      // `rm` and `rmdir` are not programs on Windows, where this stays a no-op that leaves one small page behind.
-      await $.process.run(isDir ? ['rmdir', '--', path] : ['rm', '-f', '--', path], { timeoutMs: RUN_TIMEOUT_MS })
+      const isWindows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
+      await $.process.run(removeArgv({ path, isDir, isWindows }), { timeoutMs: RUN_TIMEOUT_MS })
     },
     isConnected: () => isConnected(),
   }
@@ -232,6 +243,8 @@ function onCommand(on: On): void {
     const cmd = parseCommand(e.args)
     if (cmd.verb === 'ayarlar') patchSession({ view: 'settings' })
     const text = await runCommand({ host: hostOf($), openPane: () => openPane($), cmd })
+    const devices = cmd.verb === 'kopru' ? devicesRoomOf(await loadRooms(hostOf($))) : null
+    if (devices !== null) patchSession({ view: 'chat', activeId: devices.id })
     await refreshPane()
     return text === null ? {} : { text }
   }).catch(() => ({ text: agentWords().commandFailed }))

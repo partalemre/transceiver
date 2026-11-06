@@ -26,6 +26,12 @@ async function firstOutput(run: Run, commands: readonly string[][]): Promise<str
   return ''
 }
 
+// Windows has no `rm` a spawned process can count on, and `del` and `rmdir` live inside `cmd`.
+export function removeArgv(o: { path: string; isDir: boolean; isWindows: boolean }): string[] {
+  if (!o.isWindows) return o.isDir ? ['rmdir', '--', o.path] : ['rm', '-f', '--', o.path]
+  return ['cmd', '/c', o.isDir ? 'rmdir' : 'del', o.path.replaceAll('/', '\\')]
+}
+
 // The machine's own name: a Mac's Sharing name, else `hostname`, which every platform has.
 export async function machineName(o: { run: Run; os: string | undefined }): Promise<string> {
   const isWindows = o.os === 'Windows_NT'

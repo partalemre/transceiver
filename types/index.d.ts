@@ -67,7 +67,7 @@ export type Draft = { roomId: string; qid: string; question: string; asker: stri
 export type Invite = { id: string; title: string; kind?: 'dm' | 'project' | 'devices'; repo?: string; url?: string; joinedAt?: number }
 export type PaneView = 'rooms' | 'chat' | 'add' | 'settings'
 export type EmptyForm = 'join' | 'project'
-export type PaneSettings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean }
+export type PaneSettings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; isSoundOn: boolean }
 // A room this session just opened, shown with the steps to invite the friend.
 export type Created = { url: string; title: string }
 // `repos`: what the gate last heard from GitHub about this login, per shared project room (when it asked).

@@ -74,8 +74,8 @@ function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
 function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): RenderElement {
   const { Box, Text } = ctx.ui
   const { line } = o
-  // Mine on the card, theirs on the inset: the side already says whose, and colour stays for state.
-  const tone = line.isMine ? { tint: ctx.look.card, line: ctx.look.line } : { tint: ctx.look.inset, line: ctx.look.inset }
+  // Mine on the track, theirs on the card: the side already says whose, and colour stays for state.
+  const tone = line.isMine ? { tint: ctx.look.track, line: ctx.look.track } : { tint: ctx.look.card, line: ctx.look.card }
   const isPending = line.receipt === 'pending'
   return (
     <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>

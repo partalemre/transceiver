@@ -79,6 +79,9 @@ export const LIVE_MAX_CHARS = 2_000
 
 // The bridge between a person's own computers (devices.ts, bridge.ts).
 export const HOUR_MS = 60 * 60_000
+// A message older than this is history coming in, not news; two sounds never come closer than the gap.
+export const SOUND_FRESH_MS = 60_000
+export const SOUND_GAP_MS = 3_000
 export const BRIDGE_WAKES_PER_HOUR = 20
 export const DEVICE_LIST_LIMIT = 200
 export const DEVICE_RELIST_MS = 10 * 60_000

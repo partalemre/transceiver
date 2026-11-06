@@ -56,7 +56,7 @@ type Toggle = { key: keyof PaneSettings; title: string; on: string; off: string 
 
 function toggles(): Toggle[] {
   const w = paneWords()
-  return [{ key: 'isReceiptsOn', ...w.receipts }, { key: 'isToastOn', ...w.toasts }, { key: 'isStatusOn', ...w.statusLine }]
+  return [{ key: 'isReceiptsOn', ...w.receipts }, { key: 'isToastOn', ...w.toasts }, { key: 'isSoundOn', ...w.sound }, { key: 'isStatusOn', ...w.statusLine }]
 }
 
 function Row(ctx: Ctx, o: { key: string; mark: RenderElement; title: string; sub: string; button: RenderElement | null }): RenderElement {

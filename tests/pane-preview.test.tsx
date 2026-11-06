@@ -13,7 +13,7 @@ import { mountPane, paneWorld, startSession, type WorldOpts } from './pane-world
 declare const console: { log(text: string): void }
 
 // 440 px and 1120 px at 8 px a cell, as the V2 boards.
-const NARROW = 55
+const NARROW = 40
 const WIDE = 140
 const REMOTE = 'git@github.com:partalemre/eliti.git'
 const ELSEWHERE = 'git@github.com:partalemre/other.git'
@@ -88,7 +88,7 @@ const SHOTS: Shot[] = [
   { label: 'devices-card', rooms: ALL, isBypass: true, sees: 'Bilgisayarlarını bağla' },
   { label: 'devices-row', rooms: [DEVICE_ROOM, ...ALL], syncs: { ...syncs(), rd: deviceSync() }, isBypass: true, sees: 'Bilgisayarlarım', hides: 'bridge-connect' },
   { label: 'devices-chat', rooms: [DEVICE_ROOM, ...ALL], syncs: { ...syncs(), rd: deviceSync() }, isBypass: true, presses: ['open-rd'], sees: 'DESKTOP-EMRE' },
-  { label: 'devices-alone', rooms: [DEVICE_ALONE], syncs: { rd: { ...deviceSync(), peers: {}, boxOf: {}, entries: [] } }, isBypass: true, presses: ['open-rd'], sees: 'Diğer bilgisayarda' },
+  { label: 'devices-alone', rooms: [DEVICE_ALONE], syncs: { rd: { ...deviceSync(), peers: {}, boxOf: {}, entries: [] } }, isBypass: true, presses: ['open-rd'], sees: 'köprü yaz' },
   { label: 'rooms', isBypass: true, sees: 'Teşekkürler, okudum', hides: 'yoklama' },
   { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: 'Proje odası', hides: 'join-link', texts: [EMPTY_TITLE, EMPTY_BODY] },
   { label: 'empty-join', rooms: [], syncs: {}, isBypass: true, presses: ['open-join'], sees: 'join-link' },

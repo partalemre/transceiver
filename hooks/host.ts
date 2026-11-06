@@ -20,6 +20,8 @@ export type Host = {
   log(text: string): void
   // One dim line in the session's transcript, which the model does not read.
   say(text: string): void
+  // The new-message sound.
+  ding(): Promise<void>
   sessionId(): Promise<string>
   // This computer's own name (devices.ts).
   deviceName(): Promise<string>

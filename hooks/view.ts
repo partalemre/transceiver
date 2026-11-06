@@ -172,7 +172,7 @@ export function buildModel(given: ModelInput): PaneModel {
     canSettleDrafts: input.canSettleDrafts === true,
     isConnected: input.isConnected,
     needsSetup: !input.isConnected && !input.session.isConnectDismissed && hasSynced,
-    settings: { isReceiptsOn: input.settings.isReceiptsOn, isToastOn: input.settings.isToastOn, isStatusOn: input.settings.isStatusOn },
+    settings: { isReceiptsOn: input.settings.isReceiptsOn, isToastOn: input.settings.isToastOn, isStatusOn: input.settings.isStatusOn, isSoundOn: input.settings.isSoundOn },
     isReceiptsOn: input.settings.isReceiptsOn,
     error: input.session.error, busy: input.session.busy,
     created: input.session.created, composerKey: input.session.composerKey,
