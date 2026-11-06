@@ -99,7 +99,8 @@ async function step(host: Host, scheduled: RoomRecord): Promise<void> {
   for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, docsUsed })
   // A listener that queued a message (an answer) gets it sent at once rather than a poll later.
   const isQueued = (syncs.get(room.id)?.pending.length ?? 0) > state.pending.length
-  schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen, failures: state.failures }))
+  // Only the room on screen polls fast: dozens of open sessions read the same rooms.
+  schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen: isPaneOpen && viewing === room.id, failures: state.failures }))
 }
 
 // For the debug log alone. A relay error's text is the tool's, which can quote a room, so it logs by name; any other

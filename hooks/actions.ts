@@ -137,8 +137,6 @@ async function pressConnect(p: PanePort): Promise<void> {
   patchSession({ busy: null, activeId: room.id, view: 'chat', openedMark: null, created: null })
 }
 
-const linkHere_ = (p: PanePort): Promise<void> => linkHere(p.host)
-
 async function rename(p: PanePort, name: string): Promise<void> {
   const label = name.trim().slice(0, MAX_NAME_CHARS)
   await saveSettings(p.host, { ...(await loadSettings(p.host)), ...(label === '' ? { label: undefined } : { label }) })
@@ -172,7 +170,6 @@ export type PaneHandlers = {
   toggleForm(form: EmptyForm): void
   clearMode(): void
   connectDevices(): void
-  takeBridge(): void
   renameDevice(name: string): void
 }
 
@@ -211,7 +208,6 @@ export const paneHandlers: PaneHandlers = {
   toggleForm: form => run(async () => patchSession({ emptyForm: sessionNow().emptyForm === form ? null : form, error: null })),
   clearMode: () => run(async () => patchSession({ composeMode: null, hint: null })),
   connectDevices: () => run(pressConnect),
-  takeBridge: () => run(linkHere_),
   renameDevice: name => run(p => rename(p, name)),
   toggleExpanded: id => run(async () => {
     const open = sessionNow().expanded

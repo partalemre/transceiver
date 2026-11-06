@@ -63,6 +63,9 @@ export type RoomView = {
   project?: ProjectInfo
 }
 
+// One new message above the prompt (pane-band.tsx).
+export type BandLine = { roomId: string; lastId: string; glyph: 'laptop' | 'person' | 'branch' | 'clock'; name: string; preview: string; time: string; unread: number }
+
 export type Draft = { roomId: string; qid: string; question: string; asker: string }
 export type Invite = { id: string; title: string; kind?: 'dm' | 'project' | 'devices'; repo?: string; url?: string; joinedAt?: number }
 export type PaneView = 'rooms' | 'chat' | 'add' | 'settings'
@@ -111,8 +114,8 @@ export type PaneModel = {
   // details (gate, budget, today's counts, live mode).
   emptyForm: EmptyForm | null
   isInfoOpen: boolean
-  // This computer's name in the bridge, and whether this session is the one its messages land in (bridge.ts).
-  bridge: { name: string; isHere: boolean }
+  // This computer's name in the bridge.
+  bridge: { name: string }
 }
 
 // The one-line card the MODZ hub collects from every mod (MODZ DESIGN.md §9), and the hub's open request.
@@ -130,6 +133,8 @@ declare module 'claude-code' {
     transceiver: {
       pane: PaneModel
       hub: HubCard
+      // The new message shown above the prompt, or null.
+      band: BandLine | null
       // Whether this session may write (connection.ts); kept here so a hot reload does not drop it.
       connected: boolean
       home: ModzHome

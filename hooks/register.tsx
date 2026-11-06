@@ -2,6 +2,7 @@ import type { EngineInterface, On, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
+import { linkHere } from './bridge'
 import { description, parseCommand, runCommand } from './commands'
 import { devicesRoomOf, machineName, removeArgv } from './devices'
 import { isBypassMode, isConnected, persistConnection, restoreConnection, setConnected } from './connection'
@@ -14,13 +15,15 @@ import { isOffStage, shownOf } from './kit/stage'
 import { resolveLight } from './kit/tokens'
 import { PANE_ID, RUN_TIMEOUT_MS } from './limits'
 import { setTurnRunning } from './live'
+import { isSame } from './kit/same'
 import { drawPane } from './pane'
+import { bandTree } from './pane-band'
 import { motion } from './pane-kit'
 import { onPaneTick } from './pane-tick'
 import { onTick, startLoop } from './room-loop'
 import { loadRooms } from './rooms'
 import { realPathOf, runnerOf } from './run'
-import { bindPane, patchSession, refreshPane, setPaneShown, setRepoSource, type UiHost } from './state'
+import { bindPane, dismissBand, patchSession, refreshPane, setPaneShown, setRepoSource, type UiHost } from './state'
 import { EMPTY_PANE } from './state-types'
 import { runTool, TOOL_SPECS } from './tools'
 import { agentWords } from './words-agent'
@@ -72,6 +75,7 @@ function hostOf($: EngineInterface): Host {
 const PANE_STATE = { plugin: 'transceiver', key: 'pane' } as const
 const CONNECTION_STATE = { plugin: 'transceiver', key: 'connected' } as const
 const HUB_STATE = { plugin: 'transceiver', key: 'hub' } as const
+const BAND_STATE = { plugin: 'transceiver', key: 'band' } as const
 const DEFAULT_COLUMNS = 80
 
 function uiOf($: EngineInterface): UiHost {
@@ -80,6 +84,10 @@ function uiOf($: EngineInterface): UiHost {
     setHub: async line => {
       if (isSameLine((await $.state.get(HUB_STATE)).value, line)) return
       await $.state.set(HUB_STATE, { pane: HUB_PANE, ...line, at: await $.clock.now() })
+    },
+    setBand: async line => {
+      if (isSame((await $.state.get(BAND_STATE)).value ?? null, line)) return
+      await $.state.set(BAND_STATE, line)
     },
     isPaneShown: async () => (await $.ui.panes()).some(p => p.id === PANE_ID && p.isShown),
     toast: text => $.ui.toast(text),
@@ -142,6 +150,7 @@ async function reportShown($: EngineInterface): Promise<void> {
 // Asked for by the person only (the command, the MODZ hub row); a chat pane stays open beside the transcript.
 async function openPane($: EngineInterface): Promise<void> {
   motion.reset()
+  await linkHere(hostOf($)).catch(() => undefined)
   const opened = await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
   setPaneShown(true)
   if (opened.isPlaced) await reportShown($)
@@ -180,6 +189,8 @@ function onSession(on: On): void {
   }).catch(($, e, next) => next(e))
   on('classic.UserPromptSubmit', async ($, e, next) => {
     if (isBypassMode(e.permission_mode)) setConnected(true)
+    // The bridge follows the person to the session they write in; a machine-made turn leaves it where it is.
+    if (e.source === undefined || e.source === 'user' || e.source === 'sdk') await linkHere(hostOf($)).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))
 }
@@ -220,6 +231,19 @@ function onPane(on: On): void {
   }).catch(($, e, next) => next(e))
 }
 
+function onBand(on: On): void {
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const theirs = await next(e)
+    const line = e.props.hasSurvey ? null : (await $.state.get(BAND_STATE)).value ?? null
+    if (line === null) return theirs
+    const open = () => void openPane($).then(() => paneHandlers.select(line.roomId)).catch(() => undefined)
+    const dismiss = () => { dismissBand(line.lastId); void refreshPane().catch(() => undefined) }
+    return pinned(e, bandTree($.ui.resolve(e), {
+      surface: e.surface, columns: e.props.bodyColumns, isLight: await isLightOf($), line, theirs: theirs as never, onOpen: open, onDismiss: dismiss,
+    }))
+  }).catch(($, e, next) => next(e))
+}
+
 function onTools(on: On): void {
   // The agent tools: the model calls them as mcp__transceiver__send, inbox and ask. The ask tool waits inside this
   // hook's own budget.
@@ -253,6 +277,7 @@ function onCommand(on: On): void {
 export const register: Register = on => {
   onSession(on)
   onPane(on)
+  onBand(on)
   onTools(on)
   onCommand(on)
 }

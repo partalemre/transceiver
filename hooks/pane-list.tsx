@@ -137,9 +137,9 @@ function Foot(ctx: Ctx): RenderElement {
   const line = <Text key="foot-status" color={color}>{`● ${status?.text}`}</Text>
   return (
     <Box key="foot" flexDirection="row" alignItems="center" gap={1}>
+      <Button key="open-add" label={paneWords().newRoom} plain dimColor onPress={() => ctx.on.openView('add')} />
       {status === null ? null : line}
       <Box flexGrow={1} />
-      <Button key="open-add" label={paneWords().newRoom} plain dimColor onPress={() => ctx.on.openView('add')} />
       <Button key="open-settings" label={paneWords().settings} plain dimColor onPress={() => ctx.on.openView('settings')} />
     </Box>
   )

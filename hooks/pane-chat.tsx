@@ -10,7 +10,9 @@ import { BridgeHead } from './pane-bridge'
 import { Bubble } from './pane-bubble'
 import { ErrorCard, GhCard, ShareCard } from './pane-cards'
 import { Composer } from './pane-compose'
-import { isHere, isText, Meta, Pic, roomFace, Rule, type Ctx } from './pane-kit'
+import { PressRow } from './kit/press'
+import { isHere, isText, Meta, Pic, roomFace, Rule, SvgOf, type Ctx } from './pane-kit'
+import { roomRowPic } from './sig-rows'
 import { TermChat } from './pane-term'
 import { noticeOf, statusOf } from './pane-words'
 import type { Line, RoomView } from './state-types'
@@ -20,7 +22,18 @@ import { chatWords } from './words-chat'
 
 const FACE = 20
 
+// Narrow, the head is the way back: one pressed line, the room's name and what is known of the other side.
+function BackRow(ctx: Ctx, room: RoomView): RenderElement | null {
+  if (isText(ctx) || ctx.isWide || room.kind === 'project') return null
+  const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })
+  const pic = roomRowPic({ width: ctx.px, glyph: 'back', name: room.title, preview: '', time: status?.text ?? '', unread: 0, isWarn: false, isLight: ctx.look.isLight })
+  const drawing = SvgOf(ctx, pic, `back-pic-${room.id}`)
+  return drawing === null ? null : PressRow(ctx.ui, { box: 'back-row', key: 'back', drawing, onPress: () => ctx.on.back() })
+}
+
 function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
+  const back = BackRow(ctx, room)
+  if (back !== null) return back
   const { Box, Button, Text } = ctx.ui
   const hasInfo = room.kind === 'project'
   const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })

@@ -7,8 +7,9 @@ import { isUnreadable, type Message } from './protocol'
 import { onTick, type TickEvent } from './room-loop'
 import type { RoomRecord } from './rooms'
 import { agentWords } from './words-agent'
+import { paneWords } from './words-pane'
 
-// The bridge in a session: per computer, one session holds it (the last to connect, send or ask for it). There the
+// The bridge in a session: per computer, it follows the person to the session they last wrote in. There the
 // other computer's messages show in the transcript as they arrive and wake the idle session, so two agents can talk
 // while the person reads along. Only this account's own mailboxes reach here (devices.ts). The wakes have a ceiling
 // per hour, since each is a model turn and two agents could otherwise answer each other for ever.
@@ -39,6 +40,8 @@ export async function linkHere(host: Host): Promise<void> {
 
 export const isLinkedHere = async (host: Host): Promise<boolean> => (await linkOf(host))?.session === (await host.sessionId())
 
+const whoOf = (kind: string): string => (kind === 'agent' ? 'Claude' : paneWords().you)
+
 const clipped = (text: string): string => (text.length > LIVE_MAX_CHARS ? text.slice(0, LIVE_MAX_CHARS) + CUT : text)
 
 export const bridgeLine = (o: Said & { isMine: boolean }): string => `${o.isMine ? '↗' : '↙'} ${o.name}: ${clipped(o.text)}`
@@ -47,7 +50,7 @@ export const bridgeLine = (o: Said & { isMine: boolean }): string => `${o.isMine
 export async function showSent(host: Host, o: { room: RoomRecord; message: Message }): Promise<void> {
   if (o.room.kind !== 'devices') return
   await linkHere(host)
-  host.say(bridgeLine({ name: await deviceNameOf(host), text: o.message.text, isMine: true }))
+  host.say(bridgeLine({ name: `${whoOf(o.message.kind)} · ${await deviceNameOf(host)}`, text: o.message.text, isMine: true }))
 }
 
 function isOverCeiling(now: number): boolean {
@@ -94,7 +97,7 @@ export async function onBridgeTick(host: AgentHost, ev: TickEvent): Promise<void
     const m = e.message
     // A mailbox read for the first time brings its history: only what came after the link is news.
     if (isUnreadable(m) || !SHOWN.has(m.kind) || m.ts < link.at) continue
-    const said = { name: names[e.author] ?? agentWords().otherComputer, text: m.text }
+    const said = { name: `${whoOf(m.kind)} · ${names[e.author] ?? agentWords().otherComputer}`, text: m.text }
     host.say(bridgeLine({ ...said, isMine: false }))
     waiting.push(said)
   }

@@ -107,7 +107,7 @@ export function Composer(ctx: Ctx, room: RoomView): RenderElement {
         {isProject && mode === null ? AskButton(ctx, room) : null}
         {ModeChip(ctx)}
         <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
-          <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? chatWords().send : chatWords().ask}
+          <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel="↵"
             autoFocus onInput={value => ctx.on.type(room.id, value)} onSubmit={value => ctx.on.send(room.id, value)} />
         </Box>
         {/* The desktop's field draws its own send button from `submitLabel`. */}

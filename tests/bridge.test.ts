@@ -13,6 +13,7 @@ import { BRIDGE_WAKES_PER_HOUR, LIVE_COOLDOWN_MS } from '../hooks/limits'
 import { setTurnRunning } from '../hooks/live'
 import type { Message } from '../hooks/protocol'
 import { relayOf } from '../hooks/relay'
+import { bandOf } from '../hooks/pane-band'
 import { onSoundTick } from '../hooks/sound'
 import { errorLine } from '../hooks/room-loop'
 import { DEVICES_TITLE, discoverInvites, loadRooms, type RoomRecord } from '../hooks/rooms'
@@ -117,9 +118,9 @@ test('a message crosses: named by the computer, shown in the linked session, and
   expect(Object.values(deviceLabels([b], { [b.id]: got.state }))).toEqual(['MacBook'])
 
   await onBridgeTick(pc, { room: b, state: got.state, fresh: got.fresh, isDenied: false })
-  expect(pc.said).toEqual(['↙ MacBook: testler geçti mi?'])
+  expect(pc.said).toEqual(['↙ Claude · MacBook: testler geçti mi?'])
   expect(pc.wakes).toHaveLength(1)
-  expect(pc.wakes[0]).toContain('[MacBook] testler geçti mi?')
+  expect(pc.wakes[0]).toContain('[Claude · MacBook] testler geçti mi?')
   expect(pc.wakes[0]).toContain('other computer')
 })
 
@@ -209,7 +210,7 @@ test('what this computer sends shows in its own session too, and holds the bridg
   const { pc } = await connected()
   const room = await roomOf(pc)
   await showSent(pc, { room, message: message(ID(1), 1, 'selam') })
-  expect(pc.said).toEqual(['↗ DESKTOP-EMRE: selam'])
+  expect(pc.said).toEqual(['↗ Claude · DESKTOP-EMRE: selam'])
   expect(await isLinkedHere(pc)).toBe(true)
   expect(bridgeLine({ name: 'x', text: 'y', isMine: false })).toBe('↙ x: y')
 })
@@ -255,4 +256,13 @@ test('removing a file: rm on a Mac, cmd on Windows, whose paths take backslashes
   expect(removeArgv({ path: 'C:/w/.transceiver/a.html', isDir: false, isWindows: true })).toEqual(['cmd', '/c', 'del', 'C:\\w\\.transceiver\\a.html'])
   expect(removeArgv({ path: 'C:/w/.transceiver', isDir: true, isWindows: true })).toEqual(['cmd', '/c', 'rmdir', 'C:\\w\\.transceiver'])
   expect(removeArgv({ path: '/w/a', isDir: false, isWindows: false })).toEqual(['rm', '-f', '--', '/w/a'])
+})
+
+test('the note above the prompt: the newest unread room, not while the pane is on screen, and a newer message returns after ✕', () => {
+  const room = { id: 'rd', kind: 'devices', title: 'x', peerName: 'DESKTOP-EMRE', unread: 2, lastId: ID(2), lastText: 'bitti', lastTs: 1, isWaiting: false } as never
+  const line = bandOf({ rooms: [room], isShown: false, now: 1, dismissed: null })
+  expect(line).toMatchObject({ roomId: 'rd', name: 'DESKTOP-EMRE', preview: 'bitti', glyph: 'laptop', unread: 2 })
+  expect(bandOf({ rooms: [room], isShown: true, now: 1, dismissed: null })).toBeNull()
+  expect(bandOf({ rooms: [room], isShown: false, now: 1, dismissed: ID(2) })).toBeNull()
+  expect(bandOf({ rooms: [room], isShown: false, now: 1, dismissed: ID(1) })).not.toBeNull()
 })

@@ -3,7 +3,7 @@
 // render hook. Any module may call `refreshPane()` after it changed something the pane shows.
 import type { RenderSurface } from 'claude-code'
 
-import { isLinkedHere } from './bridge'
+import type { BandLine } from '../types'
 import { askUsedToday } from './budget'
 import { isConnected } from './connection'
 import { deviceNameOf, devicesRoomOf } from './devices'
@@ -11,6 +11,7 @@ import type { Host } from './host'
 import { hubOf, type HubShown } from './hub'
 import { PANE_CLOCK_MS } from './limits'
 import { namesNow, resolveNames } from './names'
+import { bandOf } from './pane-band'
 import { setViewing, syncOf } from './room-loop'
 import { loadRooms, loadSettings, type RoomRecord } from './rooms'
 import type { Draft, PaneModel } from './state-types'
@@ -22,6 +23,7 @@ export type UiHost = {
   setPane(model: PaneModel): Promise<void>
   // The MODZ hub's line; the port writes it only when it differs from the one written.
   setHub(shown: HubShown): Promise<void>
+  setBand(line: BandLine | null): Promise<void>
   isPaneShown(): Promise<boolean>
   toast(text: string): void
   status(text: string | undefined): void
@@ -31,6 +33,9 @@ export type PanePort = { host: Host; ui: UiHost }
 export type DraftSettler = (qid: string, isApproved: boolean) => Promise<boolean>
 
 let port: PanePort | null = null
+// The newest message put away from above the prompt: a newer one comes back.
+let bandDismissed: string | null = null
+export const dismissBand = (id: string): void => { bandDismissed = id }
 let session: SessionUi = { ...EMPTY_SESSION }
 let isShown = false
 let shown = ''
@@ -110,7 +115,7 @@ export async function refreshPane(): Promise<PaneModel | null> {
   const drafts = draftSource === null ? [] : await draftSource().catch(() => [])
   const sessionRepo = repoSource === null ? undefined : await repoSource().catch(() => undefined)
   const devices = devicesRoomOf(rooms)
-  const bridge = devices === null ? undefined : { name: await deviceNameOf(host).catch(() => ''), isHere: await isLinkedHere(host).catch(() => false) }
+  const bridge = devices === null ? undefined : { name: await deviceNameOf(host).catch(() => '') }
   const model = buildModel({
     rooms, syncs, names: namesNow(), settings: await loadSettings(host), session, isConnected: isConnected(),
     drafts, canSettleDrafts: draftSettler !== null, now, sessionRepo, askUsed: await askUsedToday(host).catch(() => ({})), bridge,
@@ -122,5 +127,6 @@ export async function refreshPane(): Promise<PaneModel | null> {
     await ui.setPane(model)
   }
   await ui.setHub(hubOf(model.rooms))
+  await ui.setBand(bandOf({ rooms: model.rooms, isShown, now, dismissed: bandDismissed }))
   return model
 }

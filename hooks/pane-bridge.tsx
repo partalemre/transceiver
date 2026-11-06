@@ -25,19 +25,6 @@ export function BridgeCard(ctx: Ctx): RenderElement | null {
   )
 }
 
-// Said only when it needs a press: where the messages land is otherwise the quiet default.
-function Elsewhere(ctx: Ctx, room: RoomView): RenderElement | null {
-  if (ctx.model.bridge.isHere) return null
-  const { Box, Button, Text } = ctx.ui
-  const w = paneWords()
-  return (
-    <Box key="bridge-where" flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
-      <Box flexGrow={1} flexShrink={1}><Text color={ctx.look.lo} wrap="truncate-end">{w.bridgeElsewhere}</Text></Box>
-      <Box flexShrink={0}><Button key={`bridge-take-${room.id}`} label={w.bridgeTake} plain onPress={() => ctx.on.takeBridge()} /></Box>
-    </Box>
-  )
-}
-
 export function BridgeHead(ctx: Ctx, room: RoomView): RenderElement {
   const { Box } = ctx.ui
   const w = paneWords()
@@ -54,7 +41,6 @@ export function BridgeHead(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="bridge-head" flexDirection="column" gap={1}>
       {SvgOf(ctx, pic, `bridge-${room.id}`) ?? Meta(ctx, alt, `bridge-${room.id}`)}
-      {Elsewhere(ctx, room)}
       {isAlone ? Sentence(ctx, { key: 'bridge-next', text: w.bridgeNext, paint: 'lo' }) : null}
     </Box>
   )

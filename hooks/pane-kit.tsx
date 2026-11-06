@@ -2,6 +2,7 @@
 // and people, and the receipt glyphs.
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
+import type { BandLine } from '../types'
 import type { PaneHandlers } from './actions'
 import { waitingText } from './connection'
 import { paneMotion } from './kit/moving'
@@ -12,6 +13,8 @@ import { facePart } from './sig-chat'
 import { glyphPiece, rowPart, rulePart, type GlyphName } from './sig-ui'
 import type { PaneModel, Receipt, RoomView } from './state-types'
 import { avatarRole, initialsOf, type Look } from './theme'
+
+export type BandGlyph = BandLine['glyph']
 
 export type Ctx = {
   ui: ElementTable
@@ -76,7 +79,7 @@ export function Rule(ctx: Ctx, key: string): RenderElement {
 export const isHere = (room: RoomView, now: number): boolean => room.peerSeenTs > 0 && now - room.peerSeenTs < PRESENCE_MS
 
 // A room's mark in the list: a bare line glyph, its colour left to state (MODZ DESIGN.md §0).
-export function glyphOf(room: RoomView): GlyphName {
+export function glyphOf(room: RoomView): BandGlyph {
   if (room.kind === 'project') return 'branch'
   if (room.kind === 'devices') return 'laptop'
   return room.isWaiting ? 'clock' : 'person'

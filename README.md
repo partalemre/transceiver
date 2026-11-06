@@ -41,7 +41,7 @@ Messages arrive in about a second while the pane is open. With it closed, the st
 Your Mac and your Windows PC can talk through the same mod, with nothing to share and no link to paste, as long as both use the same claude.ai account.
 
 1. On each computer, install Transceiver and press **Connect this computer** in the pane (or type `/transceiver bridge`). Each opens its own private mailbox, and they find each other through your account's artifact list within a minute.
-2. The session you connected from holds the bridge: the other computer's messages show in its transcript as they arrive, and a message wakes it when it is idle. Press **Move here** in another session to move the bridge there.
+2. The bridge follows you to the session you last wrote in: the other computer's messages show in its transcript, and a message wakes it when it is idle. Other sessions show a new message above the prompt.
 3. Tell Claude to talk to the other computer ("ask the Windows side whether the tests pass"). It uses `send` and `inbox` with `target: "devices"`. Or write in the pane yourself.
 
 A new message plays a soft sound once on each computer, however many sessions are open; turn it off in **Settings**.

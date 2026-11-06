@@ -35,7 +35,7 @@ const drawn = async (ui: any): Promise<string> => JSON.stringify(await ui.drawn(
 const buttons = async (ui: any, key: string): Promise<number> => (await ui.findAll({ type: 'Button', key })).length
 const inputs = async (ui: any, key: string): Promise<number> => (await ui.findAll({ type: 'Input', key })).length
 
-const TROUBLE = 'Bağlantı sorunu'
+const TROUBLE = 'Yeniden bağlanıyor'
 // Reads fail and recover on the room's own backoff: the clock moves until the stored count of failures in a row
 // is the one asked for.
 async function pollUntil(w: World, failures: number): Promise<void> {
@@ -191,5 +191,17 @@ test('desktop: one press connects this computer, and its room says what is left 
   expect(tree).not.toContain('başka bir oturuma')
   expect(await buttons(ui, 'bridge-connect')).toBe(0)
   expect((w.store['tx.rooms'] as RoomRecord[])[0]?.kind).toBe('devices')
+  expect(w.store['tx.devices.session']).toEqual({ session: 'session-1', at: expect.any(Number) })
+})
+
+test('desktop: a message waiting shows above the prompt, and writing a prompt brings the bridge to this session', async ($: any, on: any) => {
+  on('ui.render', () => null)
+  const w = paneWorld(on, { rooms: ALL, syncs: SYNCS() })
+  await startSession($, w, { surface: 'desktop', isBypass: true })
+  const band = await $.ui.mount({ plugin: 'transceiver', surface: 'desktop', component: 'AbovePrompt', props: { bodyColumns: 80, hasSurvey: false }, viewport: { columns: 80, rows: 40, isFullscreen: false } })
+  await w.clock.settle()
+  expect(await buttons(band, 'tx-band-open')).toBe(1)
+  expect(await buttons(band, 'tx-band-dismiss')).toBe(1)
+  await $.classic.UserPromptSubmit({ prompt: 'x', source: 'sdk', permission_mode: 'default' })
   expect(w.store['tx.devices.session']).toEqual({ session: 'session-1', at: expect.any(Number) })
 })
