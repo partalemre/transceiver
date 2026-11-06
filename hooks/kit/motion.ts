@@ -23,8 +23,9 @@ const RULES: Record<string, string> = {
   'm-fade': `.m-fade{animation:m-fade .5s ${EASE} both}@keyframes m-fade{from{opacity:0}}`,
   'm-grow': `.m-grow{transform-box:fill-box;transform-origin:left center;animation:m-grow .7s ${EASE} both}@keyframes m-grow{from{transform:scaleX(0)}}`,
   'm-px': `.m-px{transform-box:fill-box;transform-origin:center;animation:m-px .34s ${EASE} both}@keyframes m-px{from{opacity:0;transform:translateY(-10px) scale(.6)}}`,
-  'm-sweep': `.m-sweep{pointer-events:none;animation:m-sweep 1.1s ${EASE} both}@keyframes m-sweep{from{transform:translateX(-120%)}to{transform:translateX(220%)}}`,
-  'm-flash': '.m-flash{animation:m-flash 1.6s ease-out both}@keyframes m-flash{from{opacity:.9}to{opacity:0}}',
+  // These two rest unseen and show only while their animation runs, so under reduced motion they never appear.
+  'm-sweep': `.m-sweep{pointer-events:none;opacity:0;animation:m-sweep 1.1s ${EASE} both}@keyframes m-sweep{from{opacity:1;transform:translateX(-120%)}to{opacity:1;transform:translateX(220%)}}`,
+  'm-flash': '.m-flash{opacity:0;animation:m-flash 1.6s ease-out both}@keyframes m-flash{from{opacity:.9}to{opacity:0}}',
   'm-ripple': '.m-ripple{transform-box:fill-box;transform-origin:center;animation:m-ripple 1.8s ease-out infinite}@keyframes m-ripple{from{opacity:.55;transform:scale(1)}to{opacity:0;transform:scale(3.2)}}',
   'm-shine': '.m-shine{transform-box:fill-box;animation:m-shine 1.6s linear infinite}@keyframes m-shine{from{transform:translateX(-100%)}to{transform:translateX(250%)}}',
   // Hover inside the frame: a row's wash comes up and its tile lifts (a press stays on the native button).
@@ -62,6 +63,9 @@ export const SWEEP = [
   `<stop offset=".5" stop-color="${SHEEN}" stop-opacity="${SHEEN_PEAK}"/><stop offset="1" stop-color="${SHEEN}" stop-opacity="0"/></linearGradient></defs>`,
   '<rect x="0" y="0" width="50%" height="100%" fill="url(#m-sheen)" class="m-sweep"/>',
 ].join('')
+
+// A neutral tint under the whole drawing that fades once: what it shows just changed. Quieter than a beam.
+export const FLASH = `<rect x="0" y="0" width="100%" height="100%" rx="10" fill="${SHEEN}" fill-opacity=".22" class="m-flash"/>`
 
 // The hover wash under a row's drawing.
 export const WASH = '<rect x="0" y="0" width="100%" height="100%" rx="10" class="m-wash"/>'

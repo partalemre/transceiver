@@ -2,7 +2,7 @@ import { GREP_MAX_CHARS, GREP_MIN_CHARS, MAX_ANSWER_PARTS, MAX_PATH_BYTES, MAX_T
 
 export const DENIED = 'erişim yok'
 const KINDS = ['human', 'agent', 'query', 'answer', 'system'] as const
-const ROOM_KINDS = ['dm', 'project'] as const
+const ROOM_KINDS = ['dm', 'project', 'devices'] as const
 
 // The query field a type reads its argument from.
 export type QueryArg = 'path' | 'text' | 'sha' | 'question'

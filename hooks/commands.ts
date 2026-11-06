@@ -1,3 +1,5 @@
+import { linkHere } from './bridge'
+import { connectDevices } from './devices'
 import type { Host } from './host'
 import { joinRoom } from './join'
 import { pick } from './kit/lang'
@@ -6,22 +8,23 @@ import { isRepo } from './protocol'
 import { forgetRoom, pokeRoom } from './room-loop'
 import { createRoom, failText, loadRooms, saveRooms, type RoomKind } from './rooms'
 
-export type Verb = 'open' | 'ekle' | 'proje' | 'katil' | 'cik' | 'kur' | 'ayarlar' | 'yardim'
+export type Verb = 'open' | 'kopru' | 'ekle' | 'proje' | 'katil' | 'cik' | 'kur' | 'ayarlar' | 'yardim'
 export type Cmd = { verb: Verb; arg: string }
 // What a command needs beyond the host: the pane opener lives in register.tsx, beside `$`.
 export type CommandDeps = { host: Host; openPane: () => Promise<void> }
 
 const FOLD: Record<string, string> = { ç: 'c', ı: 'i', ğ: 'g', ö: 'o', ş: 's', ü: 'u' }
 const fold = (s: string) => s.toLocaleLowerCase('tr').replace(/[çığöşü]/g, c => FOLD[c] ?? c)
-const VERBS = new Set<Verb>(['ekle', 'proje', 'katil', 'cik', 'kur', 'ayarlar'])
+const VERBS = new Set<Verb>(['kopru', 'ekle', 'proje', 'katil', 'cik', 'kur', 'ayarlar'])
 const PANE_VERBS = new Set<Verb>(['open', 'kur', 'ayarlar'])
 // The verbs keep their Turkish names inside; either language's word works when typed.
-const ALIASES: Record<string, Verb> = { add: 'ekle', project: 'proje', join: 'katil', leave: 'cik', connect: 'kur', settings: 'ayarlar' }
+const ALIASES: Record<string, Verb> = { bridge: 'kopru', devices: 'kopru', add: 'ekle', project: 'proje', join: 'katil', leave: 'cik', connect: 'kur', settings: 'ayarlar' }
 
 const EN = {
   description: 'Message friends and agents: opens the pane',
   help: [
     `/${COMMAND} — open the pane`,
+    `/${COMMAND} bridge — connect this computer to your other one and follow it in this session`,
     `/${COMMAND} add — open a DM room for a friend`,
     `/${COMMAND} project <owner/repo> — open a shared project room`,
     `/${COMMAND} join <link> — join with an invite link (invites from another organization do not show in the list)`,
@@ -29,10 +32,11 @@ const EN = {
     `/${COMMAND} connect — connect in this session (one approval for the first message)`,
     `/${COMMAND} settings — read receipts, notifications, your GitHub name`,
   ],
+  bridgeReady: 'This session now follows your other computer. Install Transceiver there and run /transceiver bridge once; the two find each other by themselves.',
   add: 'add',
   project: 'project',
   roomFailed: (why: string) => `The room could not be opened: ${why}`,
-  roomReady: (url: string) => `Room ready, your mailbox: ${url}\nOn claude.ai, add your friend by email from this page's Share menu (Viewer is enough), then send them the link (/${COMMAND} join <link>). When they send you their own mailbox link, type /${COMMAND} join <their link>.`,
+  roomReady: (url: string) => `Room ready, your mailbox: ${url}\nOn claude.ai, add your friend by email from this page's Share menu (the default role is enough), then send them the link (/${COMMAND} join <link>). When they send you their own mailbox link, type /${COMMAND} join <their link>.`,
   leaveUsage: `Usage: /${COMMAND} leave <room name | link>`,
   manyRooms: 'More than one room matches. Try the room\'s link.',
   noRoom: (name: string) => `No room found: ${name}`,
@@ -44,6 +48,7 @@ const TR: typeof EN = {
   description: 'Arkadaşlarınla ve agent\'larla yazış: pencereyi açar',
   help: [
     `/${COMMAND} — pencereyi aç`,
+    `/${COMMAND} köprü — bu bilgisayarı diğeriyle bağla, mesajları bu oturumda izle`,
     `/${COMMAND} ekle — arkadaş için DM odası aç`,
     `/${COMMAND} proje <sahip/repo> — ortak proje odası aç`,
     `/${COMMAND} katıl <link> — davet linkiyle katıl (başka organizasyondan davetler listede görünmez)`,
@@ -51,10 +56,11 @@ const TR: typeof EN = {
     `/${COMMAND} kur — bu oturumda bağlan (ilk mesaj için tek onay)`,
     `/${COMMAND} ayarlar — okundu bilgisi, bildirimler, GitHub adın`,
   ],
+  bridgeReady: 'Bu oturum artık diğer bilgisayarını izliyor. Orada Transceiver\'ı kurup bir kez /transceiver köprü yaz; ikisi birbirini kendiliğinden bulur.',
   add: 'ekle',
   project: 'proje',
   roomFailed: why => `Oda açılamadı: ${why}`,
-  roomReady: url => `Oda hazır, kendi kutun: ${url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla ekle (Viewer yeter); sonra linki ona gönder (/${COMMAND} katıl <link>). O da kendi kutusunun linkini sana gönderince /${COMMAND} katıl <onun linki> yaz.`,
+  roomReady: url => `Oda hazır, kendi kutun: ${url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla ekle (varsayılan rol yeter); sonra linki ona gönder (/${COMMAND} katıl <link>). O da kendi kutusunun linkini sana gönderince /${COMMAND} katıl <onun linki> yaz.`,
   leaveUsage: `Kullanım: /${COMMAND} çık <oda adı | link>`,
   manyRooms: 'Birden fazla oda eşleşti; odanın linkiyle dene.',
   noRoom: name => `Oda bulunamadı: ${name}`,
@@ -90,6 +96,16 @@ async function addRoom(deps: CommandDeps, opts: { kind: RoomKind; repo?: string;
   return words().roomReady(room.url)
 }
 
+async function bridge(deps: CommandDeps): Promise<string> {
+  const { host } = deps
+  const room = await connectDevices({ host, consent: `The user ran "/${COMMAND} bridge"` }).catch((err: unknown) => err as Error)
+  if (room instanceof Error) return failText(room, words().roomFailed(room.message))
+  await linkHere(host)
+  pokeRoom(host, room)
+  await deps.openPane()
+  return words().bridgeReady
+}
+
 async function leave(host: Host, name: string): Promise<string> {
   if (name === '') return words().leaveUsage
   const rooms = await loadRooms(host)
@@ -108,6 +124,7 @@ export async function runCommand(opts: CommandDeps & { cmd: Cmd }): Promise<stri
     await opts.openPane()
     return null
   }
+  if (cmd.verb === 'kopru') return bridge(opts)
   if (cmd.verb === 'ekle') return addRoom(opts, { kind: 'dm', typed: words().add })
   if (cmd.verb === 'proje') {
     return isRepo(cmd.arg) ? addRoom(opts, { kind: 'project', repo: cmd.arg, typed: `${words().project} ${cmd.arg}` }) : words().projectUsage

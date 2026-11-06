@@ -28,7 +28,7 @@ const EN = {
   pairRow: 'Two-person project room',
   notChecked: 'GitHub not asked yet; asked on the first question',
   checked: (ago: string) => `GitHub checked ${ago}`,
-  troubled: 'Connection problem. The room will be read again shortly.',
+  troubled: 'Reconnecting…',
   blocked: (who: string) => `${who} hasn't shared their mailbox with you yet. Ask them to share it on claude.ai.`,
   closed: (why: string) => `Agents are off: ${why}.`,
   spent: (limit: number) => `Your agent used today's ${limit} answers. New questions wait for your approval.`,
@@ -57,7 +57,7 @@ const TR: typeof EN = {
   pairRow: 'İki kişilik proje odası',
   notChecked: 'GitHub henüz sorulmadı; ilk soruda sorulur',
   checked: ago => `GitHub ${ago} kontrol edildi`,
-  troubled: 'Bağlantı sorunu; oda birazdan yeniden okunacak.',
+  troubled: 'Yeniden bağlanıyor…',
   blocked: who => `${who} kutusunu henüz seninle paylaşmadı; claude.ai'de paylaşmasını iste.`,
   closed: why => `Agent'lar kapalı: ${why}.`,
   spent: limit => `Agent'ının bugünkü ${limit} cevap hakkı doldu; yeni sorular onayını bekler.`,
@@ -71,6 +71,7 @@ export type Status = { text: string; isHere: boolean }
 // mailbox that cannot be read is the notice line's to say, not the head's.
 export function statusOf(room: RoomView, o: { now: number; isHere: boolean }): Status | null {
   const w = words()
+  if (room.kind === 'devices') return null
   if (room.kind === 'project') return { text: room.peerName === undefined ? w.waitingPeer : w.withPeer(room.peerName), isHere: false }
   if (room.isWaiting) return { text: w.dmWaiting, isHere: false }
   const parts = [o.isHere ? w.here : '', room.peerReadTs > 0 ? w.read(agoText(room.peerReadTs, o.now)) : ''].filter(Boolean)

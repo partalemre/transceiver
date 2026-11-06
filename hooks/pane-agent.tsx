@@ -122,7 +122,7 @@ export function AgentNote(ctx: Ctx, line: Line): RenderElement {
     <Box key={`msg-${line.id}`} flexDirection="column" gap={1}>
       <Box flexDirection="row" alignItems="center" gap={1}>
         {Lead(ctx, { line, isDenied: false, id: line.id })}
-        <Box flexGrow={1}><Text color={ctx.look.role.run.fg} bold>{chatWords().wrote(agentOf(line))}</Text></Box>
+        <Box flexGrow={1}><Text color={ctx.look.mid} bold>{chatWords().wrote(agentOf(line))}</Text></Box>
         <Text color={ctx.look.lo}>{m === null ? '' : clockText(m.ts)}</Text>
       </Box>
       <Box backgroundColor={ctx.look.inset} paddingX={1} paddingY={1}><Text color={ctx.look.hi} wrap="wrap">{m?.text ?? ''}</Text></Box>

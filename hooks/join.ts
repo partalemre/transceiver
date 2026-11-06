@@ -42,7 +42,7 @@ export async function joinRoom(host: Host, text: string, consent?: string): Prom
   if (held !== undefined) return { text: stepWords().alreadyIn, room: held, isNew: false }
   const meta = await relayOf(callerOf(host), url).meta().catch((err: unknown) => err as Error)
   if (meta instanceof Error) return { text: failText(meta, stepWords().notABox), isNew: false }
-  if (meta === null) return { text: stepWords().notABox, isNew: false }
+  if (meta === null || meta.kind === 'devices') return { text: stepWords().notABox, isNew: false }
   const home = homeOf(rooms, { url, meta })
   if (home !== undefined) {
     const room = withBox(home, url)

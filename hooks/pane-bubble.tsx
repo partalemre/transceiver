@@ -12,6 +12,7 @@ import { avatarRole, initialsOf } from './theme'
 import { messageOf } from './traffic'
 import { clockText } from './when'
 import { chatWords } from './words-chat'
+import { paneWords } from './words-pane'
 import { shownSystem } from './words-wire'
 
 const FACE = 24
@@ -50,7 +51,7 @@ function Quote(ctx: Ctx, line: Line): RenderElement | null {
   if (quote === undefined) return null
   return (
     <Box key="quote" flexDirection="column" backgroundColor={ctx.look.inset} paddingX={1}>
-      <Text color={ctx.look.signal.fg} bold>{quote.name}</Text>
+      <Text color={ctx.look.mid} bold>{quote.name}</Text>
       <Text color={ctx.look.lo} wrap="truncate-end">{quote.text}</Text>
     </Box>
   )
@@ -71,13 +72,21 @@ function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
   )
 }
 
+// In the person's own room both sides are them: what tells a line apart is who wrote it, and on which computer.
+function whoLine(ctx: Ctx, line: Line): string {
+  const who = messageOf(line)?.kind === 'agent' ? 'Claude' : paneWords().you
+  return `${who} · ${line.isMine ? ctx.model.bridge.name : line.authorName}`
+}
+
 function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): RenderElement {
   const { Box, Text } = ctx.ui
   const { line } = o
-  const tone = line.isMine ? ctx.look.signal : { tint: ctx.look.card, line: ctx.look.line }
+  // Mine on the track, theirs on the card: the side already says whose, and colour stays for state.
+  const tone = line.isMine ? { tint: ctx.look.track, line: ctx.look.track } : { tint: ctx.look.card, line: ctx.look.card }
   const isPending = line.receipt === 'pending'
   return (
     <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>
+      {o.isFirst && o.room.kind === 'devices' ? <Text key="author" color={ctx.look.lo} bold wrap="truncate-end">{whoLine(ctx, line)}</Text> : null}
       {Quote(ctx, line)}
       <Text key="text" color={ctx.look.hi} wrap="wrap">{o.text}</Text>
       {RoomChip(ctx, line)}

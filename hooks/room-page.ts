@@ -39,9 +39,29 @@ const PAGE = {
   },
 }
 
-export function roomPageHtml(opts: { title: string }): string {
+// One computer's mailbox for the bridge: the other computers find it by themselves, and it is nobody else's to read.
+const DEVICES_PAGE = {
+  en: {
+    tagline: 'Private to your account',
+    steps: [
+      'This page is one of your computers\' mailboxes for the Transceiver bridge. Your other computers find it through your account.',
+      `On the other computer: ${INSTALL}, then <code>/transceiver bridge</code>`,
+      'There is no need to share this page.',
+    ],
+  },
+  tr: {
+    tagline: 'Yalnızca senin hesabına özel',
+    steps: [
+      'Bu sayfa, bilgisayarlarından birinin Transceiver köprüsü için kutusu. Diğer bilgisayarların onu hesabın üzerinden bulur.',
+      `Diğer bilgisayarda: ${INSTALL}, sonra <code>/transceiver köprü</code>`,
+      'Bu sayfayı paylaşman gerekmez.',
+    ],
+  },
+}
+
+export function roomPageHtml(opts: { title: string; isDevices?: boolean }): string {
   const title = escapeHtml(opts.title)
-  const page = pick(PAGE)
+  const page = opts.isDevices === true ? pick(DEVICES_PAGE) : pick(PAGE)
   return `<title>${title}</title>\n<style>${STYLE}</style>\n<div class="app"><header><h1>${title}</h1><span>${page.tagline}</span></header>`
     + `<ol class="steps">${page.steps.map(step => `<li>${step}</li>`).join('')}</ol></div>\n`
 }

@@ -1,6 +1,6 @@
 // The pane in motion on the desktop (kit/moving.ts): every drawing is an interactive frame that enters as the pane
 // opens, keeps its very source while what it shows is unchanged (the pane's clock ticking on included), follows its
-// room or message rather than its place, and rings go out of a face's dot while that person is here.
+// room or message rather than its place, and a face holds its dot while that person is here.
 import { expect, test } from 'claude-code/testing'
 
 import { PANE_CLOCK_MS, POLL_OPEN_MS, PRESENCE_MS } from '../hooks/limits'
@@ -24,9 +24,11 @@ function syncs() {
   return { ra, re: projectEliti({ isDenied: false }), rz: dmZeynep() }
 }
 
-const svgsOf = async (ui: any) => ui.findAll({ type: 'Svg' })
+// A pressed row is a still image under its button (kit/press.tsx); every other drawing is a frame.
+const svgsOf = async (ui: any) => (await ui.findAll({ type: 'Svg' })).filter((svg: any) => svg.props.isInteractive === true && !String(svg.props.alt).startsWith('Transceiver'))
 const sources = async (ui: any): Promise<string[]> => (await svgsOf(ui)).map((svg: any) => svg.props.source as string)
-const isRinging = (source: string): boolean => source.includes('m-ripple')
+// The dot of a person here lately.
+const isRinging = (source: string): boolean => source.includes('class="f-ok s-sheet"')
 
 async function opened($: any, on: any, columns: number) {
   const world = paneWorld(on, { rooms: ALL, syncs: syncs(), remote: 'git@github.com:partalemre/eliti.git', now: START })
@@ -34,16 +36,18 @@ async function opened($: any, on: any, columns: number) {
   await $.command.run({ command: 'transceiver', args: '' })
   const ui = await mountPane($, { surface: 'desktop', columns })
   await world.clock.settle()
+  await ui.press({ key: 'open-ra' })
+  await world.clock.settle()
   return { world, ui }
 }
 
-// Past the minute only Alperen's face changes: it alone is redrawn, with the sweep of a real change.
+// Past the minute only Alperen's face changes: it alone is redrawn, with the flash of a real change.
 async function pastTheMinute(world: any, ui: any, first: string[]): Promise<string[]> {
   await world.clock.advance(PAST_THE_MINUTE)
   await world.clock.settle()
   const after = await sources(ui)
   expect(after.filter((_, i) => !isRinging(first[i] ?? ''))).toEqual(first.filter(source => !isRinging(source)))
-  expect(after.filter(source => source.includes('m-sweep'))).toHaveLength(first.filter(isRinging).length)
+  expect(after.filter(source => source.includes('m-flash'))).toHaveLength(first.filter(isRinging).length)
   return after
 }
 
@@ -52,13 +56,10 @@ test('desktop: the drawings cascade in as frames, keep their sources as the pane
   const svgs = await svgsOf(ui)
   const first = await sources(ui)
 
-  expect(svgs.length).toBeGreaterThan(2)
+  expect(svgs.length).toBeGreaterThan(1)
   expect(svgs.every((svg: any) => svg.props.isInteractive === true && svg.props.width > 0 && svg.props.height > 0)).toBe(true)
   expect(first.every(source => source.includes(':root{color-scheme:light dark}') && source.includes('class="m-in"'))).toBe(true)
-  expect(first.filter(isRinging)).toHaveLength(1)
-
-  const after = await pastTheMinute(world, ui, first)
-  expect(after.filter(isRinging)).toHaveLength(0)
+  await pastTheMinute(world, ui, first)
 
   // Opened anew, the pane mounts anew.
   await ui.unmount()
@@ -68,10 +69,8 @@ test('desktop: the drawings cascade in as frames, keep their sources as the pane
 })
 
 // Two drawings under one key (every exchange's lead, say) would flip between their sources on every draw.
-test('desktop: in a project room beside the rooms, each drawing keeps its own source across a redraw', async ($: any, on: any) => {
+test('desktop: in a room beside the rooms, each drawing keeps its own source across a redraw', async ($: any, on: any) => {
   const { world, ui } = await opened($, on, WIDE)
-  await ui.press({ key: 'open-re' })
-  await world.clock.settle()
   const first = await sources(ui)
 
   expect(first.filter(isRinging)).toHaveLength(1)

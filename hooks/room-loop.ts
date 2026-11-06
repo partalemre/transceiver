@@ -1,10 +1,12 @@
 import type { Timer } from 'claude-code'
 
 import type { Host } from './host'
-import { DISCOVER_MS } from './limits'
+import { DISCOVER_MS, LOG_ERROR_CHARS } from './limits'
 import type { Message } from './protocol'
-import { callerOf, relayOf, type HeadState } from './relay'
+import { callerOf, RelayError, relayOf, type HeadState } from './relay'
+import { findDevices } from './devices'
 import { discoverInvites, loadRooms, loadSettings, placeFound, saveRooms, type RoomRecord } from './rooms'
+import { hasSecret } from './scan'
 import { enqueue, initialSync, nextDelay, tick, type RoomSync } from './sync'
 import type { Entry } from './timeline'
 
@@ -97,10 +99,19 @@ async function step(host: Host, scheduled: RoomRecord): Promise<void> {
   for (const fn of listeners) await fn({ room, state, fresh: out.fresh, isDenied: out.isDenied, docsUsed })
   // A listener that queued a message (an answer) gets it sent at once rather than a poll later.
   const isQueued = (syncs.get(room.id)?.pending.length ?? 0) > state.pending.length
-  schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen, failures: state.failures }))
+  // Only the room on screen polls fast: dozens of open sessions read the same rooms.
+  schedule(host, room, isQueued ? 0 : nextDelay({ isPaneOpen: isPaneOpen && viewing === room.id, failures: state.failures }))
 }
 
-// Only the room's title and the error's name reach the log, never message text or tool output.
+// For the debug log alone. A relay error's text is the tool's, which can quote a room, so it logs by name; any other
+// error (an engine one, like HooksError) adds its first line, cut short, unless that line holds a secret.
+export function errorLine(err: unknown): string {
+  if (!(err instanceof Error)) return 'error'
+  if (err instanceof RelayError) return err.name
+  const line = (err.message.split('\n')[0] ?? '').slice(0, LOG_ERROR_CHARS)
+  return line === '' || hasSecret(line) ? err.name : `${err.name}: ${line}`
+}
+
 async function run(host: Host, room: RoomRecord): Promise<void> {
   if (running.has(room.id)) {
     rerun.add(room.id)
@@ -113,7 +124,7 @@ async function run(host: Host, room: RoomRecord): Promise<void> {
   } catch (err) {
     const failures = (errors.get(room.id) ?? 0) + 1
     errors.set(room.id, failures)
-    host.log(`transceiver: ${room.title}: ${err instanceof Error ? err.name : 'error'}`)
+    host.log(`transceiver: ${room.title}: ${errorLine(err)}`)
     schedule(host, room, nextDelay({ isPaneOpen, failures }))
   } finally {
     running.delete(room.id)
@@ -175,6 +186,7 @@ export async function discover(host: Host): Promise<void> {
     const rooms = await loadRooms(host)
     const placed = placeFound({ rooms, found, now: await host.now() })
     if (placed !== rooms) await saveRooms(host, placed)
+    await findDevices(host).catch(() => undefined)
   } finally {
     isDiscovering = false
   }

@@ -15,10 +15,22 @@ import { agentWords } from './words-agent'
 const WAKE_KINDS = new Set(['agent', 'human', 'answer'])
 const CUT = '…'
 
-let isTurnRunning = false
+let isRunning = false
 const lastWake = new Map<string, number>()
 
-export const setTurnRunning = (is: boolean) => { isTurnRunning = is }
+const idle: Array<() => void> = []
+
+export const isTurnRunning = () => isRunning
+
+export function setTurnRunning(is: boolean): void {
+  isRunning = is
+  if (!is) for (const fn of idle) fn()
+}
+
+export function onTurnIdle(fn: () => void): () => void {
+  idle.push(fn)
+  return () => { idle.splice(idle.indexOf(fn), 1) }
+}
 
 export function wakeText(opts: { title: string; entries: readonly Entry[]; nonce: string }): string {
   const lines = opts.entries.flatMap(e => (isUnreadable(e.message) ? [] : [`[${e.message.kind}] ${e.message.text}`]))
@@ -43,7 +55,7 @@ const isWakeWorthy = (selfUid: string) => (e: Entry) =>
 
 // At most one wake per room per cooldown, never while a turn runs, never for a room of another repo.
 export async function onLiveTick(host: AgentHost, ev: TickEvent): Promise<boolean> {
-  if (ev.room.kind !== 'project' || isTurnRunning) return false
+  if (ev.room.kind !== 'project' || isRunning) return false
   const entries = ev.fresh.filter(isWakeWorthy(ev.state.selfUid))
   if (entries.length === 0) return false
   const room = (await loadRooms(host)).find(r => r.id === ev.room.id)

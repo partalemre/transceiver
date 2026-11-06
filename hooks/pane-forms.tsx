@@ -56,7 +56,7 @@ type Toggle = { key: keyof PaneSettings; title: string; on: string; off: string 
 
 function toggles(): Toggle[] {
   const w = paneWords()
-  return [{ key: 'isReceiptsOn', ...w.receipts }, { key: 'isToastOn', ...w.toasts }, { key: 'isStatusOn', ...w.statusLine }]
+  return [{ key: 'isReceiptsOn', ...w.receipts }, { key: 'isToastOn', ...w.toasts }, { key: 'isSoundOn', ...w.sound }, { key: 'isStatusOn', ...w.statusLine }]
 }
 
 function Row(ctx: Ctx, o: { key: string; mark: RenderElement; title: string; sub: string; button: RenderElement | null }): RenderElement {
@@ -98,6 +98,7 @@ export function SettingsView(ctx: Ctx): RenderElement {
       {Back(ctx, w.settings)}
       {ErrorCard(ctx)}
       <Box key="settings-rows" flexDirection="column" gap={isText(ctx) ? 0 : 2}>{[...toggles().map(t => ToggleRow(ctx, t)), SessionRow(ctx)]}</Box>
+      {ctx.model.bridge.name === '' ? null : Field(ctx, { key: 'device-name', title: w.deviceName, placeholder: w.deviceName, submit: w.save, value: ctx.model.bridge.name, onSubmit: v => ctx.on.renameDevice(v) })}
       {Rule(ctx, 'help-rule')}
       <Box key="help" flexDirection="column" gap={1}>
         {Title(ctx, { key: 'help-title', text: w.howSharing })}

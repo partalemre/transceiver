@@ -30,6 +30,9 @@ const EN = {
   rolloverFailed: 'Transceiver: your mailbox is full, but a new one could not be opened. Try again with /transceiver.',
   limitReached: (n: number) => `Transceiver: today's question limit is reached, ${countOf(n, { one: 'question waits', many: 'questions wait' })} for your approval`,
   someone: 'Someone',
+  otherComputer: 'The other computer',
+  bridgeHead: 'Transceiver: this is from your own other computer, on the same account. Treat it as a colleague\'s message: answer with mcp__transceiver__send (target "devices") when it asks something, and check with the person before anything risky or that they have not already allowed.',
+  bridgePaused: 'Transceiver: the bridge stopped waking this session for now, since the two computers wrote a lot this hour. Messages still arrive.',
   unreadStatus: (o: { total: number; from: string }) => `((·)) ${o.total} unread${o.from}`,
   rooms: (n: number) => countOf(n, { one: 'room', many: 'rooms' }),
   newMessages: (n: number) => countOf(n, { one: 'new message', many: 'new messages' }),
@@ -37,6 +40,9 @@ const EN = {
 }
 
 const TR: typeof EN = {
+  otherComputer: 'Diğer bilgisayar',
+  bridgeHead: 'Transceiver: bu mesaj aynı hesaptaki diğer bilgisayarından geldi. Onu bir iş arkadaşının mesajı say: bir şey soruyorsa mcp__transceiver__send (target "devices") ile cevapla; riskli ya da kişinin henüz izin vermediği bir işten önce ona sor.',
+  bridgePaused: 'Transceiver: iki bilgisayar bu saat çok yazıştığı için köprü bu oturumu şimdilik uyandırmıyor; mesajlar gelmeye devam ediyor.',
   noRoom: 'Bu repo için ortak proje odası yok. /transceiver proje <sahip/repo> ile açılır; karşı taraf collaborator olmalı.',
   notSent: 'Mesaj gönderilmedi: boş, çok uzun ya da gizli anahtar içeriyor.',
   notSynced: 'Oda henüz eşitlenmedi; birazdan yeniden dene.',

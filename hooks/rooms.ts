@@ -8,7 +8,7 @@ import { roomPageHtml } from './room-page'
 import { newId } from './ulid'
 import { stepWords } from './words-steps'
 
-export type RoomKind = 'dm' | 'project'
+export type RoomKind = 'dm' | 'project' | 'devices'
 
 // A session an SDK host drives (an IDE, T3 Code, `claude -p`) has the Artifact tools off unless the environment
 // turns them on, so a room can be neither opened nor read there; the generic "check claude.ai" would mislead.
@@ -26,11 +26,11 @@ export type RoomRecord = {
   id: string; room: string; url: string; boxes: string[]; kind: RoomKind; repo?: string; title: string
   status: 'active' | 'invited' | 'left'; isLive: boolean; peers: Peer[]; joinedAt: number
 }
-export type Settings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; label?: string; gh?: string }
+export type Settings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; isSoundOn: boolean; label?: string; gh?: string }
 
 const ROOMS_KEY = 'tx.rooms'
 const SETTINGS_KEY = 'tx.settings'
-const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true }
+const DEFAULT_SETTINGS: Settings = { isReceiptsOn: true, isToastOn: true, isStatusOn: true, isSoundOn: true }
 
 // Only the mailbox's owner writes it; everyone it is shared with reads it. The platform lets an outside visitor
 // (another organization, invited by email) and every Viewer read, and lets nobody but the owner write at every
@@ -41,8 +41,12 @@ export const ROOM_CAPABILITIES = {
   user: { scopes: ['profile'] },
 }
 
-export const roomTitle = (opts: { kind: RoomKind; repo?: string }) =>
-  `${TITLE_PREFIX}${opts.kind === 'dm' ? 'DM' : opts.repo ?? ''}`
+export const DEVICES_TITLE = `${TITLE_PREFIX}Devices`
+
+export function roomTitle(opts: { kind: RoomKind; repo?: string }): string {
+  if (opts.kind === 'devices') return DEVICES_TITLE
+  return `${TITLE_PREFIX}${opts.kind === 'dm' ? 'DM' : opts.repo ?? ''}`
+}
 
 // A record stored before rooms had mailboxes has no `room` or `boxes`; its own id stands in for the room.
 const normalized = (r: RoomRecord): RoomRecord => ({ ...r, room: r.room ?? r.id, boxes: Array.isArray(r.boxes) ? r.boxes : [] })
@@ -71,10 +75,10 @@ async function pageFiles(host: Host, id: string): Promise<{ file: string; dir?: 
   return { file: `${dir}/room-${id}.html`, dir }
 }
 
-async function publishFrom(opts: { host: Host; id: string; title: string; consent?: string }): Promise<string> {
+async function publishFrom(opts: { host: Host; id: string; title: string; kind: RoomKind; consent?: string }): Promise<string> {
   const { host } = opts
   const page = await pageFiles(host, opts.id)
-  await host.writeFile(page.file, roomPageHtml({ title: opts.title }))
+  await host.writeFile(page.file, roomPageHtml({ title: opts.title, isDevices: opts.kind === 'devices' }))
   try {
     return await publishPage({ host, file: page.file, consent: opts.consent })
   } finally {
@@ -112,7 +116,7 @@ export async function createRoom(opts: NewRoom): Promise<RoomRecord> {
   const id = newId(now)
   const room = opts.room ?? id
   const title = roomTitle({ kind, repo })
-  const url = await publishFrom({ host, id, title, consent: opts.consent })
+  const url = await publishFrom({ host, id, title, kind, consent: opts.consent })
   const meta: RoomMeta = { v: PROTOCOL_VERSION, kind, room, createdAt: now, ...(repo === undefined ? {} : { repo }) }
   await relayOf(callerOf(host, opts.consent), url).writeMeta(meta)
   // The meta write carried the person's consent and landed: this session may write from now on.
@@ -125,12 +129,13 @@ type Listed = { title?: unknown; url?: unknown }
 const isRoomTitle = (title: unknown) => typeof title === 'string' && title.startsWith(TITLE_PREFIX)
 
 // The tool's structured result lists `{ title, url, rel }` (spike R3); the text is only a fallback.
-export function invitedFrom(opts: { result: unknown; text: string; knownUrls: string[] }): string[] {
+export function invitedFrom(opts: { result: unknown; text: string; knownUrls: string[]; title?: string }): string[] {
   const known = new Set(opts.knownUrls)
+  const isWanted = (title: unknown) => (opts.title === undefined ? isRoomTitle(title) : title === opts.title)
   const listed = (opts.result as { artifacts?: Listed[] } | undefined)?.artifacts
   const urls = Array.isArray(listed)
-    ? listed.filter(a => isRoomTitle(a.title) && typeof a.url === 'string').flatMap(a => parseArtifactUrls(a.url as string))
-    : opts.text.split('\n').filter(line => line.includes(TITLE_PREFIX.trim())).flatMap(parseArtifactUrls)
+    ? listed.filter(a => isWanted(a.title) && typeof a.url === 'string').flatMap(a => parseArtifactUrls(a.url as string))
+    : opts.text.split('\n').filter(line => line.includes(opts.title ?? TITLE_PREFIX.trim())).flatMap(parseArtifactUrls)
   return [...new Set(urls)].filter(url => !known.has(url))
 }
 
@@ -152,6 +157,8 @@ export async function discoverInvites(opts: { host: Host; known: RoomRecord[] })
     const meta = await relayOf(callerOf(host), url).meta().then(m => m, () => undefined)
     if (meta === null) notRooms.set(url, now + NOT_ROOM_RETRY_MS)
     if (meta === null || meta === undefined) continue
+    // Someone else's computers are never a room to join: this one's messages may wake the session (bridge.ts).
+    if (meta.kind === 'devices') continue
     found.push({ url, meta })
   }
   return found

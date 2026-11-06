@@ -32,7 +32,7 @@ export type ProjectInfo = { checks: GateChecks; askUsed: number; askLimit: numbe
 export type RoomView = {
   id: string
   title: string
-  kind: 'dm' | 'project'
+  kind: 'dm' | 'project' | 'devices'
   unread: number
   lastText: string
   lastTs: number
@@ -48,6 +48,8 @@ export type RoomView = {
   // Another member's mailbox the last poll could not read: they have not shared it with this person yet.
   isBoxBlocked: boolean
   lastIsMine: boolean
+  // The newest message's id, so a drawing can mark each message once.
+  lastId?: string
   lastReceipt?: Receipt
   // A DM this person opened that no friend has joined yet.
   isWaiting: boolean
@@ -61,11 +63,14 @@ export type RoomView = {
   project?: ProjectInfo
 }
 
+// One new message above the prompt (pane-band.tsx).
+export type BandLine = { roomId: string; lastId: string; glyph: 'laptop' | 'person' | 'branch' | 'clock'; name: string; preview: string; time: string; unread: number }
+
 export type Draft = { roomId: string; qid: string; question: string; asker: string }
-export type Invite = { id: string; title: string; kind?: 'dm' | 'project'; repo?: string; url?: string; joinedAt?: number }
+export type Invite = { id: string; title: string; kind?: 'dm' | 'project' | 'devices'; repo?: string; url?: string; joinedAt?: number }
 export type PaneView = 'rooms' | 'chat' | 'add' | 'settings'
 export type EmptyForm = 'join' | 'project'
-export type PaneSettings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean }
+export type PaneSettings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean; isSoundOn: boolean }
 // A room this session just opened, shown with the steps to invite the friend.
 export type Created = { url: string; title: string }
 // `repos`: what the gate last heard from GitHub about this login, per shared project room (when it asked).
@@ -109,6 +114,8 @@ export type PaneModel = {
   // details (gate, budget, today's counts, live mode).
   emptyForm: EmptyForm | null
   isInfoOpen: boolean
+  // This computer's name in the bridge.
+  bridge: { name: string }
 }
 
 // The one-line card the MODZ hub collects from every mod (MODZ DESIGN.md §9), and the hub's open request.
@@ -126,6 +133,8 @@ declare module 'claude-code' {
     transceiver: {
       pane: PaneModel
       hub: HubCard
+      // The new message shown above the prompt, or null.
+      band: BandLine | null
       // Whether this session may write (connection.ts); kept here so a hot reload does not drop it.
       connected: boolean
       home: ModzHome

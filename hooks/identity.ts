@@ -1,3 +1,4 @@
+import { deviceNameOf } from './devices'
 import { isLogin, ownLogin } from './github'
 import type { AgentHost } from './host'
 import { LOGIN_RETRY_MS } from './limits'
@@ -38,7 +39,19 @@ export async function shareLogin(host: AgentHost, ev: TickEvent): Promise<boolea
   return true
 }
 
+// The name this computer goes by in the person's own room, written to its own head so the others can show it.
+export async function shareDeviceName(host: AgentHost, ev: TickEvent): Promise<boolean> {
+  if (ev.room.kind !== 'devices' || ev.isDenied || !host.isConnected()) return false
+  const name = await deviceNameOf(host)
+  const { state } = ev
+  if (state.ownHead.label === name) return false
+  const known = state.ownVersion > 0 ? { head: state.ownHead, version: state.ownVersion } : undefined
+  const own = await relayOf(callerOf(host), ev.room.url).writeHead({ uid: state.selfUid, patch: { label: name }, known })
+  adoptOwnHead(ev.room.id, own)
+  return true
+}
+
 export function wireIdentity(host: AgentHost): () => void {
   // A failed write is tried again on a later tick; it never stops the room.
-  return onTick(ev => shareLogin(host, ev).then(() => undefined, () => undefined))
+  return onTick(ev => Promise.all([shareLogin(host, ev), shareDeviceName(host, ev)]).then(() => undefined, () => undefined))
 }

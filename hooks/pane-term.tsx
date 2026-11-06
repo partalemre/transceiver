@@ -4,6 +4,7 @@
 // keys: the sheet of queries, the details and the way back.
 import type { RenderElement } from 'claude-code'
 
+import { BridgeHead } from './pane-bridge'
 import { compactOf } from './answers'
 import { TIMELINE_LINES } from './limits'
 import { fullIdOf } from './pane-agent'
@@ -211,6 +212,7 @@ export function TermChat(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="chat" flexDirection="column" gap={0}>
       {Top(ctx, room)}
+      {room.kind === 'devices' ? BridgeHead(ctx, room) : null}
       {ShareCard(ctx, room)}
       {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
       {items.length === 0 ? <Text key="none" color={ctx.look.lo}>{chatWords().noMessages}</Text> : null}

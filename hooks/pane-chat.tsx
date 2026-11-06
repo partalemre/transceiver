@@ -6,10 +6,13 @@ import type { RenderElement } from 'claude-code'
 import { GROUP_MS, TIMELINE_LINES } from './limits'
 import { AgentNote, DraftCard, TxLine } from './pane-agent'
 import { RoomInfo } from './pane-aside'
+import { BridgeHead } from './pane-bridge'
 import { Bubble } from './pane-bubble'
 import { ErrorCard, GhCard, ShareCard } from './pane-cards'
 import { Composer } from './pane-compose'
-import { isHere, isText, Meta, Pic, roomFace, Rule, type Ctx } from './pane-kit'
+import { PressRow } from './kit/press'
+import { isHere, isText, Meta, Pic, roomFace, Rule, SvgOf, type Ctx } from './pane-kit'
+import { roomRowPic } from './sig-rows'
 import { TermChat } from './pane-term'
 import { noticeOf, statusOf } from './pane-words'
 import type { Line, RoomView } from './state-types'
@@ -17,16 +20,27 @@ import { itemsOf, messageOf, type Item, type Tx } from './traffic'
 import { dayKey, dayRule } from './when'
 import { chatWords } from './words-chat'
 
-const FACE = 40
+const FACE = 20
+
+// Narrow, the head is the way back: one pressed line, the room's name and what is known of the other side.
+function BackRow(ctx: Ctx, room: RoomView): RenderElement | null {
+  if (isText(ctx) || ctx.isWide || room.kind === 'project') return null
+  const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })
+  const pic = roomRowPic({ width: ctx.px, glyph: 'back', name: room.title, preview: '', time: status?.text ?? '', unread: 0, isWarn: false, isLight: ctx.look.isLight })
+  const drawing = SvgOf(ctx, pic, `back-pic-${room.id}`)
+  return drawing === null ? null : PressRow(ctx.ui, { box: 'back-row', key: 'back', drawing, onPress: () => ctx.on.back() })
+}
 
 function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
+  const back = BackRow(ctx, room)
+  if (back !== null) return back
   const { Box, Button, Text } = ctx.ui
   const hasInfo = room.kind === 'project'
   const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })
   return (
     <Box key="chat-head" flexDirection="row" alignItems="center" gap={1}>
       {ctx.isWide ? null : <Button key="back" label="‹" plain onPress={() => ctx.on.back()} />}
-      {Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), `chat-face-${room.id}`)}
+      {room.kind === 'devices' ? null : Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), `chat-face-${room.id}`)}
       <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         <Text bold color={ctx.look.hi} wrap="truncate-end">{room.title}</Text>
         {status === null ? null : <Text color={status.isHere ? ctx.look.role.ok.fg : ctx.look.lo} wrap="truncate-end">{status.text}</Text>}
@@ -66,7 +80,7 @@ export const idsOf = (item: Item): string[] =>
 export function isSameRun(a: Item | undefined, b: Item | undefined): boolean {
   if (a?.kind !== 'line' || b?.kind !== 'line') return false
   const [x, y] = [messageOf(a.line), messageOf(b.line)]
-  if (x?.kind !== 'human' || y?.kind !== 'human') return false
+  if (x === null || y === null || x?.kind === 'system' || y?.kind === 'system' || x?.kind !== y?.kind) return false
   return a.line.authorUid === b.line.authorUid && y.ts - x.ts <= GROUP_MS && dayKey(x.ts) === dayKey(y.ts)
 }
 
@@ -75,7 +89,7 @@ type Slot = { items: Item[]; i: number; room: RoomView; isRuleNext: boolean; isR
 function itemEl(ctx: Ctx, o: Slot): RenderElement {
   const item = o.items[o.i]
   if (item?.kind !== 'line') return TxLine(ctx, item as Tx)
-  if (messageOf(item.line)?.kind === 'agent') return AgentNote(ctx, item.line)
+  if (messageOf(item.line)?.kind === 'agent' && o.room.kind !== 'devices') return AgentNote(ctx, item.line)
   const isFirst = o.isRuleHere || !isSameRun(o.items[o.i - 1], item)
   const isLast = o.isRuleNext || !isSameRun(item, o.items[o.i + 1])
   return Bubble(ctx, { line: item.line, isFirst, isLast, room: o.room })
@@ -126,13 +140,14 @@ export function ChatView(ctx: Ctx): RenderElement | null {
   return (
     <Box key="chat" flexDirection="column" gap={1} flexGrow={1}>
       {ChatHead(ctx, room)}
+      {room.kind === 'devices' ? BridgeHead(ctx, room) : null}
       {Rule(ctx, 'head-rule')}
       {Notice(ctx, room)}
       {ShareCard(ctx, room)}
       {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
       {isInfoHere ? RoomInfo(ctx, room) : null}
       {isInfoHere ? Rule(ctx, 'info-rule') : null}
-      {Timeline(ctx, room)}
+      <Box key="timeline-grow" flexDirection="column" flexGrow={1}>{Timeline(ctx, room)}</Box>
       {ctx.isWide ? null : ErrorCard(ctx)}
       {ConnectBanner(ctx)}
       {Composer(ctx, room)}

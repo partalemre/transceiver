@@ -1,6 +1,6 @@
 // Asking the other side's agent from the pane, on the terminal and the desktop: "Agent'a sor" opens the sheet, a
 // row sends its typed query or puts the field in its mode, slash commands send the same, an unknown one only
-// hints, the send button sends what was typed, and an exchange opens on press.
+// hints, the field sends what was typed, and an exchange opens on press.
 import { expect, test } from 'claude-code/testing'
 
 import { paths } from '../hooks/protocol'
@@ -87,7 +87,7 @@ for (const surface of SURFACES) {
     expect(queries).toContainEqual({ type: 'ask', repo: 'partalemre/eliti', question: 'Neden iki kez yazılıyor?' })
   })
 
-  test(`${surface}: the mode chip goes back to plain messages; the send button sends what was typed`, async ($: any, on: any) => {
+  test(`${surface}: the mode chip goes back to plain messages; the field sends what was typed`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
     await pressKey({ ui, w }, 'ask-more-re')
     await pressKey({ ui, w }, 'sheet-file')
@@ -95,8 +95,7 @@ for (const surface of SURFACES) {
     await pressKey({ ui, w }, 'mode-clear')
     expect(await drawn(ui)).not.toContain('Dosya yolu')
     await typeIn({ ui, w }, 'Selam', 'change')
-    if (surface === 'desktop') await pressKey({ ui, w }, 'send-re')
-    else await typeIn({ ui, w }, 'Selam')
+    await typeIn({ ui, w }, 'Selam')
     await w.clock.advance(1_000)
     expect(sentIn(w).at(-1)).toMatchObject({ kind: 'human', text: 'Selam' })
   })

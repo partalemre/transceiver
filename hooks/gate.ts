@@ -4,7 +4,7 @@ import type { Query } from './protocol'
 
 // The part of a room record the gate reads; RoomRecord (rooms.ts) satisfies it.
 export type GateRoom = {
-  kind: 'dm' | 'project'
+  kind: 'dm' | 'project' | 'devices'
   repo?: string
   peers: readonly { uid: string; gh?: string; isGhConfirmed: boolean }[]
 }

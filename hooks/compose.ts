@@ -1,6 +1,7 @@
 // The composer's sends: a plain message, a slash command (`/diff`, `/file src/a.ts`, `/ask neden?`), the query
 // mode a menu row puts the field in, and the chips. Every query goes the way an agent's `ask` tool sends one: a
 // `query` message, checked by the protocol's own guard, that the other side's responder answers.
+import { showSent } from './bridge'
 import { MAX_TEXT_BYTES } from './limits'
 import { isRepo, utf8Bytes, type Message } from './protocol'
 import { composeOf, isModeType, queryMessage, specOf, type Composed } from './query-menu'
@@ -45,6 +46,7 @@ export async function sendComposed(p: PanePort, opts: { roomId: string; text: st
   const message = await messageFor(p, { room, composed })
   if (typeof message === 'string') return patchSession({ hint: message })
   if (!enqueueMessage({ host: p.host, room, message })) return patchSession({ error: stepWords().notLoaded })
+  await showSent(p.host, { room, message })
   typed.delete(room.id)
   patchSession({ error: null, hint: null, composeMode: null, sheetRoom: null, composerKey: sessionNow().composerKey + 1 })
 }
