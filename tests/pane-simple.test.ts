@@ -195,8 +195,9 @@ test('desktop: one press connects this computer, and its room says what is left 
 })
 
 test('desktop: a message waiting shows above the prompt, and writing a prompt brings the bridge to this session', async ($: any, on: any) => {
-  on('ui.render', () => null)
-  const w = paneWorld(on, { rooms: ALL, syncs: SYNCS() })
+  on('ui.render', ($$: any, e: any) => (globalThis as any).h($$.ui.resolve(e).Text, null, 'beneath'))
+  on('classic.UserPromptSubmit', () => ({}))
+  const w = paneWorld(on, { rooms: ALL, syncs: SYNCS(), isShown: false })
   await startSession($, w, { surface: 'desktop', isBypass: true })
   const band = await $.ui.mount({ plugin: 'transceiver', surface: 'desktop', component: 'AbovePrompt', props: { bodyColumns: 80, hasSurvey: false }, viewport: { columns: 80, rows: 40, isFullscreen: false } })
   await w.clock.settle()

@@ -40,7 +40,7 @@ export function BridgeHead(ctx: Ctx, room: RoomView): RenderElement {
   })
   return (
     <Box key="bridge-head" flexDirection="column" gap={1}>
-      {SvgOf(ctx, pic, `bridge-${room.id}`) ?? Meta(ctx, alt, `bridge-${room.id}`)}
+      {isText(ctx) ? Meta(ctx, alt, `bridge-${room.id}`) : SvgOf(ctx, pic, `bridge-${room.id}`)}
       {isAlone ? Sentence(ctx, { key: 'bridge-next', text: w.bridgeNext, paint: 'lo' }) : null}
     </Box>
   )
