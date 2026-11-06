@@ -179,3 +179,17 @@ for (const surface of SURFACES) {
     expect(list).toContain('Zeynep')
   })
 }
+
+test('desktop: one press connects this computer, and its room says what is left to do on the other', async ($: any, on: any) => {
+  const w = paneWorld(on, { rooms: [], syncs: {} })
+  await startSession($, w, { surface: 'desktop', isBypass: true })
+  const ui = await mountPane($, { surface: 'desktop', columns: NARROW })
+  await ui.press({ key: 'bridge-connect' })
+  await w.clock.settle()
+  const tree = await drawn(ui)
+  expect(tree).toContain('Diğer bilgisayarda Claude Code')
+  expect(tree).toContain('Mesajlar bu oturumda görünür')
+  expect(await buttons(ui, 'bridge-connect')).toBe(0)
+  expect((w.store['tx.rooms'] as RoomRecord[])[0]?.kind).toBe('devices')
+  expect(w.store['tx.devices.session']).toEqual({ session: 'session-1', at: expect.any(Number) })
+})

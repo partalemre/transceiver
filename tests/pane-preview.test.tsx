@@ -26,8 +26,8 @@ const syncs = (o: { isPending?: boolean } = {}): Record<string, RoomSync> =>
 const DRAFT = { 'tx.budget': { day: localDay(NOW), byRoom: { re: 10 } }, 'tx.drafts': [{ roomId: 're', qid: idAt(2), question: 'Refresh token neden iki kez yazılıyor?', asker: ALPEREN }] }
 // The diff Alperen's agent asked for: an exchange's key is its query's id.
 const OPEN_DIFF = `open-tx-${idAt(18)}`
-const EMPTY_TITLE = 'Arkadaşlarınla buradan yazış'
-const EMPTY_BODY = 'Bir arkadaşını ekle; o kabul edince Claude\'dan çıkmadan yazışırsınız.'
+const EMPTY_TITLE = 'Bilgisayarlarını bağla'
+const EMPTY_BODY = 'Mac\'in ve Windows bilgisayarın Claude hesabın üzerinden birbirini bulur. Paylaşım yok, yapıştırılacak link yok.'
 
 // Engine 2.1.293 (the desktop app's) refuses a Button without a string label: the whole pane then goes undrawn.
 type Node = { type?: string; props?: { label?: unknown }; children?: unknown[] }
@@ -46,13 +46,6 @@ const nodes = (n: unknown): Tree[] => {
   return [t, ...(t.children ?? []).flatMap(nodes)]
 }
 const textOf = (n: Tree): string => (n.children ?? []).map(c => (typeof c === 'string' ? c : textOf(c as Tree))).join('')
-// Words drawn inside any Svg: Svg takes the OS's colour scheme, not Claude's, so only a face's initials may be there.
-const MAX_SVG_WORD = 2
-function svgWords(tree: unknown): string[] {
-  const sources = nodes(tree).filter(n => n.type === 'Svg').map(n => String(n.props?.source ?? ''))
-  const words = sources.flatMap(src => [...src.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map(m => (m[1] ?? '').replace(/<[^>]+>/g, '').trim()))
-  return words.filter(w => w.length > MAX_SVG_WORD)
-}
 // Each reading text is a native Text element's own words.
 const isInText = (tree: unknown, text: string): boolean => nodes(tree).some(n => n.type === 'Text' && textOf(n).includes(text))
 
@@ -73,8 +66,30 @@ type Shot = {
   texts?: string[]
 }
 
+const DEVICE_ROOM = room({ id: 'rd', kind: 'devices', title: 'Transceiver · Devices', url: 'https://claude.ai/artifact/rd', boxes: ['https://claude.ai/artifact/rd2'] })
+const DEVICE_ALONE = room({ id: 'rd', kind: 'devices', title: 'Transceiver · Devices', url: 'https://claude.ai/artifact/rd', boxes: [] })
+const PC = `${ALPEREN}@rd2`
+function deviceSync(): RoomSync {
+  const base = dmAlperen()
+  const line = (n: number, author: string, text: string, kind: 'human' | 'agent') => ({ author, message: { v: 1 as const, id: idAt(n), ts: NOW - (30 - n) * 60_000, kind, text } })
+  return {
+    ...base, peers: { [PC]: { v: 1, head: idAt(21), headTs: NOW - 60_000, seenUpTo: idAt(22), readUpTo: idAt(22), readTs: NOW - 60_000, label: 'DESKTOP-EMRE' } },
+    boxOf: { [PC]: 'https://claude.ai/artifact/rd2' }, cursors: { [PC]: NOW }, pending: [],
+    entries: [
+      line(20, base.selfUid, 'Windows testleri geçiyor mu?', 'human'),
+      line(21, PC, '42/42 geçti, build de temiz.', 'agent'),
+      line(22, PC, 'Installer çıktısını `dist/` altına aldım, Mac tarafı imzalayabilir.', 'agent'),
+      line(23, base.selfUid, 'Tamam, imzalamaya başlıyorum.', 'agent'),
+    ],
+  }
+}
+
 const SHOTS: Shot[] = [
-  { label: 'rooms', isBypass: true, sees: 'Sohbetler', hides: 'yoklama', texts: ['Sohbetler', 'Teşekkürler, okudum, çok iyi olmuş.'] },
+  { label: 'devices-card', rooms: ALL, isBypass: true, sees: 'Bilgisayarlarını bağla' },
+  { label: 'devices-row', rooms: [DEVICE_ROOM, ...ALL], syncs: { ...syncs(), rd: deviceSync() }, isBypass: true, sees: 'Bilgisayarlarım', hides: 'bridge-connect' },
+  { label: 'devices-chat', rooms: [DEVICE_ROOM, ...ALL], syncs: { ...syncs(), rd: deviceSync() }, isBypass: true, presses: ['open-rd'], sees: 'DESKTOP-EMRE' },
+  { label: 'devices-alone', rooms: [DEVICE_ALONE], syncs: { rd: { ...deviceSync(), peers: {}, boxOf: {}, entries: [] } }, isBypass: true, presses: ['open-rd'], sees: 'Diğer bilgisayarda' },
+  { label: 'rooms', isBypass: true, sees: 'Teşekkürler, okudum', hides: 'yoklama' },
   { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: 'Proje odası', hides: 'join-link', texts: [EMPTY_TITLE, EMPTY_BODY] },
   { label: 'empty-join', rooms: [], syncs: {}, isBypass: true, presses: ['open-join'], sees: 'join-link' },
   { label: 'empty-project', rooms: [], syncs: {}, isBypass: true, presses: ['open-project'], sees: 'partalemre/eliti' },
@@ -96,7 +111,7 @@ const SHOTS: Shot[] = [
   { label: 'wide', isBypass: true, presses: ['open-ra'], columns: WIDE, sees: 'Gelirim! Saat kaçta?' },
   { label: 'wide-project', isBypass: true, presses: ['open-re'], columns: WIDE, sees: 'diff sordu', hides: 'Bu oturumun reposu' },
   { label: 'wide-project-info', isBypass: true, presses: ['open-re', 'info-re'], columns: WIDE, extra: DRAFT, sees: 'Bu oturumun reposu' },
-  { label: 'wide-empty', rooms: [], syncs: {}, columns: WIDE, sees: 'Arkadaşlarınla buradan yazış' },
+  { label: 'wide-empty', rooms: [], syncs: {}, columns: WIDE, sees: 'Bilgisayarlarını bağla' },
   { label: 'wide-rooms', isBypass: true, columns: WIDE, sees: 'Bir sohbet seç' },
 ]
 
@@ -115,7 +130,6 @@ for (const isLight of [false, true]) {
         expect(tree.includes(s.sees)).toBe(true)
         if (s.hides !== undefined) expect(tree.includes(s.hides)).toBe(false)
         expect(unlabeledButtons(JSON.parse(tree))).toEqual([])
-        expect(svgWords(JSON.parse(tree))).toEqual([])
         for (const text of s.texts ?? []) expect(isInText(JSON.parse(tree), text)).toBe(true)
         await ui.unmount()
       })

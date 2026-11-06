@@ -1,5 +1,6 @@
 // The pane's model from the stored rooms and the live sync states: pure, so every state of the pane is testable
 // without the engine.
+import { deviceLabels } from './devices'
 import { lastCheck } from './gate'
 import { TROUBLE_AFTER_FAILURES } from './limits'
 import { isUnreadable } from './protocol'
@@ -11,6 +12,7 @@ import { unreadCount } from './timeline'
 import { firstName } from './tr'
 import { dividerOf, linesOf, nameOf, previewOf, receiptFor, waitingOf } from './view-lines'
 import { gateBadge, hasSeenMine, peerHeadOf, peerUids, projectInfo, type RoomSources } from './view-room'
+import { paneWords } from './words-pane'
 import { stepWords } from './words-steps'
 
 export { previewOf, selfName, someone } from './view-lines'
@@ -55,10 +57,12 @@ export type ModelInput = RoomSources & {
   drafts?: Draft[]
   canSettleDrafts?: boolean
   now: number
+  bridge?: PaneModel['bridge']
 }
 
 function titleOf(room: RoomRecord, sync: RoomSync | undefined, names: Record<string, string>): string {
   if (room.kind === 'project') return room.repo ?? room.title
+  if (room.kind === 'devices') return paneWords().devices
   const [peer] = peerUids(sync)
   if (peer !== undefined) return nameOf(names, peer)
   return room.boxes.length === 0 ? stepWords().invitePending : 'DM'
@@ -74,6 +78,7 @@ function lastOf(room: RoomRecord, sync: RoomSync | undefined, input: ModelInput)
     lastText: last === undefined ? '' : previewOf(last.message),
     lastTs: last === undefined || isUnreadable(last.message) ? room.joinedAt : last.message.ts,
     lastIsMine: isMine,
+    ...(last === undefined ? {} : { lastId: last.message.id }),
     lastReceipt: isMine && sync !== undefined && last !== undefined ? receiptFor(last, sync, input.settings.isReceiptsOn) : undefined,
   }
 }
@@ -91,10 +96,10 @@ function roomView(room: RoomRecord, input: ModelInput): RoomView {
     ghLogin: project?.checks.isConfirmed === true ? project.checks.login : undefined,
     seed: room.kind === 'project' ? room.repo ?? room.id : peer ?? room.id,
     unread, isTroubled: (sync?.failures ?? 0) >= TROUBLE_AFTER_FAILURES, isBoxBlocked: (sync?.unread.length ?? 0) > 0,
-    isWaiting: room.kind === 'dm' && room.boxes.length === 0 && peer === undefined,
-    isUnseen: !hasSeenMine(sync),
+    isWaiting: room.kind !== 'project' && room.boxes.length === 0 && peer === undefined,
+    isUnseen: room.kind !== 'devices' && !hasSeenMine(sync),
     ...lastOf(room, sync, input),
-    ...(peer === undefined ? {} : { peerName: firstName(nameOf(input.names, peer)) }),
+    ...(peer === undefined ? {} : { peerName: room.kind === 'devices' ? nameOf(input.names, peer) : firstName(nameOf(input.names, peer)) }),
     peerSeenTs: head.seenTs, peerReadTs: input.settings.isReceiptsOn ? head.readTs : 0,
     ...(project === undefined ? {} : { project }),
   }
@@ -150,7 +155,8 @@ function composerOf(session: SessionUi, activeId: string | null): Pick<PaneModel
   }
 }
 
-export function buildModel(input: ModelInput): PaneModel {
+export function buildModel(given: ModelInput): PaneModel {
+  const input = { ...given, names: { ...given.names, ...deviceLabels(given.rooms, given.syncs) } }
   const active = input.rooms.filter(r => r.status === 'active')
   const rooms = active.map(r => roomView(r, input)).sort((a, b) => b.lastTs - a.lastTs)
   const activeId = rooms.some(r => r.id === input.session.activeId) ? input.session.activeId : null
@@ -173,5 +179,6 @@ export function buildModel(input: ModelInput): PaneModel {
     waiting: input.isConnected ? [] : waitingOf(active, input.syncs), expanded: input.session.expanded,
     ...composerOf(input.session, activeId),
     sessionRepo: input.sessionRepo ?? null, emptyForm: input.session.emptyForm,
+    bridge: input.bridge ?? EMPTY_PANE.bridge,
   }
 }

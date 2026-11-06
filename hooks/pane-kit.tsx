@@ -9,7 +9,6 @@ import type { Part, SvgPic } from './kit/svg-core'
 import { PRESENCE_MS } from './limits'
 import { sigPic } from './sig'
 import { facePart } from './sig-chat'
-import { tilePart } from './sig-states'
 import { glyphPiece, rowPart, rulePart, type GlyphName } from './sig-ui'
 import type { PaneModel, Receipt, RoomView } from './state-types'
 import { avatarRole, initialsOf, type Look } from './theme'
@@ -27,11 +26,12 @@ export type Ctx = {
   on: PaneHandlers
 }
 
-export const PX_PER_CELL = 8
+export const PX_PER_CELL = 9
 const MIN_PX = 160
 
 export const isText = (ctx: Ctx): boolean => ctx.look.isText || !('Svg' in ctx.ui)
-export const pxOf = (columns: number): number => Math.max(MIN_PX, columns * PX_PER_CELL)
+// A desktop pane reports about 9 px a column; one column is left over, so a drawing never reaches past its edge.
+export const pxOf = (columns: number): number => Math.max(MIN_PX, (columns - 1) * PX_PER_CELL)
 export const within = (ctx: Ctx, columns: number): Ctx => ({ ...ctx, columns, px: pxOf(columns) })
 
 // The pane's drawings on the desktop (kit/moving.ts): reset as the pane opens, so they cascade in each time.
@@ -75,14 +75,19 @@ export function Rule(ctx: Ctx, key: string): RenderElement {
 // A person was here lately: their head moved within PRESENCE_MS.
 export const isHere = (room: RoomView, now: number): boolean => room.peerSeenTs > 0 && now - room.peerSeenTs < PRESENCE_MS
 
+// A room's mark in the list: a bare line glyph, its colour left to state (MODZ DESIGN.md §0).
+export function glyphOf(room: RoomView): GlyphName {
+  if (room.kind === 'project') return 'branch'
+  if (room.kind === 'devices') return 'laptop'
+  return room.isWaiting ? 'clock' : 'person'
+}
+
 // A room's face: a person's initials (with presence), a project's branch tile, an amber clock while nobody joined.
 export function roomFace(room: RoomView, o: { size: number; now: number; isMuted?: boolean }): Part {
-  if (room.kind === 'project') {
-    return o.isMuted === true
-      ? tilePart({ glyph: 'branch', paint: 'lo', tint: 'card', line: 'line', size: o.size })
-      : tilePart({ glyph: 'branch', paint: 'run', size: o.size })
+  if (room.kind !== 'dm' || room.isWaiting) {
+    const glyph = glyphPiece(glyphOf(room), { size: o.size, paint: o.isMuted === true ? 'lo' : 'mid', stroke: 1.5 })
+    return { body: glyph.body, width: o.size, height: o.size, alt: room.title }
   }
-  if (room.isWaiting) return tilePart({ glyph: 'clock', paint: 'warn', size: o.size })
   return { ...facePart({ initials: initialsOf(room.title), paint: avatarRole(room.seed), size: o.size, isHere: isHere(room, o.now) }), alt: room.title }
 }
 

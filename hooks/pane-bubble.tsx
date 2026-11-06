@@ -50,7 +50,7 @@ function Quote(ctx: Ctx, line: Line): RenderElement | null {
   if (quote === undefined) return null
   return (
     <Box key="quote" flexDirection="column" backgroundColor={ctx.look.inset} paddingX={1}>
-      <Text color={ctx.look.signal.fg} bold>{quote.name}</Text>
+      <Text color={ctx.look.mid} bold>{quote.name}</Text>
       <Text color={ctx.look.lo} wrap="truncate-end">{quote.text}</Text>
     </Box>
   )
@@ -74,10 +74,12 @@ function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
 function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): RenderElement {
   const { Box, Text } = ctx.ui
   const { line } = o
-  const tone = line.isMine ? ctx.look.signal : { tint: ctx.look.card, line: ctx.look.line }
+  // Mine on the card, theirs on the inset: the side already says whose, and colour stays for state.
+  const tone = line.isMine ? { tint: ctx.look.card, line: ctx.look.line } : { tint: ctx.look.inset, line: ctx.look.inset }
   const isPending = line.receipt === 'pending'
   return (
     <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>
+      {!line.isMine && o.isFirst && o.room.kind === 'devices' ? <Text key="author" color={ctx.look.lo} bold>{line.authorName}</Text> : null}
       {Quote(ctx, line)}
       <Text key="text" color={ctx.look.hi} wrap="wrap">{o.text}</Text>
       {RoomChip(ctx, line)}

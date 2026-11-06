@@ -36,8 +36,8 @@ type Shot = {
 }
 
 const SHOTS: Shot[] = [
-  { label: 'rooms', isBypass: true, sees: ['Chats', '+ New', 'PROJECTS', 'PEOPLE', 'Settings'] },
-  { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: ['Message your friends from here', 'Add a friend', 'I have a link'], desk: ['Project room'] },
+  { label: 'rooms', isBypass: true, sees: ['Transceiver', '+ New', 'Projects', 'People', 'Settings', 'Connect your computers'] },
+  { label: 'empty', rooms: [], syncs: {}, isBypass: true, sees: ['Connect your computers', 'Add a friend', 'I have a link'], desk: ['Project room'] },
   { label: 'connect', syncs: syncs({ isPending: true }), sees: ['Your messages are waiting. Allow this session once to send them.', 'Connect', 'Not now'] },
   { label: 'invite', rooms: [ROOMS.alperen, room({ id: 'ri', status: 'invited' }), { ...ROOMS.eliti, peers: [] }], isBypass: true, sees: ['Someone wants to message you', 'Accept', 'Decline'] },
   { label: 'dm', isBypass: true, presses: ['open-ra'], sees: ['2 new messages', 'here · read 1m ago'], desk: ['Message Alperen...', 'Send', 'TODAY'], term: ['today', '‹ rooms'] },

@@ -51,6 +51,9 @@ export const DAYS_PULL_AFTER_MS = COMPACT_AFTER_MS - DAY_MS
 // The newest day docs read for a peer who was away: the pane keeps KEEP_ENTRIES messages at most.
 export const DAYS_PAGE = 7
 
+// How much of a background error's first line the debug log keeps.
+export const LOG_ERROR_CHARS = 200
+
 export const PANE_ID = 'transceiver'
 export const COMMAND = 'transceiver'
 export const TITLE_PREFIX = 'Transceiver · '
@@ -73,6 +76,12 @@ export const REPO_CACHE_MS = 60_000
 export const LOGIN_RETRY_MS = 600_000
 export const LIVE_COOLDOWN_MS = 30_000
 export const LIVE_MAX_CHARS = 2_000
+
+// The bridge between a person's own computers (devices.ts, bridge.ts).
+export const HOUR_MS = 60 * 60_000
+export const BRIDGE_WAKES_PER_HOUR = 20
+export const DEVICE_LIST_LIMIT = 200
+export const DEVICE_RELIST_MS = 10 * 60_000
 
 // Pane and notifications (T8–T9).
 export const PREVIEW_CHARS = 80

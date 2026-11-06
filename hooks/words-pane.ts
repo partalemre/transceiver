@@ -3,6 +3,20 @@
 import { pick } from './kit/lang'
 
 const EN = {
+  devices: 'My computers',
+  bridgeTitle: 'Connect your computers',
+  bridgeBody: 'Your Mac and your Windows PC find each other through your Claude account. Nothing to share, no link to paste.',
+  bridgeConnect: 'Connect this computer',
+  bridgeWaiting: 'Not connected yet',
+  bridgeHere: 'Messages show up in this session, and a message wakes it.',
+  bridgeElsewhere: 'Messages land in another session on this computer.',
+  bridgeTake: 'Move here',
+  bridgeNext: 'On the other computer, install Transceiver in Claude Code, open it and press "Connect this computer". It appears here within a minute.',
+  bridgeAlt: (o: { here: string; there: string }) => `${o.here} and ${o.there} are connected`,
+  bridgeAloneAlt: (here: string) => `${here} is waiting for your other computer`,
+  deviceName: 'This computer\'s name',
+  save: 'Save',
+  unreadMeta: (n: number) => `${n} unread`,
   connect: 'Allow this session once to send messages.',
   connectWaiting: 'Your messages are waiting. Allow this session once to send them.',
   connectButton: 'Connect',
@@ -44,7 +58,7 @@ const EN = {
   connected: 'Connected: messages are sent.',
   readOnly: (waiting: string) => `Reading, not writing: ${waiting}.`,
   help: [
-    'Each person has their own mailbox in a room: a claude.ai page. Once yours is open, open its link on claude.ai, press Share and enter your friend\'s email (Viewer is enough), then send them the link.',
+    'Each person has their own mailbox in a room: a claude.ai page. Once yours is open, open its link on claude.ai, press Share and enter your friend\'s email (the default role is enough), then send them the link.',
     'If you are in the same organization, mailboxes connect on their own. If not, you both add the other\'s link with "I have a link".',
     'Read receipts go both ways. No session name, folder path or model name is ever shared.',
   ],
@@ -68,6 +82,20 @@ const EN = {
 }
 
 const TR: typeof EN = {
+  devices: 'Bilgisayarlarım',
+  bridgeTitle: 'Bilgisayarlarını bağla',
+  bridgeBody: 'Mac\'in ve Windows bilgisayarın Claude hesabın üzerinden birbirini bulur. Paylaşım yok, yapıştırılacak link yok.',
+  bridgeConnect: 'Bu bilgisayarı bağla',
+  bridgeWaiting: 'Henüz bağlanmadı',
+  bridgeHere: 'Mesajlar bu oturumda görünür; gelen mesaj oturumu uyandırır.',
+  bridgeElsewhere: 'Mesajlar bu bilgisayardaki başka bir oturuma düşüyor.',
+  bridgeTake: 'Buraya al',
+  bridgeNext: 'Diğer bilgisayarda Claude Code\'a Transceiver\'ı kur, aç ve "Bu bilgisayarı bağla"ya bas. Bir dakika içinde burada görünür.',
+  bridgeAlt: o => `${o.here} ile ${o.there} bağlı`,
+  bridgeAloneAlt: here => `${here} diğer bilgisayarını bekliyor`,
+  deviceName: 'Bu bilgisayarın adı',
+  save: 'Kaydet',
+  unreadMeta: n => `${n} okunmamış`,
   connect: 'Yazmak için bu oturumda bir kez izin ver.',
   connectWaiting: 'Yazdıkların bekliyor; göndermek için bu oturumda bir kez izin ver.',
   connectButton: 'Bağlan',
@@ -109,7 +137,7 @@ const TR: typeof EN = {
   connected: 'Bağlı: mesajlar gönderiliyor.',
   readOnly: waiting => `Okuyor, yazmıyor: ${waiting}.`,
   help: [
-    'Her kişinin bir odada kendi kutusu vardır: bir claude.ai sayfası. Kutun açılınca linkini claude.ai\'de aç, Paylaş\'a bas ve arkadaşının e-postasını yaz (Viewer yeter); sonra linki ona gönder.',
+    'Her kişinin bir odada kendi kutusu vardır: bir claude.ai sayfası. Kutun açılınca linkini claude.ai\'de aç, Paylaş\'a bas ve arkadaşının e-postasını yaz (varsayılan rol yeter); sonra linki ona gönder.',
     'Aynı organizasyondaysanız kutular kendiliğinden bağlanır; değilse ikiniz de karşı tarafın linkini "Linkim var" ile ekleyin.',
     'Okundu bilgisi karşılıklıdır. Hiçbir oturum adı, klasör yolu ya da model adı paylaşılmaz.',
   ],

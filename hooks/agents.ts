@@ -1,3 +1,4 @@
+import { wireBridge } from './bridge'
 import { loadDrafts, onDrafts, settleDraft } from './drafts'
 import type { AgentHost } from './host'
 import { wireIdentity } from './identity'
@@ -14,7 +15,7 @@ let unwire: Array<() => void> = []
 export function wireAgents(host: AgentHost): void {
   for (const off of unwire) off()
   unwire = [
-    wireResponder(host), wireIdentity(host), wireLive(host), wireRetention(host),
+    wireResponder(host), wireIdentity(host), wireLive(host), wireRetention(host), wireBridge(host),
     onDrafts(() => { void refreshPane().catch(() => undefined) }),
   ]
   setDraftSource(() => loadDrafts(host))

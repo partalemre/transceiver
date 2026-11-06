@@ -98,6 +98,7 @@ export function SettingsView(ctx: Ctx): RenderElement {
       {Back(ctx, w.settings)}
       {ErrorCard(ctx)}
       <Box key="settings-rows" flexDirection="column" gap={isText(ctx) ? 0 : 2}>{[...toggles().map(t => ToggleRow(ctx, t)), SessionRow(ctx)]}</Box>
+      {ctx.model.bridge.name === '' ? null : Field(ctx, { key: 'device-name', title: w.deviceName, placeholder: w.deviceName, submit: w.save, value: ctx.model.bridge.name, onSubmit: v => ctx.on.renameDevice(v) })}
       {Rule(ctx, 'help-rule')}
       <Box key="help" flexDirection="column" gap={1}>
         {Title(ctx, { key: 'help-title', text: w.howSharing })}

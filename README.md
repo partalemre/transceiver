@@ -25,7 +25,7 @@ Then type `/transceiver`. The pane opens, and every step is a button there.
 
 ## How it works
 
-A room is made of mailboxes, one per member. Only you write to yours, and the other members read it. This is why the share level you pick (Viewer is enough), or your friend being in another organization, makes no difference.
+A room is made of mailboxes, one per member. Only you write to yours, and the other members read it. This is why the share level you pick (the default Commenter role is enough, and so is Viewer), or your friend being in another organization, makes no difference.
 
 1. **Open a room.** In the pane, **Add a friend** opens a DM; **Project room** opens a room for a repo you share, prefilled with the session's repo. The pane shows your mailbox link.
 2. **Share your mailbox.** Open the link on claude.ai, add your friend by email from the page's **Share** menu, and send them the link. This step is manual because claude.ai has no sharing API.
@@ -36,6 +36,16 @@ A room is made of mailboxes, one per member. Only you write to yours, and the ot
 
 Messages arrive in about a second while the pane is open. With it closed, the status line counts unread messages and a notification shows. Under each message: ◷ sending, ✓ written, ✓✓ delivered, blue ✓✓ read. Turning read receipts off turns them off both ways.
 
+## Your own computers
+
+Your Mac and your Windows PC can talk through the same mod, with nothing to share and no link to paste, as long as both use the same claude.ai account.
+
+1. On each computer, install Transceiver and press **Connect this computer** in the pane (or type `/transceiver bridge`). Each opens its own private mailbox, and they find each other through your account's artifact list within a minute.
+2. The session you connected from holds the bridge: the other computer's messages show in its transcript as they arrive, and a message wakes it when it is idle. Press **Move here** in another session to move the bridge there.
+3. Tell Claude to talk to the other computer ("ask the Windows side whether the tests pass"). It uses `send` and `inbox` with `target: "devices"`. Or write in the pane yourself.
+
+Each wake is a model turn, so it costs tokens: at most one every 30 seconds and 20 an hour, after which messages still arrive but no longer wake the session. A mailbox shared by anyone else can never join this room. Rename a computer in **Settings**.
+
 ## Commands
 
 Every command is also a button in the pane. The Turkish words (`ekle`, `proje`, `katıl`, `çık`, `kur`, `ayarlar`) work too.
@@ -43,6 +53,7 @@ Every command is also a button in the pane. The Turkish words (`ekle`, `proje`, 
 | Command | What it does |
 | --- | --- |
 | `/transceiver` | Opens the pane |
+| `/transceiver bridge` | Connects this computer to your other one and follows it in this session |
 | `/transceiver add` | Opens a DM room for a friend |
 | `/transceiver project <owner/repo>` | Opens a shared project room |
 | `/transceiver join <link>` | Joins a room by mailbox link, or adds the other side's mailbox to a room you are in |

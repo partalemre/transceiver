@@ -4,16 +4,17 @@
 import type { RenderElement } from 'claude-code'
 
 import { waitingText } from './connection'
-import { upper } from './kit/lang'
 import { Cards } from './pane-cards'
 import { EmptyView } from './pane-empty'
-import { isText, Pic, receiptTone, roomFace, type Ctx } from './pane-kit'
-import { BetaTag, Title } from './pane-type'
+import { paneHead } from './kit/pane-head'
+import { PressRow } from './kit/press'
+import { BridgeCard } from './pane-bridge'
+import { glyphOf, isText, receiptTone, SvgOf, type Ctx } from './pane-kit'
+import { Title } from './pane-type'
+import { roomRowPic, themed } from './sig-rows'
 import type { RoomView } from './state-types'
 import { rowTime } from './when'
 import { paneWords } from './words-pane'
-
-const FACE = 36
 
 // What a row's face and padding take, and its unread badge: the second line is cut to the rest, so it never wraps.
 const ROW_CHROME_CELLS = 8
@@ -24,6 +25,7 @@ const clip = (text: string, max: number): string => (text.length <= max ? text :
 // A project's branch, a DM nobody joined yet, any other room.
 function rowGlyph(room: RoomView): string {
   if (room.kind === 'project') return '⌥'
+  if (room.kind === 'devices') return '⇄'
   return room.isWaiting ? '◷' : '●'
 }
 
@@ -73,53 +75,44 @@ function TextRow(ctx: Ctx, room: RoomView): RenderElement {
   )
 }
 
-// The unread count on the signal colour, as Text so the host draws it in Claude's theme.
-function Badge(ctx: Ctx, room: RoomView): RenderElement {
-  const { Box, Text } = ctx.ui
-  return <Box key={`badge-${room.id}`} backgroundColor={ctx.look.signal.fg} paddingX={1} flexShrink={0}><Text color={ctx.look.sheet} bold>{String(room.unread)}</Text></Box>
-}
+const shortName = (room: RoomView): string => (room.kind === 'project' ? room.repo?.split('/')[1] ?? room.title : room.title)
 
+// A room on the desktop is one pressed line (kit/press.tsx): its mark, name, last line, time and unread count. The open
+// room sits on the card colour.
 export function RoomRow(ctx: Ctx, room: RoomView): RenderElement {
-  const { Box, Button, Text } = ctx.ui
+  const { Box } = ctx.ui
   if (isText(ctx)) return TextRow(ctx, room)
+  const line = lineOf(room)
+  const pic = roomRowPic({
+    width: ctx.px, glyph: glyphOf(room), name: shortName(room), preview: line.text, time: rowTime(room.lastTs, ctx.model.now),
+    unread: room.unread, isWarn: line.isWarn, isLight: ctx.look.isLight,
+  })
   const isActive = room.id === ctx.model.activeId && ctx.model.view === 'chat'
-  const hasUnread = room.unread > 0
-  const face = roomFace(room, { size: FACE, now: ctx.model.now, isMuted: room.kind === 'project' && room.gate === 'closed' })
+  const drawing = SvgOf(ctx, pic, `row-pic-${room.id}`)
+  if (drawing === null) return TextRow(ctx, room)
   return (
-    <Box key={`row-${room.id}`} flexDirection="row" gap={1} alignItems="center" paddingX={1} backgroundColor={isActive ? ctx.look.card : undefined}>
-      {Pic(ctx, face, `av-${room.id}`)}
-      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-        <Box flexDirection="row" justifyContent="space-between" gap={1}>
-          <Button key={`open-${room.id}`} label={room.kind === 'project' ? room.repo?.split('/')[1] ?? room.title : room.title} plain onPress={() => ctx.on.select(room.id)} />
-          <Text color={hasUnread ? ctx.look.signal.fg : ctx.look.lo} bold={hasUnread}>{rowTime(room.lastTs, ctx.model.now)}</Text>
-        </Box>
-        <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
-          {SecondLine(ctx, room)}
-          {hasUnread ? Badge(ctx, room) : null}
-        </Box>
-      </Box>
+    <Box key={`row-${room.id}`} backgroundColor={isActive ? ctx.look.card : undefined}>
+      {PressRow(ctx.ui, { box: `press-${room.id}`, key: `open-${room.id}`, drawing, onPress: () => ctx.on.select(room.id) })}
     </Box>
   )
 }
 
+// The pane's head, as every mod pane opens (kit/pane-head.ts): the row pressed on the hub, grown.
 function Top(ctx: Ctx): RenderElement {
-  const { Box, Button } = ctx.ui
-  return (
-    <Box key="list-head" flexDirection="row" alignItems="center" gap={1}>
-      {Title(ctx, { key: 'list-title', text: paneWords().chats })}
-      {BetaTag(ctx, 'list-beta')}
-      <Box flexGrow={1} />
-      <Button key="open-add" label={paneWords().newRoom} plain onPress={() => ctx.on.openView('add')} />
-    </Box>
-  )
+  const { Text } = ctx.ui
+  const unread = ctx.model.rooms.reduce((n, r) => n + r.unread, 0)
+  const meta = [unread > 0 ? paneWords().unreadMeta(unread) : '', paneWords().beta].filter(Boolean).join(' · ')
+  if (isText(ctx)) return Title(ctx, { key: 'list-title', text: `Transceiver · ${meta}` })
+  const pic = paneHead({ glyph: 'bell', title: 'Transceiver', meta, tone: unread > 0 ? 'live' : 'idle', width: ctx.px })
+  return SvgOf(ctx, themed(pic, ctx.look.isLight), 'list-head') ?? <Text key="list-head">Transceiver</Text>
 }
 
 function Section(ctx: Ctx, o: { key: string; title: string | null; rooms: RoomView[] }): RenderElement | null {
   const { Box, Text } = ctx.ui
   if (o.rooms.length === 0) return null
-  const label = <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title === null ? '' : upper(o.title)}</Text>
+  const label = <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title ?? ''}</Text>
   return (
-    <Box key={o.key} flexDirection="column" gap={isText(ctx) ? 0 : 1}>
+    <Box key={o.key} flexDirection="column" gap={0}>
       {o.title === null ? null : label}
       {o.rooms.map(room => RoomRow(ctx, room))}
     </Box>
@@ -142,6 +135,7 @@ function Foot(ctx: Ctx): RenderElement {
     <Box key="foot" flexDirection="row" alignItems="center" gap={1}>
       {status === null ? null : line}
       <Box flexGrow={1} />
+      <Button key="open-add" label={paneWords().newRoom} plain dimColor onPress={() => ctx.on.openView('add')} />
       <Button key="open-settings" label={paneWords().settings} plain dimColor onPress={() => ctx.on.openView('settings')} />
     </Box>
   )
@@ -150,16 +144,19 @@ function Foot(ctx: Ctx): RenderElement {
 export function RoomsColumn(ctx: Ctx): RenderElement {
   const { Box } = ctx.ui
   const rooms = ctx.model.rooms
-  if (rooms.length === 0) return <Box key="rooms" flexDirection="column" gap={1}>{Cards(ctx)}{EmptyView(ctx)}</Box>
+  if (rooms.length === 0) return <Box key="rooms" flexDirection="column" gap={1}>{Top(ctx)}{Cards(ctx)}{EmptyView(ctx)}</Box>
   const projects = rooms.filter(r => r.kind === 'project')
   const people = rooms.filter(r => r.kind === 'dm')
+  const devices = rooms.filter(r => r.kind === 'devices')
   const isMixed = projects.length > 0 && people.length > 0
   return (
     <Box key="rooms" flexDirection="column" gap={1} flexGrow={1}>
       {Top(ctx)}
       {Cards(ctx)}
+      {BridgeCard(ctx)}
+      {Section(ctx, { key: 'devices', title: null, rooms: devices })}
       {isMixed ? Section(ctx, { key: 'projects', title: paneWords().projects, rooms: projects }) : null}
-      {Section(ctx, isMixed ? { key: 'people', title: paneWords().people, rooms: people } : { key: 'all', title: null, rooms })}
+      {isMixed ? Section(ctx, { key: 'people', title: paneWords().people, rooms: people }) : Section(ctx, { key: 'all', title: null, rooms: [...projects, ...people] })}
       <Box flexGrow={1} />
       {Foot(ctx)}
     </Box>

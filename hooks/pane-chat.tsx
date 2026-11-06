@@ -6,6 +6,7 @@ import type { RenderElement } from 'claude-code'
 import { GROUP_MS, TIMELINE_LINES } from './limits'
 import { AgentNote, DraftCard, TxLine } from './pane-agent'
 import { RoomInfo } from './pane-aside'
+import { BridgeHead } from './pane-bridge'
 import { Bubble } from './pane-bubble'
 import { ErrorCard, GhCard, ShareCard } from './pane-cards'
 import { Composer } from './pane-compose'
@@ -17,7 +18,7 @@ import { itemsOf, messageOf, type Item, type Tx } from './traffic'
 import { dayKey, dayRule } from './when'
 import { chatWords } from './words-chat'
 
-const FACE = 40
+const FACE = 20
 
 function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
@@ -26,7 +27,7 @@ function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="chat-head" flexDirection="row" alignItems="center" gap={1}>
       {ctx.isWide ? null : <Button key="back" label="‹" plain onPress={() => ctx.on.back()} />}
-      {Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), `chat-face-${room.id}`)}
+      {room.kind === 'devices' ? null : Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), `chat-face-${room.id}`)}
       <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         <Text bold color={ctx.look.hi} wrap="truncate-end">{room.title}</Text>
         {status === null ? null : <Text color={status.isHere ? ctx.look.role.ok.fg : ctx.look.lo} wrap="truncate-end">{status.text}</Text>}
@@ -126,6 +127,7 @@ export function ChatView(ctx: Ctx): RenderElement | null {
   return (
     <Box key="chat" flexDirection="column" gap={1} flexGrow={1}>
       {ChatHead(ctx, room)}
+      {room.kind === 'devices' ? BridgeHead(ctx, room) : null}
       {Rule(ctx, 'head-rule')}
       {Notice(ctx, room)}
       {ShareCard(ctx, room)}

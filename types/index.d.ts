@@ -32,7 +32,7 @@ export type ProjectInfo = { checks: GateChecks; askUsed: number; askLimit: numbe
 export type RoomView = {
   id: string
   title: string
-  kind: 'dm' | 'project'
+  kind: 'dm' | 'project' | 'devices'
   unread: number
   lastText: string
   lastTs: number
@@ -48,6 +48,8 @@ export type RoomView = {
   // Another member's mailbox the last poll could not read: they have not shared it with this person yet.
   isBoxBlocked: boolean
   lastIsMine: boolean
+  // The newest message's id, so a drawing can mark each message once.
+  lastId?: string
   lastReceipt?: Receipt
   // A DM this person opened that no friend has joined yet.
   isWaiting: boolean
@@ -62,7 +64,7 @@ export type RoomView = {
 }
 
 export type Draft = { roomId: string; qid: string; question: string; asker: string }
-export type Invite = { id: string; title: string; kind?: 'dm' | 'project'; repo?: string; url?: string; joinedAt?: number }
+export type Invite = { id: string; title: string; kind?: 'dm' | 'project' | 'devices'; repo?: string; url?: string; joinedAt?: number }
 export type PaneView = 'rooms' | 'chat' | 'add' | 'settings'
 export type EmptyForm = 'join' | 'project'
 export type PaneSettings = { isReceiptsOn: boolean; isToastOn: boolean; isStatusOn: boolean }
@@ -109,6 +111,8 @@ export type PaneModel = {
   // details (gate, budget, today's counts, live mode).
   emptyForm: EmptyForm | null
   isInfoOpen: boolean
+  // This computer's name in the bridge, and whether this session is the one its messages land in (bridge.ts).
+  bridge: { name: string; isHere: boolean }
 }
 
 // The one-line card the MODZ hub collects from every mod (MODZ DESIGN.md §9), and the hub's open request.

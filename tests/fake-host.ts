@@ -45,7 +45,7 @@ export function scheduler(now = 1_791_545_100_000): Scheduler {
 
 // An in-memory Host: a store, a clock that moves only when `advance` moves it, recorded writes, tools and logs.
 export type FakeHost = Host & {
-  store: Map<string, unknown>; written: Record<string, string>; tools: Record<string, unknown>[]; logs: string[]
+  store: Map<string, unknown>; written: Record<string, string>; tools: Record<string, unknown>[]; logs: string[]; said: string[]
   cwdPath: string; dirs: Set<string>; removed: string[]
   clock: { now: number }; advance(ms: number): Promise<void>
 }
@@ -53,7 +53,7 @@ export type FakeHost = Host & {
 export function fakeHost(answer: (input: Record<string, unknown>) => Promise<CallResult>, at: number | Scheduler = 1_791_545_100_000): FakeHost {
   const sched = typeof at === 'number' ? scheduler(at) : at
   const host: FakeHost = {
-    store: new Map(), written: {}, tools: [], logs: [], clock: sched.clock, cwdPath: '/w', dirs: new Set(['/w/.git']), removed: [],
+    store: new Map(), written: {}, tools: [], logs: [], said: [], clock: sched.clock, cwdPath: '/w', dirs: new Set(['/w/.git']), removed: [],
     tool: async input => { host.tools.push(input); return answer(input) },
     storeGet: async key => clone(host.store.get(key)),
     storeSet: async (key, value) => { host.store.set(key, clone(value)) },
@@ -63,6 +63,9 @@ export function fakeHost(answer: (input: Record<string, unknown>) => Promise<Cal
     home: async () => '/home/u',
     writeFile: async (path, text) => { host.written[path] = text },
     log: text => { host.logs.push(text) },
+    say: text => { host.said.push(text) },
+    sessionId: async () => 'session-1',
+    deviceName: async () => 'MacBook',
     cwd: async () => host.cwdPath,
     isDir: async path => host.dirs.has(path),
     remove: async path => { host.removed.push(path) },

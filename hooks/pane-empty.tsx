@@ -1,10 +1,10 @@
-// The pane with no rooms yet: a title, one sentence and one thing to press, "Add a friend". Joining by a link and
-// a project room for the session's own GitHub repo are quiet second choices, each opening its one field in place;
+// The pane with no rooms yet: one thing to press, connecting this computer to the person's other one. A friend, a link
+// and a project room for the session's own GitHub repo are quiet second choices, each opening its one field in place;
 // "Project room" is offered only inside a GitHub repo. Settings stay one small press away.
 import type { RenderElement } from 'claude-code'
 
 import type { Ctx } from './pane-kit'
-import { BetaTag, Sentence, Title } from './pane-type'
+import { BridgeCard } from './pane-bridge'
 import type { EmptyForm } from './state-types'
 import { paneWords } from './words-pane'
 
@@ -32,19 +32,15 @@ export function EmptyView(ctx: Ctx): RenderElement {
   const hasRepo = hasInput && ctx.model.sessionRepo !== null
   const w = paneWords()
   return (
-    <Box key="empty" flexDirection="column" gap={1} paddingTop={1}>
-      <Box key="empty-head" flexDirection="row" alignItems="center" gap={1}>
-        {Title(ctx, { key: 'empty-title', text: w.emptyTitle })}
-        {BetaTag(ctx, 'empty-beta')}
-      </Box>
-      {Sentence(ctx, { key: 'empty-body', text: w.emptyBody })}
+    <Box key="empty" flexDirection="column" gap={1}>
+      {BridgeCard(ctx)}
       <Box key="empty-actions" flexDirection="row" alignItems="center" gap={1} flexWrap="wrap">
-        <Button key="add-dm" label={ctx.model.busy ?? w.addFriend} variant="primary" onPress={() => ctx.on.addDm()} />
+        <Button key="add-dm" label={w.addFriend} plain onPress={() => ctx.on.addDm()} />
         {hasInput ? FormButton(ctx, { form: 'join', key: 'open-join', label: w.haveLink }) : null}
         {hasRepo ? FormButton(ctx, { form: 'project', key: 'open-project', label: w.projectRoom }) : null}
       </Box>
       {OpenField(ctx)}
-      <Box key="empty-foot" flexDirection="row" paddingTop={1}>
+      <Box key="empty-foot" flexDirection="row">
         <Button key="open-settings" label={w.settings} plain dimColor onPress={() => ctx.on.openView('settings')} />
       </Box>
     </Box>

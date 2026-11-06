@@ -71,6 +71,7 @@ export type Status = { text: string; isHere: boolean }
 // mailbox that cannot be read is the notice line's to say, not the head's.
 export function statusOf(room: RoomView, o: { now: number; isHere: boolean }): Status | null {
   const w = words()
+  if (room.kind === 'devices') return null
   if (room.kind === 'project') return { text: room.peerName === undefined ? w.waitingPeer : w.withPeer(room.peerName), isHere: false }
   if (room.isWaiting) return { text: w.dmWaiting, isHere: false }
   const parts = [o.isHere ? w.here : '', room.peerReadTs > 0 ? w.read(agoText(room.peerReadTs, o.now)) : ''].filter(Boolean)

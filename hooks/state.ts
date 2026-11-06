@@ -3,8 +3,10 @@
 // render hook. Any module may call `refreshPane()` after it changed something the pane shows.
 import type { RenderSurface } from 'claude-code'
 
+import { isLinkedHere } from './bridge'
 import { askUsedToday } from './budget'
 import { isConnected } from './connection'
+import { deviceNameOf, devicesRoomOf } from './devices'
 import type { Host } from './host'
 import { hubOf, type HubShown } from './hub'
 import { PANE_CLOCK_MS } from './limits'
@@ -107,9 +109,11 @@ export async function refreshPane(): Promise<PaneModel | null> {
   const now = Math.floor((await host.now()) / PANE_CLOCK_MS) * PANE_CLOCK_MS
   const drafts = draftSource === null ? [] : await draftSource().catch(() => [])
   const sessionRepo = repoSource === null ? undefined : await repoSource().catch(() => undefined)
+  const devices = devicesRoomOf(rooms)
+  const bridge = devices === null ? undefined : { name: await deviceNameOf(host).catch(() => ''), isHere: await isLinkedHere(host).catch(() => false) }
   const model = buildModel({
     rooms, syncs, names: namesNow(), settings: await loadSettings(host), session, isConnected: isConnected(),
-    drafts, canSettleDrafts: draftSettler !== null, now, sessionRepo, askUsed: await askUsedToday(host).catch(() => ({})),
+    drafts, canSettleDrafts: draftSettler !== null, now, sessionRepo, askUsed: await askUsedToday(host).catch(() => ({})), bridge,
   })
   const json = JSON.stringify(model)
   last = model

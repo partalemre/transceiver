@@ -16,7 +16,13 @@ export type Host = {
   every(ms: number, fn: () => void): Timer
   home(): Promise<string | undefined>
   writeFile(path: string, text: string): Promise<void>
+  // To the debug log alone: a background failure is the pane's to show, never a line in the person's conversation.
   log(text: string): void
+  // One dim line in the session's transcript, which the model does not read.
+  say(text: string): void
+  sessionId(): Promise<string>
+  // This computer's own name (devices.ts).
+  deviceName(): Promise<string>
   // The session's working directory: the Artifact tool publishes only files under it (or Claude's scratchpad).
   cwd(): Promise<string>
   isDir(path: string): Promise<boolean>

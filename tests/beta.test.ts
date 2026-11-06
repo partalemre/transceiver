@@ -9,31 +9,27 @@ const NARROW = 58
 const ALL = [ROOMS.alperen, ROOMS.eliti, ROOMS.zeynep]
 const SYNCS = () => ({ ra: dmAlperen(), re: projectEliti(), rz: dmZeynep() })
 
-const betas = async (ui: any): Promise<unknown[]> => ui.findAll({ type: 'Text', text: 'Beta' })
-
-// The head's title is a Text before the label, in one row.
-const headOf = async (ui: any, key: string): Promise<any> => ui.find({ type: 'Box', key })
+// The pane's head: a drawing on the desktop, whose alt carries the words, and a title line on the terminal.
+const headOf = async (ui: any): Promise<unknown> => ui.drawn()
 
 for (const surface of SURFACES) {
   for (const isEnglish of [true, false]) {
     const language = isEnglish ? 'English' : 'Turkish'
 
-    test(`${surface} in ${language}: the rooms head draws Beta beside its title`, async ($: any, on: any) => {
+    test(`${surface} in ${language}: the rooms head says Beta in its head`, async ($: any, on: any) => {
       const w = paneWorld(on, { rooms: ALL, syncs: SYNCS(), isEnglish })
       await startSession($, w, { surface })
       const ui = await mountPane($, { surface, columns: NARROW })
 
-      expect(await betas(ui)).toHaveLength(1)
-      expect(JSON.stringify(await headOf(ui, 'list-head'))).toContain('Beta')
+      expect(JSON.stringify(await headOf(ui))).toContain('Beta')
     })
 
-    test(`${surface} in ${language}: the empty pane draws Beta beside its title`, async ($: any, on: any) => {
+    test(`${surface} in ${language}: the empty pane says Beta in its head`, async ($: any, on: any) => {
       const w = paneWorld(on, { rooms: [], syncs: {}, isEnglish })
       await startSession($, w, { surface })
       const ui = await mountPane($, { surface, columns: NARROW })
 
-      expect(await betas(ui)).toHaveLength(1)
-      expect(JSON.stringify(await headOf(ui, 'empty-head'))).toContain('Beta')
+      expect(JSON.stringify(await headOf(ui))).toContain('Beta')
     })
   }
 }

@@ -3,6 +3,7 @@ import type { EngineInterface, On, Register } from 'claude-code'
 import { paneHandlers } from './actions'
 import { wireAgents } from './agents'
 import { description, parseCommand, runCommand } from './commands'
+import { machineName } from './devices'
 import { isBypassMode, isConnected, persistConnection, restoreConnection, setConnected } from './connection'
 import { repoHere } from './here'
 import type { AgentHost, CallResult, Host } from './host'
@@ -23,6 +24,9 @@ import { EMPTY_PANE } from './state-types'
 import { runTool, TOOL_SPECS } from './tools'
 import { agentWords } from './words-agent'
 
+// Asked once per load: the pane reads it on every redraw.
+let machine: Promise<string> | null = null
+
 // The only place `$` is held: every other module reaches the engine through this port.
 function hostOf($: EngineInterface): Host {
   return {
@@ -34,11 +38,18 @@ function hostOf($: EngineInterface): Host {
     every: (ms, fn) => $.clock.every(ms, fn),
     home: () => $.env.get('HOME'),
     writeFile: (path, text) => $.fs.write(path, text),
-    log: text => $.ui.log(text),
+    log: text => $.ui.log(text, { to: 'debug' }),
+    say: text => $.ui.log(text),
+    sessionId: () => $.session.id(),
+    deviceName: () => {
+      machine ??= $.env.get('OS').catch(() => undefined).then(os => machineName({ run: runnerOf((argv, init) => $.process.run(argv, init)), os }))
+      return machine
+    },
     cwd: () => $.session.cwd(),
     isDir: async path => (await $.fs.stat(path).catch(() => null))?.kind === 'dir',
     remove: async path => {
       const isDir = (await $.fs.stat(path).catch(() => null))?.kind === 'dir'
+      // `rm` and `rmdir` are not programs on Windows, where this stays a no-op that leaves one small page behind.
       await $.process.run(isDir ? ['rmdir', '--', path] : ['rm', '-f', '--', path], { timeoutMs: RUN_TIMEOUT_MS })
     },
     isConnected: () => isConnected(),

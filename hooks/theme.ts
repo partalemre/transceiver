@@ -21,11 +21,6 @@ export type Look = {
   role: Record<Role, Tone>
 }
 
-const SIGNAL = {
-  dark: { fg: '#5CC8B8', tint: '#1A2E2B', line: '#2E5650' },
-  light: { fg: '#0E6F66', tint: '#E3F3F0', line: '#A9D8CF' },
-} as const
-
 const ROLES: readonly Role[] = ['read', 'edit', 'run', 'ok', 'warn', 'danger', 'plan']
 
 function desktopLook(isLight: boolean): Look {
@@ -34,7 +29,8 @@ function desktopLook(isLight: boolean): Look {
     isText: false, isLight,
     hi: p.hi, mid: p.mid, lo: p.lo, line: p.line, lineStrong: p.lineStrong, card: p.card, inset: p.inset,
     sheet: p.sheet, track: p.track,
-    signal: isLight ? SIGNAL.light : SIGNAL.dark,
+    // The accent is the one colour of live state: Claude's clay (MODZ DESIGN.md §0), no tint of its own.
+    signal: { fg: p.roles.edit.fg, tint: p.card, line: p.line },
     role: p.roles,
   }
 }

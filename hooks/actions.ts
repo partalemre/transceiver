@@ -2,7 +2,11 @@
 // failure (a short line in the interface's language, never tool text or a message body) and redraws.
 import type { RenderSurface } from 'claude-code'
 
+import { linkHere } from './bridge'
 import { isConnected, setConnected } from './connection'
+import { connectDevices } from './devices'
+import { MAX_NAME_CHARS } from './limits'
+import { paneWords } from './words-pane'
 import { acceptInvite, joinUrlOf, joinRoom } from './join'
 import { askAgent, sendComposed, setTyped, typedOf } from './compose'
 import { isRepo, paths } from './protocol'
@@ -120,6 +124,26 @@ async function copy(p: PanePort, opts: { text: string; surface: RenderSurface })
   p.ui.toast(isCopied ? stepWords().copied : stepWords().notCopied)
 }
 
+// One press connects this computer: its mailbox opens (or comes back) and this session follows the other computer.
+async function pressConnect(p: PanePort): Promise<void> {
+  if (sessionNow().busy !== null) return
+  patchSession({ busy: stepWords().busyBridge, error: null })
+  await refreshPane()
+  const consent = `The user pressed "${paneWords().bridgeConnect}" on the Transceiver pane`
+  const room = await connectDevices({ host: p.host, consent }).catch((err: unknown) => err as Error)
+  if (room instanceof Error) return patchSession({ busy: null, error: failText(room, stepWords().roomFailed) })
+  await linkHere(p.host)
+  pokeRoom(p.host, room)
+  patchSession({ busy: null, activeId: room.id, view: 'chat', openedMark: null, created: null })
+}
+
+const linkHere_ = (p: PanePort): Promise<void> => linkHere(p.host)
+
+async function rename(p: PanePort, name: string): Promise<void> {
+  const label = name.trim().slice(0, MAX_NAME_CHARS)
+  await saveSettings(p.host, { ...(await loadSettings(p.host)), ...(label === '' ? { label: undefined } : { label }) })
+}
+
 export type PaneHandlers = {
   select(id: string): void
   back(): void
@@ -147,6 +171,9 @@ export type PaneHandlers = {
   toggleInfo(roomId: string): void
   toggleForm(form: EmptyForm): void
   clearMode(): void
+  connectDevices(): void
+  takeBridge(): void
+  renameDevice(name: string): void
 }
 
 export const paneHandlers: PaneHandlers = {
@@ -183,6 +210,9 @@ export const paneHandlers: PaneHandlers = {
   toggleInfo: roomId => run(async () => patchSession({ infoRoom: sessionNow().infoRoom === roomId ? null : roomId })),
   toggleForm: form => run(async () => patchSession({ emptyForm: sessionNow().emptyForm === form ? null : form, error: null })),
   clearMode: () => run(async () => patchSession({ composeMode: null, hint: null })),
+  connectDevices: () => run(pressConnect),
+  takeBridge: () => run(linkHere_),
+  renameDevice: name => run(p => rename(p, name)),
   toggleExpanded: id => run(async () => {
     const open = sessionNow().expanded
     patchSession({ expanded: open.includes(id) ? open.filter(x => x !== id) : [...open, id] })
