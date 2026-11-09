@@ -49,6 +49,16 @@ async function openProject($: any, on: any, surface: (typeof SURFACES)[number]) 
 }
 
 for (const surface of SURFACES) {
+  test(`${surface}: a project room nobody else has joined offers no agent to ask`, async ($: any, on: any) => {
+    const alone = { ...projectEliti(), peers: {}, cursors: {}, entries: [] }
+    const w = paneWorld(on, { rooms: [ROOMS.alperen, { ...ROOMS.eliti, peers: [] }], syncs: { ra: dmAlperen(), re: alone } })
+    await startSession($, w, { surface, isBypass: true })
+    const ui = await mountPane($, { surface, columns: NARROW })
+    await ui.press({ key: 'open-re' })
+    expect(await ui.findAll({ type: 'Button', key: 'ask-more-re' })).toHaveLength(0)
+    expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
+  })
+
   test(`${surface}: "Agent'a sor" opens the sheet; a row without a value sends its typed query at once`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
     expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
