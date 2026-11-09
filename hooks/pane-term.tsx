@@ -11,7 +11,7 @@ import { fullIdOf } from './pane-agent'
 import { RoomInfo } from './pane-aside'
 import { GhCard, ShareCard } from './pane-cards'
 import { firstLineOf, idsOf, isSameRun } from './pane-chat'
-import { placeholderOf } from './pane-compose'
+import { canAskAgents, placeholderOf } from './pane-compose'
 import { isHere, receiptTone, type Ctx } from './pane-kit'
 import { noticeOf, statusOf } from './pane-words'
 import { isModeType, supportedSpecs } from './query-menu'
@@ -186,7 +186,8 @@ function Prompt(ctx: Ctx, room: RoomView): RenderElement {
 function Keys(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Button, Text } = ctx.ui
   const isProject = room.kind === 'project'
-  const sheet = isProject && ctx.model.isSheetOpen ? supportedSpecs() : []
+  const canAsk = canAskAgents(room)
+  const sheet = canAsk && ctx.model.isSheetOpen ? supportedSpecs() : []
   return (
     <Box key="keys" flexDirection="column">
       {sheet.map((s, i) => (
@@ -196,7 +197,7 @@ function Keys(ctx: Ctx, room: RoomView): RenderElement {
         </Box>
       ))}
       <Box flexDirection="row" gap={2} flexWrap="wrap">
-        {isProject ? <Button key={`ask-more-${room.id}`} hotkey="a" label={ctx.model.isSheetOpen ? chatWords().closeLower : chatWords().askAgentLower(room.peerName)} plain onPress={() => ctx.on.toggleSheet(room.id)} /> : null}
+        {canAsk ? <Button key={`ask-more-${room.id}`} hotkey="a" label={ctx.model.isSheetOpen ? chatWords().closeLower : chatWords().askAgentLower(room.peerName)} plain onPress={() => ctx.on.toggleSheet(room.id)} /> : null}
         {isProject ? <Button key={`info-${room.id}`} hotkey="i" label={ctx.model.isInfoOpen ? chatWords().closeDetails : chatWords().detailsLower} plain onPress={() => ctx.on.toggleInfo(room.id)} /> : null}
         <Button key="back" hotkey="o" label={chatWords().roomsLower} plain onPress={() => ctx.on.back()} />
       </Box>
