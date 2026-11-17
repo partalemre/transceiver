@@ -66,6 +66,14 @@ export type RoomView = {
 // One new message above the prompt (pane-band.tsx).
 export type BandLine = { roomId: string; lastId: string; glyph: 'laptop' | 'person' | 'branch' | 'clock'; name: string; preview: string; time: string; unread: number }
 
+// The session repo's teammates, for a strip outside this mod. `at` is when a teammate last worked (ms); `last` the
+// newest line one of them (or their agent) wrote; `unread` how many of their lines this person has not read.
+export type TeamMate = { name: string; at: number; branch?: string }
+export type TeamLine = {
+  roomId: string; repo: string; mates: TeamMate[]; unread: number
+  last: { id: string; name: string; text: string; ts: number; isAgent: boolean } | null
+}
+
 export type Draft = { roomId: string; qid: string; question: string; asker: string }
 export type Invite = { id: string; title: string; kind?: 'dm' | 'project' | 'devices'; repo?: string; url?: string; joinedAt?: number }
 export type PaneView = 'rooms' | 'chat' | 'add' | 'settings'
@@ -135,6 +143,7 @@ declare module 'claude-code' {
       hub: HubCard
       // The new message shown above the prompt, or null.
       band: BandLine | null
+      team: TeamLine | null
       // Whether this session may write (connection.ts); kept here so a hot reload does not drop it.
       connected: boolean
       home: ModzHome

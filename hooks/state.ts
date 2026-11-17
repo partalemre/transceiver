@@ -3,7 +3,7 @@
 // render hook. Any module may call `refreshPane()` after it changed something the pane shows.
 import type { RenderSurface } from 'claude-code'
 
-import type { BandLine } from '../types'
+import type { BandLine, TeamLine } from '../types'
 import { askUsedToday } from './budget'
 import { isConnected } from './connection'
 import { deviceNameOf, devicesRoomOf } from './devices'
@@ -12,11 +12,12 @@ import { hubOf, type HubShown } from './hub'
 import { PANE_CLOCK_MS } from './limits'
 import { namesNow, resolveNames } from './names'
 import { bandOf } from './pane-band'
+import { teamOf } from './team'
 import { setViewing, syncOf } from './room-loop'
 import { loadRooms, loadSettings, type RoomRecord } from './rooms'
 import type { Draft, PaneModel } from './state-types'
 import type { RoomSync } from './sync'
-import { buildModel, EMPTY_SESSION, type SessionUi } from './view'
+import { buildModel, EMPTY_SESSION, readMarkOf, type SessionUi } from './view'
 
 // What the pane needs of the engine beyond Host; bound from `$` in register.tsx.
 export type UiHost = {
@@ -24,6 +25,7 @@ export type UiHost = {
   // The MODZ hub's line; the port writes it only when it differs from the one written.
   setHub(shown: HubShown): Promise<void>
   setBand(line: BandLine | null): Promise<void>
+  setTeam(line: TeamLine | null): Promise<void>
   isPaneShown(): Promise<boolean>
   toast(text: string): void
   status(text: string | undefined): void
@@ -128,5 +130,6 @@ export async function refreshPane(): Promise<PaneModel | null> {
   }
   await ui.setHub(hubOf(model.rooms))
   await ui.setBand(bandOf({ rooms: model.rooms, isShown, now, dismissed: bandDismissed }))
+  await ui.setTeam(teamOf({ rooms, syncs, names: namesNow(), repo: sessionRepo, readMark: (sync, id) => readMarkOf(sync, session.localRead[id]) }))
   return model
 }

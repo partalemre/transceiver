@@ -1,3 +1,6 @@
+import { isGitUrl } from './gitbox'
+import { gitDb } from './gitdb'
+import { ensureRepoRoom, gitIoOf, markWork } from './gitroom'
 import type { EngineInterface, On, Register } from 'claude-code'
 
 import { paneHandlers } from './actions'
@@ -36,13 +39,15 @@ let machine: Promise<string> | null = null
 // The only place `$` is held: every other module reaches the engine through this port.
 function hostOf($: EngineInterface): Host {
   return {
-    tool: async input => (await $.tool.call(input as never)) as CallResult,
+    // A git room's calls never reach the Artifact tool: the repo answers them (gitdb.ts).
+    tool: async input => (isGitUrl(input.url) ? gitDb(gitIoOf(agentHostOf($)), input) : (await $.tool.call(input as never)) as CallResult),
     storeGet: key => $.store.get(key),
     storeSet: (key, value) => $.store.set(key, value),
     now: () => $.clock.now(),
     after: (ms, fn) => $.clock.after(ms, fn),
     every: (ms, fn) => $.clock.every(ms, fn),
-    home: () => $.env.get('HOME'),
+    // Windows names the home folder USERPROFILE.
+    home: async () => (await $.env.get('HOME').catch(() => undefined)) ?? $.env.get('USERPROFILE').catch(() => undefined),
     writeFile: (path, text) => $.fs.write(path, text),
     log: text => $.ui.log(text, { to: 'debug' }),
     say: text => $.ui.log(text),
@@ -76,6 +81,7 @@ const PANE_STATE = { plugin: 'transceiver', key: 'pane' } as const
 const CONNECTION_STATE = { plugin: 'transceiver', key: 'connected' } as const
 const HUB_STATE = { plugin: 'transceiver', key: 'hub' } as const
 const BAND_STATE = { plugin: 'transceiver', key: 'band' } as const
+const TEAM_STATE = { plugin: 'transceiver', key: 'team' } as const
 const DEFAULT_COLUMNS = 80
 
 function uiOf($: EngineInterface): UiHost {
@@ -88,6 +94,10 @@ function uiOf($: EngineInterface): UiHost {
     setBand: async line => {
       if (isSame((await $.state.get(BAND_STATE)).value ?? null, line)) return
       await $.state.set(BAND_STATE, line)
+    },
+    setTeam: async line => {
+      if (isSame((await $.state.get(TEAM_STATE)).value ?? null, line)) return
+      await $.state.set(TEAM_STATE, line)
     },
     isPaneShown: async () => (await $.ui.panes()).some(p => p.id === PANE_ID && p.isShown),
     toast: text => $.ui.toast(text),
@@ -115,6 +125,7 @@ async function readState($: EngineInterface, ref: { plugin: string; key: string 
 function agentHostOf($: EngineInterface): AgentHost {
   return {
     ...hostOf($),
+    dataDir: async () => (await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? `${(await hostOf($).home()) ?? '.'}/.claude`,
     run: runnerOf((argv, init) => $.process.run(argv, init)),
     realPath: realPathOf(abs => $.fs.stat(abs, { resolve: true })),
     readFile: path => $.fs.read(path),
@@ -151,6 +162,8 @@ async function reportShown($: EngineInterface): Promise<void> {
 async function openPane($: EngineInterface): Promise<void> {
   motion.reset()
   await linkHere(hostOf($)).catch(() => undefined)
+  // Opening the pane looks for the repo's room too: a teammate may have arrived since the session started.
+  void ensureRepoRoom(agentHostOf($)).then(room => (room === null ? undefined : refreshPane())).catch(() => undefined)
   const opened = await $.ui.open({ id: PANE_ID, title: 'Transceiver', focus: true })
   setPaneShown(true)
   if (opened.isPlaced) await reportShown($)
@@ -179,6 +192,8 @@ function onSession(on: On): void {
     await registerTools($)
     await startLoop(agents)
     await refreshPane()
+    // One look at the repo, off the start-up path: a teammate already there opens the room here too.
+    void ensureRepoRoom(agents).then(room => (room === null ? undefined : refreshPane())).catch(() => undefined)
     return next(e)
   })
   // A session with permissions bypassed may write without a "Bağlan" card (spike R1). An SDK host (an IDE, the
@@ -189,6 +204,7 @@ function onSession(on: On): void {
   }).catch(($, e, next) => next(e))
   on('classic.UserPromptSubmit', async ($, e, next) => {
     if (isBypassMode(e.permission_mode)) setConnected(true)
+    markWork(agentHostOf($), await $.clock.now())
     // The bridge follows the person to the session they write in; a machine-made turn leaves it where it is.
     if (e.source === undefined || e.source === 'user' || e.source === 'sdk') await linkHere(hostOf($)).catch(() => undefined)
     return next(e)
@@ -214,7 +230,11 @@ function onPane(on: On): void {
   // A press on the MODZ hub's Transceiver row: the pane opens (or an open one comes forward) asking for the keyboard.
   on('state.set', { plugin: 'modz', key: 'open' }, async ($, e, next) => {
     const done = await next(e)
-    if (isOpenFor(e.value, HUB_PANE)) await openPane($)
+    if (!isOpenFor(e.value, HUB_PANE)) return done
+    await openPane($)
+    // Opened from outside with a teammate's line unread: straight to that room.
+    const team = (await $.state.get(TEAM_STATE)).value ?? null
+    if (team !== null && team.unread > 0) await paneHandlers.select(team.roomId)
     return done
   }).catch(($, e, next) => next(e))
   // Another pane took the hub's one panel: this one steps aside rather than wait as a tab.

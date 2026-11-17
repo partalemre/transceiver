@@ -308,3 +308,16 @@ What the owner can still do: write any doc in a member's outbox (messages, day d
 - The artifact page is static: what the link is and how to join from Claude Code. A mailbox holds one person's half of a room, so a page could not show the conversation; chat happens in the mod.
 
 **Cost.** Each person shares their own mailbox once (two Paylaş steps per DM instead of one). Across organizations each side also pastes the other's link, since the shared list never shows another organization's artifacts (spike R3). Old single-artifact rooms are not migrated.
+
+## Repo rooms (2026-11-17)
+
+**Why.** The artifact room needs a manual Share step from each person and, across organizations, a link swap each way; it has never passed a real two-account run. For two people on one GitHub repo the owner asked for "almost no setup".
+
+**What.** A project room now lives in the repo (`gitbox.ts`, `gitdb.ts`, `gitroom.ts`): one ref per member under `refs/transceiver/`, kept in a bare repository of its own under Claude's config folder, written with `git fast-import` and read with one `git grep` per collection. `gitdb.ts` answers the relay's ArtifactData calls in the tool's own wording, so `relay.ts`, `sync.ts` and everything above run unchanged; `register.tsx` routes a `git:` address there. DMs and the device bridge stay on artifacts.
+
+- The room appears by itself in a session whose repo already has a teammate's ref (looked for at session start, when the pane opens, and at most every five minutes while the person works). "Project room" opens the first one. Public repos are refused (`visibilityOf`).
+- The gate in a repo room needs only the room and the session to be that repo: a line there was pushed, which only a collaborator can do. No GitHub card, no collaborator call, no two-person limit.
+- A write is one local commit, shown at once; the push follows behind it and is retried on the next poll. A poll is one `git fetch` (measured: https about 1–2 s a call, ssh 3–5 s, so https is tried first).
+- The head carries `label` (git user.name), `gh`, `branch` and `at` (a beat every five minutes while the person works). `team.ts` publishes the teammates and their newest line as the `team` state for MODZ's session strip.
+- Measured live 2026-11-17 with `bin/e2e-repo.py` on a private repo: room opened, appeared by itself in a second session with its own store, chat both ways with a read receipt, 5–7 s a line. Not run live: an agent `ask` (the test engine had no signed-in model) and a second real account or a Windows machine.
+- Residual: any collaborator can write any ref; lines stay in the ref's history.

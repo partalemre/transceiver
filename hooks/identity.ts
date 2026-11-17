@@ -1,4 +1,5 @@
 import { deviceNameOf } from './devices'
+import { isGitUrl } from './gitbox'
 import { isLogin, ownLogin } from './github'
 import type { AgentHost } from './host'
 import { LOGIN_RETRY_MS } from './limits'
@@ -10,7 +11,7 @@ type Known = { login: string | null; at: number }
 let memo: Known | null = null
 
 // The person's GitHub login: the one they set in the settings, else `gh`'s. A miss is not asked again for a while.
-async function loginOf(host: AgentHost): Promise<string | null> {
+export async function loginOf(host: AgentHost): Promise<string | null> {
   const set = (await loadSettings(host)).gh
   if (set !== undefined && isLogin(set)) return set
   const now = await host.now()
@@ -26,7 +27,8 @@ export const forgetLogin = () => { memo = null }
 // their GitHub login on their own head, merged so no cursor moves. The room is read fresh from this person's own
 // store: one left meanwhile, or a room this host does not hold, gets nothing.
 export async function shareLogin(host: AgentHost, ev: TickEvent): Promise<boolean> {
-  if (ev.isDenied || !host.isConnected()) return false
+  // A git room's head carries the login with the name and the beat, in one write (gitroom.ts).
+  if (ev.isDenied || !host.isConnected() || isGitUrl(ev.room.url)) return false
   // A DM has no agent gate, so the login stays out of it.
   const isMine = (await loadRooms(host)).some(r => r.id === ev.room.id && r.url === ev.room.url && r.status === 'active' && r.kind === 'project')
   if (!isMine) return false

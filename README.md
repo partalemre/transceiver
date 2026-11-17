@@ -23,11 +23,30 @@ Then type `/transceiver`. The pane opens, and every step is a button there.
 - **SDK hosts.** If Claude Code runs inside another app (an IDE, T3 Code, `claude -p`), the claude.ai Artifact tools are off by default. Add `"CLAUDE_CODE_ARTIFACT": "1"` to the `env` block of `~/.claude/settings.json` and start a new session. The desktop app and the terminal do not need this.
 - **Language.** The interface is English. Set `MODZ_LANG=tr` for Turkish.
 
+## Team room on a shared repo
+
+If you and a teammate work on the same **private** GitHub repo, there is nothing to set up between you.
+
+1. One of you opens the pane (`/transceiver`), presses **Project room** and confirms the repo name it already shows.
+2. Everyone else who has Transceiver and opens a session in that repo gets the room by itself, within a prompt or two. No link, no share menu, no account to match.
+3. Write in the pane, or tell Claude to ("tell Yusuf's side the tests pass", "ask their side for the diff"). Lines from a teammate's agent show in the same chat, marked as the agent's.
+
+How it works: the room lives in the repo itself. Each member writes one hidden ref of their own (`refs/transceiver/<id>`, outside branches and tags, so no CI run, pull request or branch rule ever sees it) and reads the others'. Whoever can push to the repo is in; nobody else can read it. Your checkout, its branches and its hooks are never touched: the mailbox is a small separate folder under Claude's own config folder.
+
+- **Speed.** A line shows as written at once and reaches a teammate in about five seconds (each look is one call to GitHub).
+- **Who is here.** Your name (from `git config user.name`), your branch and when you last worked go on your own ref while you work, so teammates see who is on the repo. MODZ's session strip shows it above the prompt.
+- **Private repos only.** A public repo's refs can be fetched by anyone, so Transceiver refuses to open a room there.
+- **What stays in the repo.** Lines are kept in the ref's history, where every collaborator can fetch them, also after a 7-day compaction. So every line, typed or agent-written, is scanned for secrets before it is sent, and one that looks like a key is refused.
+- **Trust.** A collaborator who can push can write any ref, including a line under someone else's id. Agent questions therefore only ever return what a collaborator could already read in the repo's working copy on your side, behind the same file and secret rules as below.
+- **Leaving.** `/transceiver leave <repo>` stops it. To remove your lines from the repo: `git push origin :refs/transceiver/<id>` (the id is in the store key `tx.git.uid`).
+
+DMs with a friend and the bridge between your own computers still use private claude.ai artifacts, described next.
+
 ## How it works
 
 A room is made of mailboxes, one per member. Only you write to yours, and the other members read it. This is why the share level you pick (the default Commenter role is enough, and so is Viewer), or your friend being in another organization, makes no difference.
 
-1. **Open a room.** In the pane, **Add a friend** opens a DM; **Project room** opens a room for a repo you share, prefilled with the session's repo. The pane shows your mailbox link.
+1. **Open a room.** In the pane, **Add a friend** opens a DM. The pane shows your mailbox link.
 2. **Share your mailbox.** Open the link on claude.ai, add your friend by email from the page's **Share** menu, and send them the link. This step is manual because claude.ai has no sharing API.
 3. **They join.** In the same organization, an invite card appears in their pane within a minute. From another organization, invites are not listed, so they paste your link into **I have a link** (or type `/transceiver join <link>`). Joining opens their own mailbox.
 4. **They share back.** They share their mailbox with you the same way and send you its link; until you have read one of their lines, their chat keeps that link on screen with **Copy link**. Paste it into **I have a link** on your side.
@@ -57,7 +76,7 @@ Every command is also a button in the pane. The Turkish words (`ekle`, `proje`, 
 | `/transceiver` | Opens the pane |
 | `/transceiver bridge` | Connects this computer to your other one and follows it in this session |
 | `/transceiver add` | Opens a DM room for a friend |
-| `/transceiver project <owner/repo>` | Opens a shared project room |
+| `/transceiver project <owner/repo>` | Opens the team room of a private repo you can push to |
 | `/transceiver join <link>` | Joins a room by mailbox link, or adds the other side's mailbox to a room you are in |
 | `/transceiver leave <room name or link>` | Leaves a room; its polling stops |
 | `/transceiver connect` | Connects this session (one approval for the first message) |
@@ -129,6 +148,7 @@ Messaging, polling and model-free questions use no model tokens: the mod calls C
 
 - **Build.** A session loads `hooks/bundle.js`, never the `.ts` files beside it: one plain file starts a session faster than the engine reading each source file. After any edit under `hooks/`, run MODZ's `bin/modz build <path to this folder>` (needs [bun](https://bun.sh)) and commit the bundle with the change.
 - **Tests.** `claude plugin validate .` checks the plugin, and `claude plugin test .` runs the tests. `tsc -p .` type-checks it against the types Claude Code writes into `.claude-plugin/types/` when it hot-reloads the mod.
+- **Repo rooms.** `bun bin/gitroom-check.ts` runs the git transport against real git in a temp folder (the plugin's own tests may not start a process). `REPO=owner/name REPO_DIR=<checkout> python3 -I bin/e2e-repo.py` runs it live between two sessions on a real private repo and removes the refs it made.
 - **End to end.** `python3 -I bin/e2e.py` runs the whole flow live between two sessions with separate stores: DM, read receipts, project room, GitHub match and an agent question. It uses MODZ's `tools/desk` driver and creates private test mailboxes in your account.
 - **Two accounts.** For a check across two real accounts, follow [docs/e2e-checklist.md](docs/e2e-checklist.md).
 

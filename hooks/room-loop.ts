@@ -32,6 +32,9 @@ let viewing: string | null = null
 let isPaneOpen = false
 let discovery: Timer | null = null
 let isDiscovering = false
+// Rooms this session leaves to others (a git room of another repo): asked before every poll.
+let skip: ((room: RoomRecord) => Promise<boolean>) | null = null
+export const setRoomSkip = (fn: typeof skip): void => { skip = fn }
 
 // Returns the unsubscribe, so a rewiring (or a test) never stacks listeners.
 export function onTick(fn: Listener): () => void {
@@ -81,6 +84,7 @@ function carryQueued(opts: { before: RoomSync; during: RoomSync | undefined; aft
 async function step(host: Host, scheduled: RoomRecord): Promise<void> {
   // Read fresh: a mailbox found since the poll was scheduled is read on this tick.
   const room = (await loadRooms(host)).find(r => r.id === scheduled.id) ?? scheduled
+  if (skip !== null && await skip(room)) return schedule(host, room, DISCOVER_MS)
   const before = await loadSync(host, room)
   const settings = await loadSettings(host)
   const isViewing = isPaneOpen && viewing === room.id

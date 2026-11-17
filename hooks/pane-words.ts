@@ -35,7 +35,7 @@ const EN = {
 }
 
 const TR: typeof EN = {
-  waitingPeer: 'davet bekleniyor',
+  waitingPeer: 'takım arkadaşı bekleniyor',
   withPeer: peer => `sen ve ${peer}`,
   dmWaiting: 'Arkadaşın daveti kabul edince başlar',
   here: 'burada',

@@ -31,6 +31,7 @@ export function fakeAgent(answer: (input: Record<string, unknown>) => Promise<Ca
     readFile: async (path: string) => agent.files[path] ?? '',
     root: async () => '/w',
     readState: async () => undefined,
+    dataDir: async () => '/home/.claude',
     mcpCall: async () => { throw new Error('no github mcp') },
     complete: async (request: ModelCompleteRequest) => { agent.asked.push(request); return agent.reply(request) },
     sleep: (ms: number) => base.advance(ms),

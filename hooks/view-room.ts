@@ -1,6 +1,7 @@
 // What a room shows beyond its messages: the peer's head (when they were last here, when they last read) and, for a
 // project room, the gate's four conditions, the day's ask budget and what this machine answered today. Pure.
 import { sameName } from './gate'
+import { isGitUrl } from './gitbox'
 import { ASK_DAILY_LIMIT } from './limits'
 import { isUnreadable } from './protocol'
 import type { RoomRecord } from './rooms'
@@ -18,6 +19,9 @@ export const peerUids = (sync: RoomSync | undefined): string[] =>
   Object.keys(sync?.peers ?? {}).filter(uid => uid !== sync?.selfUid)
 
 export function gateChecks(room: RoomRecord, sync: RoomSync | undefined, src: RoomSources): GateChecks {
+  const isSessionRepo = src.sessionRepo === undefined ? null : sameName(src.sessionRepo, room.repo)
+  // A git room: whoever writes there pushed to the repo, so the match and the collaborator check are settled.
+  if (isGitUrl(room.url)) return { isConfirmed: true, login: undefined, isCollaborator: true, checkedAt: null, isSessionRepo, isPair: true }
   const peer = room.peers.find(p => p.isGhConfirmed && p.gh !== undefined)
   const login = peer?.gh
   const isConfirmed = peer !== undefined && login !== undefined && sameName(login, sync?.peers[peer.uid]?.gh)

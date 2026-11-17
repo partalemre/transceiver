@@ -3,6 +3,7 @@ import { askModel, newNonce } from './ask'
 import { spendAsk } from './budget'
 import { addDraft, loadDrafts } from './drafts'
 import { makeGate, type GateInput } from './gate'
+import { isGitUrl } from './gitbox'
 import { ghCheck, mcpCheck } from './github'
 import { repoHere } from './here'
 import type { AgentHost } from './host'
@@ -38,7 +39,7 @@ function depsFor(ctx: Ctx, turn: Turn): Deps {
     // peer's head announces now must still be the one confirmed.
     gate: o => ctx.gate({
       ...o, room, sessionRepo: repo, headGh: ev.state.peers[o.peerUid]?.gh,
-      otherMembers: Object.keys(ev.state.peers).filter(uid => uid !== selfUid).length,
+      otherMembers: Object.keys(ev.state.peers).filter(uid => uid !== selfUid).length, isRepoRoom: isGitUrl(room.url),
     }),
     typed: q => answerTyped({
       run: host.run, root, realPath: host.realPath, readFile: p => host.readFile(p), readState: (p, k) => host.readState(p, k),

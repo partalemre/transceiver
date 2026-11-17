@@ -1,5 +1,6 @@
 // The pane's model from the stored rooms and the live sync states: pure, so every state of the pane is testable
 // without the engine.
+import { isGitUrl } from './gitbox'
 import { deviceLabels } from './devices'
 import { lastCheck } from './gate'
 import { TROUBLE_AFTER_FAILURES } from './limits'
@@ -97,7 +98,7 @@ function roomView(room: RoomRecord, input: ModelInput): RoomView {
     seed: room.kind === 'project' ? room.repo ?? room.id : peer ?? room.id,
     unread, isTroubled: (sync?.failures ?? 0) >= TROUBLE_AFTER_FAILURES, isBoxBlocked: (sync?.unread.length ?? 0) > 0,
     isWaiting: room.kind !== 'project' && room.boxes.length === 0 && peer === undefined,
-    isUnseen: room.kind !== 'devices' && !hasSeenMine(sync),
+    isUnseen: room.kind !== 'devices' && !isGitUrl(room.url) && !hasSeenMine(sync),
     ...lastOf(room, sync, input),
     ...(peer === undefined ? {} : { peerName: room.kind === 'devices' ? nameOf(input.names, peer) : firstName(nameOf(input.names, peer)) }),
     peerSeenTs: head.seenTs, peerReadTs: input.settings.isReceiptsOn ? head.readTs : 0,
@@ -121,7 +122,7 @@ function ghAskOf(input: ModelInput): GhAsk | null {
   for (const room of input.rooms) {
     const sync = input.syncs[room.id]
     // The match only opens the agent gate, which only project rooms have.
-    if (room.status !== 'active' || room.kind !== 'project' || sync === undefined) continue
+    if (room.status !== 'active' || room.kind !== 'project' || sync === undefined || isGitUrl(room.url)) continue
     for (const uid of peerUids(sync)) {
       const gh = sync.peers[uid]?.gh
       const peer = room.peers.find(p => p.uid === uid)

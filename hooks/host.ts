@@ -39,6 +39,8 @@ export type ToolHost = Pick<Host, 'tool'>
 // The agent side's reach (T13–T14), bound beside Host in register.tsx: commands, files, the model, the session's
 // own conversation. `isConnected` says whether this session may write yet (the pane's "Bağlan" press, spike R1).
 export type AgentHost = Host & {
+  // Where Claude Code keeps this person's own files (its config folder): the git rooms' mailboxes live under it.
+  dataDir(): Promise<string>
   run: Run
   realPath: RealPath
   readFile(path: string): Promise<string>

@@ -1,3 +1,5 @@
-docs/spike-results.json
+.DS_Store
 .claude-plugin/types/
 .superpowers/
+__pycache__/
+docs/spike-results.json

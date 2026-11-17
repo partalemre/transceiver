@@ -7,8 +7,8 @@ import { forgetRepo } from '../hooks/here'
 import { forgetLogin } from '../hooks/identity'
 import { COLLAB_CACHE_MS, DISCOVER_MS } from '../hooks/limits'
 import { DENIED, type Message } from '../hooks/protocol'
-import { discover, enqueueMessage, setViewing, startLoop, stopRoom } from '../hooks/room-loop'
-import { loadRooms, loadSettings, saveRooms, saveSettings } from '../hooks/rooms'
+import { discover, enqueueMessage, pokeRoom, setViewing, startLoop, stopRoom } from '../hooks/room-loop'
+import { createRoom, loadRooms, loadSettings, saveRooms, saveSettings } from '../hooks/rooms'
 import { newId } from '../hooks/ulid'
 import * as T from './db-texts'
 import {
@@ -146,7 +146,12 @@ test('receipts off on Alperen\'s side: he sends no blue ✓✓ and sees none fro
 })
 
 test('project room: Emre opens eliti, Alperen accepts, both heads carry their GitHub login', async () => {
-  w.project = urlIn(await command(w.emre, `proje ${REPO}`))
+  // The command now opens the repo's own room (gitroom.ts); this walk keeps covering the artifact room, which a
+  // link or an invite still joins, so it is made the way the command used to make it.
+  const made = await createRoom({ host: w.emre, kind: 'project', repo: REPO, consent: 'test' })
+  await saveRooms(w.emre, [...(await loadRooms(w.emre)), made])
+  pokeRoom(w.emre, made)
+  w.project = made.url
   expect(net.rooms.get(w.project)?.title).toBe(`Transceiver · ${REPO}`)
   share(net, w.project, ALPEREN)
   await sched.advance(DISCOVER_MS)

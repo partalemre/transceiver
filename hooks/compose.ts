@@ -2,6 +2,8 @@
 // mode a menu row puts the field in, and the chips. Every query goes the way an agent's `ask` tool sends one: a
 // `query` message, checked by the protocol's own guard, that the other side's responder answers.
 import { showSent } from './bridge'
+import { isGitUrl } from './gitbox'
+import { hasSecret } from './scan'
 import { MAX_TEXT_BYTES } from './limits'
 import { isRepo, utf8Bytes, type Message } from './protocol'
 import { composeOf, isModeType, queryMessage, specOf, type Composed } from './query-menu'
@@ -43,6 +45,8 @@ export async function sendComposed(p: PanePort, opts: { roomId: string; text: st
   const composed = composedOf(opts.roomId, text)
   if (room === undefined || (composed.kind === 'text' && text === '')) return
   if (utf8Bytes(text) > MAX_TEXT_BYTES) return patchSession({ error: stepWords().tooLong })
+  // A git room's lines stay in the repo's history, where every collaborator can fetch them.
+  if (isGitUrl(room.url) && hasSecret(text)) return patchSession({ error: stepWords().secretNotSent })
   const message = await messageFor(p, { room, composed })
   if (typeof message === 'string') return patchSession({ hint: message })
   if (!enqueueMessage({ host: p.host, room, message })) return patchSession({ error: stepWords().notLoaded })
