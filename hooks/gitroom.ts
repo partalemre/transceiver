@@ -25,6 +25,8 @@ const FNV_PRIME = 0x01000193
 export const BEAT_MS = 5 * 60_000
 
 let uid: string | null = null
+const ALONE_KEPT_MS = 60 * 60_000
+const aloneAt = new Map<string, number>()
 let lastWorkAt = 0
 let wired: AgentHost | null = null
 let lastLookAt = 0
@@ -96,6 +98,18 @@ export async function openRepoRoom(repo: string): Promise<RoomRecord> {
   return room
 }
 
+// Whether GitHub lists more than one person on the repo, asked through `gh` when it is there. Without `gh`, or
+// without the right to see the list, the answer is no and the room waits for a teammate's mailbox or a press. A no
+// is kept for a while: most repos a person opens are their own alone.
+async function isShared(host: AgentHost, repo: string): Promise<boolean> {
+  const now = await host.now()
+  if (now - (aloneAt.get(repo) ?? Number.NEGATIVE_INFINITY) < ALONE_KEPT_MS) return false
+  const out = await host.run(['gh', 'api', `repos/${repo}/collaborators`, '--jq', 'length']).catch(() => null)
+  const isMany = out !== null && out.exitCode === 0 && Number(out.stdout.trim()) > 1
+  if (!isMany) aloneAt.set(repo, now)
+  return isMany
+}
+
 // The room of the session's own repo, opened here when a teammate is already there. A room the person left stays
 // left; a repo nobody uses Transceiver in gets no room and no folder.
 export async function ensureRepoRoom(host: AgentHost): Promise<RoomRecord | null> {
@@ -107,7 +121,9 @@ export async function ensureRepoRoom(host: AgentHost): Promise<RoomRecord | null
     if (held.status === 'active') setConnected(true)
     return held.status === 'active' ? held : null
   }
-  if (!(await peek(gitIoOf(host), repo)) || (await visibilityOf(gitIoOf(host), repo)) !== 'private') return null
+  // A teammate already there, or a repo GitHub says more than one person works on: either opens the room.
+  if (!(await peek(gitIoOf(host), repo)) && !(await isShared(host, repo))) return null
+  if ((await visibilityOf(gitIoOf(host), repo)) !== 'private') return null
   const room = repoRoomRecord({ repo, uid: await selfUidOf(host), now: await host.now() })
   // Read again: the press on "Project room" may have added it meanwhile.
   const rooms = await loadRooms(host)

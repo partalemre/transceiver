@@ -77,6 +77,7 @@ export const REPO_CACHE_MS = 60_000
 export const LOGIN_RETRY_MS = 600_000
 export const LIVE_COOLDOWN_MS = 30_000
 export const LIVE_MAX_CHARS = 2_000
+export const LIVE_HOURLY_MAX = 20
 
 // The bridge between a person's own computers (devices.ts, bridge.ts).
 export const HOUR_MS = 60 * 60_000
