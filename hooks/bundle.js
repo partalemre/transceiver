@@ -1134,7 +1134,7 @@ const EN$7 = {
   secretNotSent: "This looks like a password or a key, so it was not sent.",
   publicRepo: "This repo is public, so anyone could read a team room in it. Team rooms open only in private repos.",
   repoUnreachable: "GitHub could not be reached for this repo. Check the name and your connection, then try again.",
-  onlyProject: "Agents can be asked only in project rooms.",
+  onlyProject: "An AI can be asked only in a project room.",
   badQuery: "This query could not be sent: its value is missing or not valid.",
   notABox: "This link is not a Transceiver mailbox, or it is not shared with you.",
   shareBack: "Last step: open your own mailbox link on claude.ai, add your friend under Share and send them the link.",
@@ -1180,7 +1180,7 @@ const TR$7 = {
   secretNotSent: "Bu bir şifreye ya da anahtara benziyor, gönderilmedi.",
   publicRepo: "Bu depo herkese açık; içindeki takım odasını herkes okuyabilirdi. Takım odası yalnızca gizli depolarda açılır.",
   repoUnreachable: "Bu depo için GitHub'a ulaşılamadı. Adı ve bağlantını kontrol edip tekrar dene.",
-  onlyProject: "Agent'a soru yalnızca proje odalarında sorulur.",
+  onlyProject: "Yapay zekâya soru yalnızca proje odalarında sorulur.",
   badQuery: "Bu sorgu gönderilemedi: değeri eksik ya da geçersiz.",
   notABox: "Bu link bir Transceiver kutusu değil ya da sana paylaşılmamış.",
   shareBack: "Son adım: kendi kutunun linkini claude.ai'de aç, Paylaş'tan arkadaşını ekle ve linki ona gönder.",
@@ -2503,12 +2503,12 @@ const EN$5 = {
   connecting: "Connecting…",
   notNow: "Not now",
   inviteDm: "Accept and you can write to each other here.",
-  inviteProject: "Agents talk only if you are both collaborators.",
+  inviteProject: "Your AIs talk only if you can both work on the repo.",
   invitedTo: (repo) => repo === undefined ? "You are invited to a project room" : `You are invited to the ${repo} room`,
   someoneWrites: "Someone wants to message you",
   accept: "Accept",
   decline: "Decline",
-  ghBody: "Say yes and your agents can talk in the repos you share.",
+  ghBody: "Say yes and your AIs can talk in the repos you share.",
   heard: (o) => `${o.repo}: ${o.isCollaborator ? "collaborator" : "not a collaborator"}`,
   ghSays: (heard) => `GitHub says ${heard}`,
   ghTitle: (o) => `Is ${o.name} @${o.gh} on GitHub?`,
@@ -2585,12 +2585,12 @@ const TR$5 = {
   connecting: "Bağlanıyor…",
   notNow: "Şimdi değil",
   inviteDm: "Kabul edersen birbirinize buradan yazarsınız.",
-  inviteProject: "Agent'lar yalnızca ikiniz de collaborator iseniz konuşur.",
+  inviteProject: "Yapay zekâlarınız yalnızca ikiniz de bu repoda çalışabiliyorsanız konuşur.",
   invitedTo: (repo) => `${repo ?? "Bir proje"} odasına davet edildin`,
   someoneWrites: "Biri seninle yazışmak istiyor",
   accept: "Kabul et",
   decline: "Reddet",
-  ghBody: "Evet dersen ortak repolarınızda agent'larınız konuşabilir.",
+  ghBody: "Evet dersen ortak repolarınızda yapay zekâlarınız konuşabilir.",
   heard: (o) => `${o.repo}: ${o.isCollaborator ? "collaborator" : "değil"}`,
   ghSays: (heard) => `GitHub'a göre ${heard}`,
   ghTitle: (o) => `${o.name} GitHub'da @${o.gh} mı?`,
@@ -2807,10 +2807,10 @@ const ICONS = {
   ask: "sparkle"
 };
 const EN$4 = {
-  status: { desc: "Changes, ahead and behind" },
-  branch: { desc: "Current branch and upstream" },
-  diff: { desc: "Uncommitted changes" },
-  log: { desc: "Last 20 commits" },
+  status: { desc: "What changed, and how far from the shared copy" },
+  branch: { desc: "The line of work they are on" },
+  diff: { desc: "Changes not saved yet" },
+  log: { desc: "The last 20 saved versions" },
   tests: { desc: "Last test result" },
   plan: { desc: "The plan and step they are on" },
   todo: { desc: "TODOs and FIXMEs", placeholder: "Folder (leave empty for the whole repo)" },
@@ -2818,14 +2818,14 @@ const EN$4 = {
   grep: { desc: "Search text in the repo", placeholder: "Text to find" },
   file: { desc: "Read one file", placeholder: "File path, e.g. src/app.ts" },
   files: { desc: "Files in a folder", placeholder: "Folder (leave empty for the root)" },
-  commit: { desc: "Summary of one commit", placeholder: "Commit sha" },
-  ask: { desc: "Free question · Haiku · spends tokens", placeholder: "Ask the agent" }
+  commit: { desc: "Summary of one saved version", placeholder: "Saved version (commit sha)" },
+  ask: { desc: "Free question · Haiku · spends tokens", placeholder: "Ask their AI" }
 };
 const TR$4 = {
-  status: { desc: "Değişenler, ileride/geride" },
-  branch: { desc: "Şu anki branch ve takip" },
-  diff: { desc: "Commit edilmemiş değişiklik" },
-  log: { desc: "Son 20 commit" },
+  status: { desc: "Ne değişti, ortak kopyadan ne kadar ayrı" },
+  branch: { desc: "Üzerinde çalıştığı çalışma dalı" },
+  diff: { desc: "Henüz kaydedilmemiş değişiklikler" },
+  log: { desc: "Son 20 kayıt" },
   tests: { desc: "Son test sonucu" },
   plan: { desc: "Çalıştığı plan ve adım" },
   todo: { desc: "TODO ve FIXME'ler", placeholder: "Klasör (boş bırakırsan bütün repo)" },
@@ -2833,8 +2833,8 @@ const TR$4 = {
   grep: { desc: "Repoda metin ara", placeholder: "Aranacak metin" },
   file: { desc: "Bir dosyayı oku", placeholder: "Dosya yolu, örn. src/app.ts" },
   files: { desc: "Klasördeki dosyalar", placeholder: "Klasör (boş bırakırsan kök)" },
-  commit: { desc: "Tek commit'in özeti", placeholder: "Commit sha" },
-  ask: { desc: "Serbest soru · Haiku · token harcar", placeholder: "Agent'a sorun" }
+  commit: { desc: "Bir kaydın özeti", placeholder: "Kayıt (commit sha)" },
+  ask: { desc: "Serbest soru · Haiku · token harcar", placeholder: "Yapay zekâya sor" }
 };
 const HINTS = {
   en: {
@@ -3334,6 +3334,24 @@ function fitText(text, max, measure) {
     chars.pop();
   return chars.length === 0 ? "" : `${chars.join("").trimEnd()}…`;
 }
+function wrapText(text, o) {
+  const { max, maxLines, measure } = o;
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const [i, word] of words.entries()) {
+    const next = line ? `${line} ${word}` : word;
+    if (measure(next) <= max || !line) {
+      line = next;
+      continue;
+    }
+    if (lines.length === maxLines - 1)
+      return [...lines, fitText(`${line} ${words.slice(i).join(" ")}`, max, measure)];
+    lines.push(line);
+    line = word;
+  }
+  return line ? [...lines, fitText(line, max, measure)] : lines;
+}
 
 const ROLES$1 = ["read", "edit", "run", "ok", "warn", "danger", "plan"];
 const role = (fg, tint, line) => ({ fg, tint, line });
@@ -3456,6 +3474,15 @@ const resolveLight = (hints) => named(hints.override) ?? named(hints.theme) ?? t
 
 const CAP_EM = 0.7;
 const DECIMALS = 100;
+const TYPE = {
+  display: { size: 24, weight: 650 },
+  headline: { size: 17, weight: 620, line: 22 },
+  title: { size: 14, weight: 600, line: 20 },
+  body: { size: 13, weight: 400, line: 18 },
+  eyebrow: { size: 12, weight: 600, tracking: 0 },
+  label: { size: 12, weight: 500 },
+  micro: { size: 10.5, weight: 500 }
+};
 const num$1 = (value) => String(Math.round(value * DECIMALS) / DECIMALS);
 const escapeXml = (text) => text.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
 const sans = (size, weight) => (text) => textWidth(text, size, weight);
@@ -3480,6 +3507,7 @@ function textEl(t) {
   ].join("");
   return `<text ${attrs}>${escapeXml(t.text)}</text>`;
 }
+const rectEl = (r, extra = "") => `<rect x="${num$1(r.x)}" y="${num$1(r.y)}" width="${num$1(Math.max(0, r.width))}" height="${num$1(r.height)}"${r.radius ? ` rx="${num$1(r.radius)}"` : ""} class="f-${r.paint}${r.className ? ` ${r.className}` : ""}"${extra}/>`;
 
 const VEIL = { fill: 0.075, soft: 0.035, edge: 0.16, rule: 0.13 };
 const veilRect = (o) => {
@@ -3529,6 +3557,53 @@ function themed(pic, pin) {
   const used = new Set([...pic.source.matchAll(VAR_USE)].map((m) => m[1]));
   const block = Object.entries(vars).filter(([name]) => used.has(name)).map(([name, value]) => `--${name}:${value}`).join(";");
   return { ...pic, source: pic.source.replace(/<\/style>/, `svg{${block}}</style>`) };
+}
+
+const MARK_PAD = 3;
+const MARK_RADIUS = 4;
+const MARK_INSET = 1;
+const LINE_RATIO = 1.3;
+function markSpans(lines, text, mark) {
+  const flat = text.split(/\s+/).filter(Boolean).join(" ");
+  const start = mark ? flat.indexOf(mark.trim()) : -1;
+  const end = start + (mark?.trim().length ?? 0);
+  let offset = 0;
+  return lines.map((line) => {
+    const visible = line.endsWith("…") ? line.length - 1 : line.length;
+    const from = Math.max(start, offset) - offset;
+    const to = Math.min(end, offset + visible) - offset;
+    offset += line.length + 1;
+    return start >= 0 && to > from ? { from, to } : null;
+  });
+}
+function lineMarkup(o) {
+  const { line, span, top, opts } = o;
+  const measure = sans(opts.size, opts.weight);
+  const y = baseline(top, opts.lineHeight, opts.size);
+  const role = opts.markRole ?? "warn";
+  const font = `font-size="${opts.size}" font-weight="${opts.weight}"`;
+  if (span === null)
+    return textEl({ x: 0, y, text: line, size: opts.size, weight: opts.weight, paint: opts.paint });
+  const x0 = measure(line.slice(0, span.from));
+  const x1 = measure(line.slice(0, span.to));
+  const rect = rectEl({ x: x0 - MARK_PAD, y: top + MARK_INSET, width: x1 - x0 + MARK_PAD * 2, height: opts.lineHeight - MARK_INSET * 2, radius: MARK_RADIUS, paint: `${role}-tint` });
+  const pieces = [line.slice(0, span.from), line.slice(span.from, span.to), line.slice(span.to)].map(escapeXml);
+  return `${rect}<text x="0" y="${y}" class="f-${opts.paint}" ${font}>${pieces[0]}<tspan class="f-${role}">${pieces[1]}</tspan>${pieces[2]}</text>`;
+}
+function linesPart(o) {
+  const size = o.size ?? TYPE.headline.size;
+  const opts = {
+    ...o,
+    size,
+    weight: o.weight ?? TYPE.headline.weight,
+    lineHeight: o.lineHeight ?? Math.round(size * LINE_RATIO),
+    paint: o.paint ?? "hi",
+    maxLines: o.maxLines ?? 2
+  };
+  const lines = wrapText(o.text, { max: o.width - MARK_PAD, maxLines: opts.maxLines, measure: sans(size, opts.weight) });
+  const spans = markSpans(lines, o.text, o.mark);
+  const body = lines.map((line, i) => lineMarkup({ line, span: spans[i] ?? null, top: i * opts.lineHeight, opts })).join("");
+  return { body, width: o.width, height: lines.length * opts.lineHeight, alt: o.text };
 }
 
 const GLYPHS = {
@@ -3602,7 +3677,16 @@ function rightOf(o) {
   const mark = count === "" ? "" : textEl({ x: o.width, y, text: count, paint: "edit", size: NOTE.size, weight: COUNT_WEIGHT, anchor: "end" });
   return { body: time + mark, width: timeWidth + countWidth };
 }
-const markPaint = (o) => o.isWarn ? "warn" : o.unread > 0 ? "edit" : "mid";
+function markPaint(o) {
+  if (o.isWarn)
+    return "warn";
+  return o.unread > 0 ? "edit" : "mid";
+}
+function previewPaint(o) {
+  if (o.isWarn)
+    return "warn";
+  return o.unread > 0 ? "mid" : "lo";
+}
 const MONO = 18;
 function markSvg(o) {
   const top = (ROOM_ROW_H - ICON) / 2;
@@ -3625,7 +3709,7 @@ function roomRowPic(o) {
     o.isActive === true ? veilRect({ x: -WASH$1.inset, y: 1, w: o.width + WASH$1.inset * 2, h: ROOM_ROW_H - 2, r: WASH$1.radius, fill: VEIL.fill }) : "",
     mark,
     textEl({ x: NAME_X, y, text: name, paint: "hi", ...NAME$2 }),
-    preview === "" ? "" : textEl({ x: NAME_X + nameWidth + GAP$1, y, text: preview, paint: o.isWarn ? "warn" : o.unread > 0 ? "mid" : "lo", ...NOTE }),
+    preview === "" ? "" : textEl({ x: NAME_X + nameWidth + GAP$1, y, text: preview, paint: previewPaint(o), ...NOTE }),
     right.body
   ].join("");
   const alt = [o.name, o.preview, o.time, o.unread > 0 ? String(o.unread) : ""].filter(Boolean).join(" · ");
@@ -5892,7 +5976,7 @@ function isOffStage(value, pane) {
 }
 const shownOf = (pane, at) => ({ pane, at });
 
-const HOME_LABEL = "← MODZ";
+const HOME_LABEL = "← modz";
 function HomeButton(ui, onPress) {
   const { Box, Button } = ui;
   return h(Box, {
@@ -5916,7 +6000,7 @@ const EN$2 = {
   read: (ago) => `read ${ago}`,
   gate: { open: "Gate open", closed: "Gate closed", unknown: "Gate pending" },
   noMatch: "No GitHub match",
-  notPair: "agents talk only in a two-person room",
+  notPair: "AIs talk only in a two-person room",
   notCollab: (login) => `@${login} is not a collaborator`,
   otherRepo: "this session is in another repo",
   askFirst: (login) => `@${login} · GitHub is asked on the first question`,
@@ -5933,8 +6017,8 @@ const EN$2 = {
   checked: (ago) => `GitHub checked ${ago}`,
   troubled: "Reconnecting…",
   blocked: (who) => `${who} hasn't shared their mailbox with you yet. Ask them to share it on claude.ai.`,
-  closed: (why) => `Agents are off: ${why}.`,
-  spent: (limit) => `Your agent used today's ${limit} answers. New questions wait for your approval.`
+  closed: (why) => `The AIs are off: ${why}.`,
+  spent: (limit) => `Your AI used today's ${limit} answers. New questions wait for your approval.`
 };
 const TR$2 = {
   waitingPeer: "takım arkadaşı bekleniyor",
@@ -5944,7 +6028,7 @@ const TR$2 = {
   read: (ago) => `${ago} okudu`,
   gate: { open: "Kapı açık", closed: "Kapı kapalı", unknown: "Kapı bekliyor" },
   noMatch: "GitHub eşleşmesi yok",
-  notPair: "agent trafiği yalnızca iki kişilik odada",
+  notPair: "yapay zekâlar yalnızca iki kişilik odada konuşur",
   notCollab: (login) => `@${login} collaborator değil`,
   otherRepo: "bu oturum başka bir repoda",
   askFirst: (login) => `@${login} · GitHub ilk soruda sorulur`,
@@ -5961,8 +6045,8 @@ const TR$2 = {
   checked: (ago) => `GitHub ${ago} kontrol edildi`,
   troubled: "Yeniden bağlanıyor…",
   blocked: (who) => `${who} kutusunu henüz seninle paylaşmadı; claude.ai'de paylaşmasını iste.`,
-  closed: (why) => `Agent'lar kapalı: ${why}.`,
-  spent: (limit) => `Agent'ının bugünkü ${limit} cevap hakkı doldu; yeni sorular onayını bekler.`
+  closed: (why) => `Yapay zekâlar kapalı: ${why}.`,
+  spent: (limit) => `Yapay zekânın bugünkü ${limit} cevap hakkı doldu; yeni sorular onayını bekler.`
 };
 const words$1 = () => pick({ en: EN$2, tr: TR$2 });
 function statusOf$1(room, o) {
@@ -6038,6 +6122,7 @@ const EN$1 = {
   noMessages: "No messages yet. Write the first one below.",
   noMessagesTitle: "A quiet room for now",
   aiAsked: (who) => `${who} asked`,
+  earlierQuestion: "An earlier question",
   refused: "Not answered: no access",
   repoAlone: {
     title: "Only you are here so far",
@@ -6071,7 +6156,7 @@ const EN$1 = {
   ready: (n) => `${countOf$1(n, { one: "ready query", many: "ready queries" })} · 0 tokens`,
   readOnly: "Read only here. Open Transceiver in Claude Code to write.",
   budgetNote: "Resets at midnight. Once it is used up, new questions wait for your approval.",
-  liveNote: "While on, an agent message wakes an idle session in this repo. Each wake spends tokens.",
+  liveNote: "While on, a message from their AI wakes an idle session in this repo. Each wake spends tokens.",
   budget: (o) => `Ask budget ${o.used}/${o.limit} today`,
   today: (o) => `Today: ${countOf$1(o.answered, { one: "query", many: "queries" })} · ${o.modelless} at 0 tokens · ${o.denied} denied`,
   live: (isOn) => `Live mode ${isOn ? "on" : "off"}`,
@@ -6099,6 +6184,7 @@ const TR$1 = {
   noMessages: "Henüz mesaj yok. İlk mesajı aşağıdan yaz.",
   noMessagesTitle: "Şimdilik sessiz bir oda",
   aiAsked: (who) => `${who} sordu`,
+  earlierQuestion: "Daha önceki bir soru",
   refused: "Cevaplanmadı: erişim yok",
   repoAlone: {
     title: "Şimdilik burada yalnızca sen varsın",
@@ -6132,7 +6218,7 @@ const TR$1 = {
   ready: (n) => `${n} hazır sorgu · 0 token`,
   readOnly: "Bu yüzeyde yalnızca okunur. Yazmak için Transceiver'ı Claude Code'da aç.",
   budgetNote: "Gece yarısı sıfırlanır; dolunca yeni sorular onayını bekler.",
-  liveNote: "Açıkken gelen agent mesajı bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.",
+  liveNote: "Açıkken karşı tarafın yapay zekâsından gelen mesaj bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.",
   budget: (o) => `Ask bütçesi ${o.used}/${o.limit} bugün`,
   today: (o) => `bugün: ${o.answered} sorgu · ${o.modelless} 0 token · ${o.denied} reddedildi`,
   live: (isOn) => `Canlı mod ${isOn ? "açık" : "kapalı"}`,
@@ -6323,6 +6409,22 @@ function compactOf(type, body) {
   return compactTyped(type, body) ?? { kind: "text", text: body };
 }
 
+const SIZE = 13;
+const LINE_H = 19;
+const MAX_LINES$1 = 4;
+function StateText(ctx, o) {
+  const { Text } = ctx.ui;
+  const fallback = h(Text, {
+    key: o.key,
+    color: ctx.look.role[o.role].fg,
+    wrap: "wrap"
+  }, o.text);
+  if (isText(ctx))
+    return fallback;
+  const part = linesPart({ text: o.text, width: Math.max(1, Math.floor(ctx.px - (o.room ?? 0))), size: SIZE, weight: 400, lineHeight: LINE_H, paint: o.role, maxLines: MAX_LINES$1 });
+  return SvgOf(ctx, themed(sigPic({ ...part, height: Math.ceil(part.height) }), ctx.look.pin), o.key) ?? fallback;
+}
+
 const MAX_LINES = 40;
 function pieces(word, o) {
   if (o.measure(word) <= o.max)
@@ -6406,7 +6508,18 @@ function bubbleSvg(b, o) {
   const words = b.lines.map((line, i) => textEl({ x: o.x + TALK.padX, y: baseline(top + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: "hi", size: TALK.size }));
   return [surface, b.quote === undefined ? "" : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join("");
 }
+function mineHeadSvg(o) {
+  const room = o.width - TALK.textX;
+  const label = fitText(o.who.label, room, sans(TALK.nameSize, NAME_WEIGHT$1));
+  const y = baseline(0, TALK.headH, TALK.nameSize);
+  return [
+    textEl({ x: o.width - TALK.textX, y, text: label, paint: "hi", size: TALK.nameSize, weight: NAME_WEIGHT$1, anchor: "end" }),
+    faceOf({ name: o.who.name, isAgent: o.who.isAgent, x: o.width - TALK.face, y: (TALK.headH - TALK.face) / 2, size: TALK.face })
+  ].join("");
+}
 function headSvg$1(o) {
+  if (o.who.isMine)
+    return mineHeadSvg(o);
   const room = o.width - TALK.textX - textWidth(o.time, TALK.metaSize) - TIME_GAP$1;
   const label = fitText(o.who.label, room, sans(TALK.nameSize, NAME_WEIGHT$1));
   const y = baseline(0, TALK.headH, TALK.nameSize);
@@ -6437,8 +6550,8 @@ function runPic(o) {
   const max = bubbleWidthOf(o);
   const bubbles = o.said.map((s) => bubbleOf(s, max));
   const isTheirs = !o.who.isMine;
-  let y = isTheirs && o.hasHead ? TALK.headH + TALK.gap : 0;
-  const parts = isTheirs && o.hasHead ? [headSvg$1(o)] : [];
+  let y = o.hasHead ? TALK.headH + TALK.gap : 0;
+  const parts = o.hasHead ? [headSvg$1(o)] : [];
   for (const b of bubbles) {
     parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs }));
     y += b.h + TALK.gap;
@@ -6455,18 +6568,19 @@ function altOf(o) {
 const DIVIDER_H = 28;
 const DIVIDER_SIZE = 11.5;
 const DIVIDER_GAP = 10;
+const NEW_RULE = 0.5;
 function dividerPic(o) {
   const w = Math.floor(o.width);
   const tw = textWidth(o.text, DIVIDER_SIZE, NAME_WEIGHT$1);
   const y = DIVIDER_H / 2;
   const left = (w - tw) / 2 - DIVIDER_GAP;
-  const rule = (x1, x2) => `<path d="M${num$1(x1)} ${num$1(y + 0.5)}H${num$1(x2)}" class="${o.isNew ? "s-edit" : "s-hi"}" stroke-opacity="${o.isNew ? 0.5 : VEIL.rule}"/>`;
+  const rule = (x1, x2) => `<path d="M${num$1(x1)} ${num$1(y + 0.5)}H${num$1(x2)}" class="${o.isNew ? "s-edit" : "s-hi"}" stroke-opacity="${o.isNew ? NEW_RULE : VEIL.rule}"/>`;
   const body = [
     rule(0, left),
     textEl({ x: w / 2, y: baseline(0, DIVIDER_H, DIVIDER_SIZE), text: o.text, paint: o.isNew ? "edit" : "lo", size: DIVIDER_SIZE, weight: NAME_WEIGHT$1, anchor: "middle" }),
     rule(w - left, w)
   ].join("");
-  return toPic({ body, width: w, height: DIVIDER_H, alt: o.text });
+  return themed(toPic({ body, width: w, height: DIVIDER_H, alt: o.text }), o.pin);
 }
 
 const ANSWER = { h: 24, lineH: 17, size: 12, icon: 14, iconGap: 6, hook: 12 };
@@ -6718,6 +6832,8 @@ function Detail(ctx, tx) {
   }, a === null ? [] : AnswerBody(ctx, { tx, body: a.body }));
 }
 function questionOf(tx) {
+  if (tx.query === undefined)
+    return chatWords().earlierQuestion;
   const arg = askedArg(tx);
   const type = queryType(tx);
   if (type === "ask")
@@ -6765,17 +6881,13 @@ function TxLine(ctx, tx) {
 }
 function DraftCard(ctx, draft) {
   const { Box, Button, Text } = ctx.ui;
-  const warn = ctx.look.role.warn;
   return h(Box, {
     key: `draft-${draft.qid}`,
     flexDirection: "column",
     gap: 1,
     paddingX: 1,
     paddingY: 1
-  }, h(Text, {
-    color: warn.fg,
-    wrap: "wrap"
-  }, chatWords().asking(firstName(draft.asker))), h(Text, {
+  }, StateText(ctx, { key: `draft-head-${draft.qid}`, text: chatWords().asking(firstName(draft.asker)), role: "warn" }), h(Text, {
     color: ctx.look.hi,
     wrap: "wrap"
   }, draft.question), ctx.model.canSettleDrafts ? h(Box, {
@@ -6861,6 +6973,7 @@ function BridgeHead(ctx, room) {
   }, isText(ctx) ? Meta(ctx, alt, `bridge-${room.id}`) : SvgOf(ctx, pic, `bridge-${room.id}`), isAlone ? Sentence(ctx, { key: "bridge-next", text: w.bridgeNext, paint: "lo" }) : null);
 }
 
+const CHIP_INDENT = 3;
 function pendingOf(ctx, lines) {
   if (!lines.some((l) => l.receipt === "pending"))
     return;
@@ -6883,10 +6996,9 @@ function RoomChip(ctx, line) {
     key: `room-chip-${line.id}`,
     flexDirection: "row",
     alignItems: "center",
-    gap: 1,
-    paddingLeft: line.isMine ? 0 : 4,
+    paddingLeft: line.isMine ? 0 : CHIP_INDENT,
     justifyContent: line.isMine ? "flex-end" : "flex-start"
-  }, GlyphPic(ctx, { glyph: "branch", paint: "mid", key: `chip-glyph-${line.id}` }), h(Button, {
+  }, h(Button, {
     key: `goto-${line.id}`,
     label: `${chatWords().goToRoom} · ${link.repo.split("/")[1] ?? link.repo}`,
     plain: true,
@@ -6915,10 +7027,11 @@ function Run(ctx, o) {
     return Lone(ctx, first);
   const last = o.lines.at(-1);
   const lastTs = messageOf(last)?.ts ?? m.ts;
+  const hasHead = !first.isMine || isAgentLine(first) || o.room.kind === "devices";
   const pic = runPic({
     width: ctx.px,
     said: o.lines.map(saidOf),
-    hasHead: o.hasHead,
+    hasHead,
     pending: pendingOf(ctx, o.lines),
     who: { label: labelOf(ctx, { line: first, room: o.room }), name: first.authorName, isAgent: isAgentLine(first), isMine: first.isMine },
     time: clockText(first.isMine ? lastTs : m.ts),
@@ -7063,8 +7176,9 @@ function ShareCard(ctx, room) {
     ]
   });
 }
+const CLOSE_PX = 130;
 function ErrorCard(ctx) {
-  const { Box, Button, Text } = ctx.ui;
+  const { Box, Button } = ctx.ui;
   const error = ctx.model.error;
   if (error === null)
     return null;
@@ -7077,10 +7191,9 @@ function ErrorCard(ctx) {
     borderStyle: isText(ctx) ? "single" : "round",
     borderColor: danger.line,
     paddingX: 1
-  }, h(Text, {
-    color: danger.fg,
-    wrap: "wrap"
-  }, error), h(Box, {
+  }, h(Box, {
+    flexShrink: 1
+  }, StateText(ctx, { key: "error-text", text: error, role: "danger", room: CLOSE_PX })), h(Box, {
     flexGrow: 1
   }), h(Button, {
     key: "error-ok",
@@ -7150,7 +7263,7 @@ function Cell(ctx, o) {
     flexShrink: 1,
     minWidth: 0
   }, h(Text, {
-    color: isOn ? ctx.look.mid : ctx.look.lo,
+    ...isOn ? { color: ctx.look.mid } : ctx.look.loText,
     wrap: "truncate-end"
   }, o.spec.desc)));
 }
@@ -7250,13 +7363,9 @@ function ModeChip(ctx) {
   }));
 }
 function HintRow(ctx) {
-  const { Text } = ctx.ui;
+  ctx.ui;
   const hint = ctx.model.hint;
-  return hint === null ? null : h(Text, {
-    key: "hint",
-    color: ctx.look.role.warn.fg,
-    wrap: "wrap"
-  }, hint);
+  return hint === null ? null : StateText(ctx, { key: "hint", text: hint, role: "warn" });
 }
 function Composer(ctx, room) {
   const { Box, Text } = ctx.ui;
@@ -7689,12 +7798,15 @@ function TermChat(ctx, room) {
   })), rule, Prompt(ctx, room), Keys(ctx, room));
 }
 
+const MARK_OF = { project: "branch", devices: "laptop", dm: "clock" };
 const DETAILS_PX = 96;
+const WHY_PX = 80;
+const CONNECT_PX = 110;
 function headPic(ctx, room) {
   const status = statusOf$1(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) });
   const hasInfo = room.kind === "project";
   const name = room.kind === "project" ? room.repo ?? room.title : room.title;
-  const mark = room.kind === "project" ? "branch" : room.kind === "devices" ? "laptop" : "clock";
+  const mark = MARK_OF[room.kind];
   const isPerson = room.kind === "dm" && !room.isWaiting;
   return chatHeadPic({
     width: ctx.px - (hasInfo ? DETAILS_PX : 0),
@@ -7731,14 +7843,13 @@ function ChatHead(ctx, room) {
   }));
 }
 function Divider(ctx, o) {
-  return SvgOf(ctx, dividerPic({ width: ctx.px, text: o.text, isNew: o.isNew }), o.key) ?? Meta(ctx, o.text, o.key);
+  return SvgOf(ctx, dividerPic({ width: ctx.px, text: o.text, isNew: o.isNew, pin: ctx.look.pin }), o.key) ?? Meta(ctx, o.text, o.key);
 }
 function Notice(ctx, room) {
   const { Box, Button, Text } = ctx.ui;
   const notice = noticeOf(room);
   if (notice === null)
     return null;
-  const tone = ctx.look.role[notice.paint];
   const why = notice.hasWhy && !ctx.model.isInfoOpen ? h(Button, {
     key: `why-${room.id}`,
     label: chatWords().why,
@@ -7753,10 +7864,7 @@ function Notice(ctx, room) {
   }, h(Box, {
     flexGrow: 1,
     flexShrink: 1
-  }, h(Text, {
-    color: tone.fg,
-    wrap: "wrap"
-  }, notice.text)), why);
+  }, StateText(ctx, { key: "notice-text", text: notice.text, role: notice.paint, room: why === null ? 0 : WHY_PX })), why);
 }
 const tsOfLine = (line) => line === undefined ? 0 : messageOf(line)?.ts ?? 0;
 const firstLineOf = (item) => item.kind === "line" ? item.line : item.query ?? item.answers[0];
@@ -7786,7 +7894,7 @@ function threadOf(ctx, o) {
   let run = [];
   const flush = () => {
     if (run.length > 0)
-      out.push(Run(ctx, { lines: run, room: o.room, hasHead: true }));
+      out.push(Run(ctx, { lines: run, room: o.room }));
     run = [];
   };
   o.items.forEach((item, i) => {
@@ -7846,10 +7954,7 @@ function ConnectBanner(ctx) {
     gap: 1
   }, h(Box, {
     flexShrink: 1
-  }, h(Text, {
-    color: ctx.look.role.warn.fg,
-    wrap: "wrap"
-  }, chatWords().waitingBanner)), h(Button, {
+  }, StateText(ctx, { key: "banner-text", text: chatWords().waitingBanner, role: "warn", room: CONNECT_PX })), h(Button, {
     key: "connect-inline",
     variant: "primary",
     label: ctx.model.busy === null ? chatWords().connect : chatWords().connecting,
@@ -7961,7 +8066,7 @@ function ToggleRow(ctx, t) {
   const { Button, Text } = ctx.ui;
   const isOn = ctx.model.settings[t.key];
   const mark = h(Text, {
-    color: isOn ? ctx.look.signal.fg : ctx.look.lo
+    ...isOn ? { color: ctx.look.signal.fg } : ctx.look.loText
   }, isOn ? "●" : "○");
   const button = h(Button, {
     key: `set-${t.key}`,
@@ -8386,7 +8491,7 @@ function drawPane(ui, o) {
   const isWide = columns >= WIDE_COLUMNS;
   const { Box } = ui;
   const home = o.model.view === "chat" && !isWide ? null : HomeRow(ui, { onHome: o.onHome, pad });
-  const rows = o.rows === undefined || isText ? undefined : Math.max(1, o.rows - (home === null ? 0 : HOME_ROWS));
+  const rows = o.rows === undefined || isText ? undefined : Math.max(1, o.rows - pad - (home === null ? 0 : HOME_ROWS));
   const ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, rows, model: o.model, on: o.on };
   if (isWide)
     return h(Box, {
@@ -8934,7 +9039,6 @@ function onBand(on) {
     return pinned(e, bandTree($.ui.resolve(e), {
       surface: e.surface,
       columns: e.props.bodyColumns,
-      isLight: await isLightOf($),
       line,
       theirs,
       onOpen: open,
