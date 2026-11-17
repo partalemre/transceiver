@@ -5,6 +5,7 @@ import type { RenderElement } from 'claude-code'
 
 import { DraftCard } from './pane-agent'
 import { isText, type Ctx } from './pane-kit'
+import { StateText } from './pane-state'
 import { Sentence, Title } from './pane-type'
 import type { Invite, RoomView } from './state-types'
 import { paneWords } from './words-pane'
@@ -27,7 +28,7 @@ function Buttons(ctx: Ctx, buttons: readonly Btn[]): RenderElement {
 function Card(ctx: Ctx, o: { key: string; line?: string; children: Array<RenderElement | null> }): RenderElement {
   const { Box } = ctx.ui
   return (
-    <Box key={o.key} flexDirection="column" gap={1} borderStyle="round" borderColor={o.line ?? ctx.look.line} backgroundColor={ctx.look.card}
+    <Box key={o.key} flexDirection="column" gap={1} borderStyle="round" borderColor={o.line ?? ctx.look.line} borderDimColor={o.line === undefined}
       paddingX={isText(ctx) ? 1 : CARD_PAD} paddingY={isText(ctx) ? 0 : CARD_PAD - 1}>
       {o.children.filter((c): c is RenderElement => c !== null)}
     </Box>
@@ -122,14 +123,17 @@ export function ShareCard(ctx: Ctx, room: RoomView): RenderElement | null {
   })
 }
 
+// Room the native "Close" press takes beside the error.
+const CLOSE_PX = 130
+
 export function ErrorCard(ctx: Ctx): RenderElement | null {
-  const { Box, Button, Text } = ctx.ui
+  const { Box, Button } = ctx.ui
   const error = ctx.model.error
   if (error === null) return null
   const danger = ctx.look.role.danger
   return (
-    <Box key="error" flexDirection="row" alignItems="center" gap={1} borderStyle={isText(ctx) ? 'single' : 'round'} borderColor={danger.line} backgroundColor={danger.tint} paddingX={1}>
-      <Text color={danger.fg} wrap="wrap">{error}</Text>
+    <Box key="error" flexDirection="row" alignItems="center" gap={1} borderStyle={isText(ctx) ? 'single' : 'round'} borderColor={danger.line} paddingX={1}>
+      <Box flexShrink={1}>{StateText(ctx, { key: 'error-text', text: error, role: 'danger', room: CLOSE_PX })}</Box>
       <Box flexGrow={1} />
       <Button key="error-ok" label={paneWords().close} variant="secondary" onPress={() => ctx.on.dismissError()} />
     </Box>

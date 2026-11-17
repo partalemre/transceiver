@@ -6,6 +6,7 @@ import type { RenderElement } from 'claude-code'
 
 import { ASK_DAILY_LIMIT } from './limits'
 import { GlyphPic, Rule, within, type Ctx } from './pane-kit'
+import { StateText } from './pane-state'
 import { isModeType, specOf, supportedSpecs, type QuerySpec } from './query-menu'
 import type { RoomView } from './state-types'
 import { chatWords } from './words-chat'
@@ -41,11 +42,11 @@ function Cell(ctx: Ctx, o: { room: RoomView; spec: QuerySpec; nameCells: number 
   const { Box, Button, Text } = ctx.ui
   const isOn = ctx.model.composeMode === o.spec.type
   return (
-    <Box key={`cell-${o.spec.type}`} flexDirection="row" alignItems="center" paddingX={1} minWidth={0} backgroundColor={isOn ? ctx.look.role.run.tint : undefined}>
+    <Box key={`cell-${o.spec.type}`} flexDirection="row" alignItems="center" paddingX={1} minWidth={0}>
       <Box minWidth={o.nameCells} flexShrink={0}>
         <Button key={`sheet-${o.spec.type}`} label={nameOf(o.spec)} plain onPress={() => ctx.on.askAgent(o.room.id, o.spec.type)} />
       </Box>
-      <Box flexGrow={1} flexShrink={1} minWidth={0}><Text color={isOn ? ctx.look.mid : ctx.look.lo} wrap="truncate-end">{o.spec.desc}</Text></Box>
+      <Box flexGrow={1} flexShrink={1} minWidth={0}><Text {...(isOn ? { color: ctx.look.mid } : ctx.look.loText)} wrap="truncate-end">{o.spec.desc}</Text></Box>
     </Box>
   )
 }
@@ -57,7 +58,7 @@ function AskRow(ctx: Ctx, o: { room: RoomView; spec: QuerySpec }): RenderElement
       {GlyphPic(ctx, { glyph: 'star', paint: 'warn', key: 'ask-star' })}
       <Box flexDirection="column" alignItems="flex-start" flexGrow={1} flexShrink={1} minWidth={0}>
         <Button key={`sheet-${ASK_TYPE}`} label="ask …" plain onPress={() => ctx.on.askAgent(o.room.id, ASK_TYPE)} />
-        <Text color={ctx.look.lo} wrap="truncate-end">{o.spec.desc}</Text>
+        <Text {...ctx.look.loText} wrap="truncate-end">{o.spec.desc}</Text>
       </Box>
       <Box flexShrink={0}><Text color={ctx.look.mid} wrap="truncate-end">{chatWords().perDay(ASK_DAILY_LIMIT)}</Text></Box>
     </Box>
@@ -75,10 +76,10 @@ function Sheet(ctx: Ctx, room: RoomView): RenderElement | null {
   const nameCells = Math.max(...typed.map(spec => nameOf(spec).length)) + NAME_GAP_CELLS
   // The title is a heading, not a state: plain ink. The count keeps its line and the title gives way.
   return (
-    <Box key="sheet" flexDirection="column" gap={1} borderStyle="round" borderColor={ctx.look.lineStrong} backgroundColor={ctx.look.card} paddingX={1} paddingY={1}>
+    <Box key="sheet" flexDirection="column" gap={1} borderStyle="round" borderColor={ctx.look.lineStrong} borderDimColor paddingX={1} paddingY={1}>
       <Box key="sheet-head" flexDirection="row" gap={1} paddingX={1} minWidth={0}>
         <Box flexGrow={1} flexShrink={1} minWidth={0}><Text color={ctx.look.hi} bold wrap="truncate-end">{title}</Text></Box>
-        <Box flexShrink={0}><Text color={ctx.look.lo} wrap="truncate-end">{chatWords().ready(typed.length)}</Text></Box>
+        <Box flexShrink={0}><Text {...ctx.look.loText} wrap="truncate-end">{chatWords().ready(typed.length)}</Text></Box>
       </Box>
       <Box flexDirection="column">{typed.map(spec => Cell(ctx, { room, spec, nameCells }))}</Box>
       {ask === undefined ? null : Rule(within(ctx, ctx.columns - SHEET_CHROME_CELLS), 'sheet-rule')}
@@ -93,7 +94,7 @@ function ModeChip(ctx: Ctx): RenderElement | null {
   if (mode === null) return null
   const run = ctx.look.role.run
   return (
-    <Box key="mode-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderColor={run.line} backgroundColor={run.tint} paddingX={1} flexShrink={0}>
+    <Box key="mode-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderDimColor paddingX={1} flexShrink={0}>
       <Text color={run.fg}>{mode}</Text>
       <Button key="mode-clear" label="×" plain onPress={() => ctx.on.clearMode()} />
     </Box>
@@ -103,12 +104,12 @@ function ModeChip(ctx: Ctx): RenderElement | null {
 function HintRow(ctx: Ctx): RenderElement | null {
   const { Text } = ctx.ui
   const hint = ctx.model.hint
-  return hint === null ? null : <Text key="hint" color={ctx.look.role.warn.fg} wrap="wrap">{hint}</Text>
+  return hint === null ? null : StateText(ctx, { key: 'hint', text: hint, role: 'warn' })
 }
 
 export function Composer(ctx: Ctx, room: RoomView): RenderElement {
   const { Box, Text } = ctx.ui
-  if (!('Input' in ctx.ui)) return <Text key="read-only" color={ctx.look.lo} wrap="wrap">{chatWords().readOnly}</Text>
+  if (!('Input' in ctx.ui)) return <Text key="read-only" {...ctx.look.loText} wrap="wrap">{chatWords().readOnly}</Text>
   const { Input, Button } = ctx.ui
   const canAsk = canAskAgents(room)
   const mode = ctx.model.composeMode
@@ -119,7 +120,7 @@ export function Composer(ctx: Ctx, room: RoomView): RenderElement {
         {canAsk && mode === null ? AskButton(ctx, room) : null}
         {ModeChip(ctx)}
         <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
-          <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel="↵"
+          <Input key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? chatWords().send : chatWords().ask}
             autoFocus onInput={value => ctx.on.type(room.id, value)} onSubmit={value => ctx.on.send(room.id, value)} />
         </Box>
         {/* The desktop's field draws its own send button from `submitLabel`. */}

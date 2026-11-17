@@ -23,6 +23,8 @@ export type WorldOpts = {
   isPublicRepo?: boolean
   // The interface in English (no MODZ_LANG); the other pane tests read the Turkish one.
   isEnglish?: boolean
+  // MODZ_THEME: a palette the person pinned.
+  pinTheme?: string
   // Where the clock starts; NOW by default.
   now?: number
 }
@@ -92,7 +94,7 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
   on('store.get', (_$: unknown, e: { key: string }) => ({ value: clone(store[e.key]) }))
   on('store.set', (_$: unknown, e: { key: string; value: unknown }) => { store[e.key] = clone(e.value); return { value: undefined } })
   on('store.delete', (_$: unknown, e: { key: string }) => { delete store[e.key]; return { value: undefined } })
-  mock.env(on, { HOME: '/home/u', ...(o.isEnglish === true ? {} : { MODZ_LANG: 'tr' }) })
+  mock.env(on, { HOME: '/home/u', ...(o.isEnglish === true ? {} : { MODZ_LANG: 'tr' }), ...(o.pinTheme === undefined ? {} : { MODZ_THEME: o.pinTheme }) })
   const clock = mock.clock(on, { now: o.now ?? NOW })
   const world: World = { store, db, dbOf, toasts: [], statuses: [], copies: [], logs: [], opens: [], runs: [], calls: [], clock, shown: { isShown: o.isShown ?? true } }
   on('config.list', () => ({ value: [{ key: 'theme', value: o.isLight === true ? 'light' : 'dark' }] }))

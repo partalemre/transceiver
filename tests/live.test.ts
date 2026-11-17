@@ -60,3 +60,19 @@ test('a live room of another repo does not wake this session', async () => {
   await saveRooms(host, [other])
   expect(await onLiveTick(host, ev(other, [{ author: PEER, message: msg('x') }]))).toBe(false)
 })
+
+test('in a repo room a teammate\'s agent wakes the session by itself, a person\'s chat line does not, and an hour holds a fixed number', async () => {
+  forgetRepo()
+  const host = fakeAgent(async () => ({}))
+  const repoRoom = room({ id: 'lv-git', url: `git:partalemre/eliti#${ME}`, isLive: false })
+  await saveRooms(host, [repoRoom])
+  expect(await onLiveTick(host, ev(repoRoom, [{ author: PEER, message: msg('selam', 'human') }]))).toBe(false)
+  const fromAgent = [{ author: PEER, message: msg('testler geçti, sıra sende') }]
+  let woken = 0
+  for (let i = 0; i < 25; i++) {
+    if (await onLiveTick(host, ev(repoRoom, fromAgent))) woken += 1
+    await host.advance(30_000)
+  }
+  expect(woken).toBe(20)
+  expect(host.sent[0]?.includes('testler geçti')).toBe(true)
+})

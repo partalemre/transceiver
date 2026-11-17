@@ -1,6 +1,6 @@
 // Svg the kit lacks: the spec's `signal` role (teal), the picture every Svg part becomes, avatars and steps. Same
 // rules as the kit: paint names become CSS variables for both schemes, no hex in the markup, reduced motion last.
-// Svg follows the OS's colour scheme, not Claude's, so the pane keeps words out of it.
+// Each drawing follows the app's light or dark appearance through its own media query, as the MODZ hub's do.
 import { baseline, escapeXml, num, sans, TYPE, textEl } from './kit/svg-core'
 import type { Part, SvgPic } from './kit/svg-core'
 import { fitText } from './kit/svg-metrics'

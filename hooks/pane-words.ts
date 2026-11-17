@@ -13,7 +13,7 @@ const EN = {
   read: (ago: string) => `read ${ago}`,
   gate: { open: 'Gate open', closed: 'Gate closed', unknown: 'Gate pending' } as Record<GateBadge, string>,
   noMatch: 'No GitHub match',
-  notPair: 'agents talk only in a two-person room',
+  notPair: 'AIs talk only in a two-person room',
   notCollab: (login: string) => `@${login} is not a collaborator`,
   otherRepo: 'this session is in another repo',
   askFirst: (login: string) => `@${login} · GitHub is asked on the first question`,
@@ -30,8 +30,8 @@ const EN = {
   checked: (ago: string) => `GitHub checked ${ago}`,
   troubled: 'Reconnecting…',
   blocked: (who: string) => `${who} hasn't shared their mailbox with you yet. Ask them to share it on claude.ai.`,
-  closed: (why: string) => `Agents are off: ${why}.`,
-  spent: (limit: number) => `Your agent used today's ${limit} answers. New questions wait for your approval.`,
+  closed: (why: string) => `The AIs are off: ${why}.`,
+  spent: (limit: number) => `Your AI used today's ${limit} answers. New questions wait for your approval.`,
 }
 
 const TR: typeof EN = {
@@ -42,7 +42,7 @@ const TR: typeof EN = {
   read: ago => `${ago} okudu`,
   gate: { open: 'Kapı açık', closed: 'Kapı kapalı', unknown: 'Kapı bekliyor' },
   noMatch: 'GitHub eşleşmesi yok',
-  notPair: 'agent trafiği yalnızca iki kişilik odada',
+  notPair: 'yapay zekâlar yalnızca iki kişilik odada konuşur',
   notCollab: login => `@${login} collaborator değil`,
   otherRepo: 'bu oturum başka bir repoda',
   askFirst: login => `@${login} · GitHub ilk soruda sorulur`,
@@ -59,8 +59,8 @@ const TR: typeof EN = {
   checked: ago => `GitHub ${ago} kontrol edildi`,
   troubled: 'Yeniden bağlanıyor…',
   blocked: who => `${who} kutusunu henüz seninle paylaşmadı; claude.ai'de paylaşmasını iste.`,
-  closed: why => `Agent'lar kapalı: ${why}.`,
-  spent: limit => `Agent'ının bugünkü ${limit} cevap hakkı doldu; yeni sorular onayını bekler.`,
+  closed: why => `Yapay zekâlar kapalı: ${why}.`,
+  spent: limit => `Yapay zekânın bugünkü ${limit} cevap hakkı doldu; yeni sorular onayını bekler.`,
 }
 
 const words = () => pick({ en: EN, tr: TR })

@@ -56,7 +56,7 @@ for (const surface of SURFACES) {
     const { ui } = await open($, on, { surface })
     await ui.press({ key: 'open-re' })
     const tree = await drawn(ui)
-    for (const hidden of ['Kapı açık', 'Ask bütçesi', 'Agent\'lar kapalı', 'Bu oturumun reposu']) expect(tree).not.toContain(hidden)
+    for (const hidden of ['Kapı açık', 'Ask bütçesi', 'Yapay zekâlar kapalı', 'Bu oturumun reposu']) expect(tree).not.toContain(hidden)
     expect(await buttons(ui, 'why-re')).toBe(0)
     expect(await buttons(ui, 'live-re')).toBe(0)
     await ui.press({ key: 'info-re' })
@@ -71,7 +71,7 @@ for (const surface of SURFACES) {
     const { ui } = await open($, on, { surface, remote: ELSEWHERE })
     await ui.press({ key: 'open-re' })
     const tree = await drawn(ui)
-    expect(tree).toContain('Agent\'lar kapalı: bu oturum başka bir repoda.')
+    expect(tree).toContain('Yapay zekâlar kapalı: bu oturum başka bir repoda.')
     expect(tree).not.toContain('Bu oturumun reposu')
     await ui.press({ key: 'why-re' })
     expect(await drawn(ui)).toContain('Bu oturumun reposu')
@@ -81,7 +81,7 @@ for (const surface of SURFACES) {
   test(`${surface}: a spent day's budget is the project room's one line`, async ($: any, on: any) => {
     const { ui } = await open($, on, { surface, extra: { 'tx.budget': { day: localDay(NOW), byRoom: { re: ASK_DAILY_LIMIT } } } })
     await ui.press({ key: 'open-re' })
-    expect(await drawn(ui)).toContain(`Agent'ının bugünkü ${ASK_DAILY_LIMIT} cevap hakkı doldu`)
+    expect(await drawn(ui)).toContain(`Yapay zekânın bugünkü ${ASK_DAILY_LIMIT} cevap hakkı doldu`)
   })
 
   test(`${surface}: a member's unshared mailbox is the DM's one line, and its row says so`, async ($: any, on: any) => {
@@ -115,15 +115,20 @@ for (const surface of SURFACES) {
     const { w, ui } = await open($, on, { surface, syncs: { ...SYNCS(), re: projectEliti() } })
     await ui.press({ key: 'open-re' })
     const before = await drawn(ui)
-    expect(before).toContain('Alperen\'in agent\'ı diff sordu · cevaplandı · 0 token')
-    expect(before).toContain('Alperen\'in agent\'ı .env istedi · erişim yok')
-    expect(before).not.toContain('makine')
+    // The terminal says each exchange in a line; the desktop draws the question and how it was answered.
+    const said = surface === 'terminal'
+      ? ['Alperen\'in yapay zekâsı diff sordu · cevaplandı · 0 token', 'Alperen\'in yapay zekâsı .env istedi · erişim yok']
+      : ['Alperen\'in yapay zekâsı sordu', 'Henüz kaydedilmemiş değişiklikler', 'Bu makine cevapladı · 0 token', 'Cevaplanmadı: erişim yok']
+    for (const text of said) expect(before).toContain(text)
+    // What the answer said opens on press.
+    const answer = surface === 'terminal' ? 'makine' : '3 dosya +41'
+    expect(before).not.toContain(answer)
     expect(await buttons(ui, `open-tx-${ENV}`)).toBe(0)
     await ui.press({ key: `open-tx-${DIFF}` })
     await w.clock.settle()
-    expect(await drawn(ui)).toContain('makine')
+    expect(await drawn(ui)).toContain(answer)
     await ui.press({ key: `open-tx-${DIFF}` })
-    expect(await drawn(ui)).not.toContain('makine')
+    expect(await drawn(ui)).not.toContain(answer)
   })
 
   test(`${surface}: "Linkim var" opens the link field in place and "Vazgeç" closes it`, async ($: any, on: any) => {

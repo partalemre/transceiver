@@ -15,10 +15,10 @@ const ICONS: Record<QueryType, IconName> = {
 
 // The board's words, keyed by type so a new protocol type does not compile without them.
 const EN: Record<QueryType, Words> = {
-  status: { desc: 'Changes, ahead and behind' },
-  branch: { desc: 'Current branch and upstream' },
-  diff: { desc: 'Uncommitted changes' },
-  log: { desc: 'Last 20 commits' },
+  status: { desc: 'What changed, and how far from the shared copy' },
+  branch: { desc: 'The line of work they are on' },
+  diff: { desc: 'Changes not saved yet' },
+  log: { desc: 'The last 20 saved versions' },
   tests: { desc: 'Last test result' },
   plan: { desc: 'The plan and step they are on' },
   todo: { desc: 'TODOs and FIXMEs', placeholder: 'Folder (leave empty for the whole repo)' },
@@ -26,14 +26,14 @@ const EN: Record<QueryType, Words> = {
   grep: { desc: 'Search text in the repo', placeholder: 'Text to find' },
   file: { desc: 'Read one file', placeholder: 'File path, e.g. src/app.ts' },
   files: { desc: 'Files in a folder', placeholder: 'Folder (leave empty for the root)' },
-  commit: { desc: 'Summary of one commit', placeholder: 'Commit sha' },
-  ask: { desc: 'Free question · Haiku · spends tokens', placeholder: 'Ask the agent' },
+  commit: { desc: 'Summary of one saved version', placeholder: 'Saved version (commit sha)' },
+  ask: { desc: 'Free question · Haiku · spends tokens', placeholder: 'Ask their AI' },
 }
 const TR: Record<QueryType, Words> = {
-  status: { desc: 'Değişenler, ileride/geride' },
-  branch: { desc: 'Şu anki branch ve takip' },
-  diff: { desc: 'Commit edilmemiş değişiklik' },
-  log: { desc: 'Son 20 commit' },
+  status: { desc: 'Ne değişti, ortak kopyadan ne kadar ayrı' },
+  branch: { desc: 'Üzerinde çalıştığı çalışma dalı' },
+  diff: { desc: 'Henüz kaydedilmemiş değişiklikler' },
+  log: { desc: 'Son 20 kayıt' },
   tests: { desc: 'Son test sonucu' },
   plan: { desc: 'Çalıştığı plan ve adım' },
   todo: { desc: 'TODO ve FIXME\'ler', placeholder: 'Klasör (boş bırakırsan bütün repo)' },
@@ -41,8 +41,8 @@ const TR: Record<QueryType, Words> = {
   grep: { desc: 'Repoda metin ara', placeholder: 'Aranacak metin' },
   file: { desc: 'Bir dosyayı oku', placeholder: 'Dosya yolu, örn. src/app.ts' },
   files: { desc: 'Klasördeki dosyalar', placeholder: 'Klasör (boş bırakırsan kök)' },
-  commit: { desc: 'Tek commit\'in özeti', placeholder: 'Commit sha' },
-  ask: { desc: 'Serbest soru · Haiku · token harcar', placeholder: 'Agent\'a sorun' },
+  commit: { desc: 'Bir kaydın özeti', placeholder: 'Kayıt (commit sha)' },
+  ask: { desc: 'Serbest soru · Haiku · token harcar', placeholder: 'Yapay zekâya sor' },
 }
 const HINTS = {
   en: {

@@ -1,4 +1,4 @@
-// Asking the other side's agent from the pane, on the terminal and the desktop: "Agent'a sor" opens the sheet, a
+// Asking the other side's agent from the pane, on the terminal and the desktop: "Yapay zekâya sor" opens the sheet, a
 // row sends its typed query or puts the field in its mode, slash commands send the same, an unknown one only
 // hints, the field sends what was typed, and an exchange opens on press.
 import { expect, test } from 'claude-code/testing'
@@ -59,7 +59,7 @@ for (const surface of SURFACES) {
     expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
   })
 
-  test(`${surface}: "Agent'a sor" opens the sheet; a row without a value sends its typed query at once`, async ($: any, on: any) => {
+  test(`${surface}: "Yapay zekâya sor" opens the sheet; a row without a value sends its typed query at once`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
     expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
     await ui.press({ key: 'ask-more-re' })
@@ -113,7 +113,9 @@ for (const surface of SURFACES) {
   test(`${surface}: a search is one line; Göster opens its count and first hits, Tamamı the rest`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
     const before = await drawn(ui)
-    expect(before).toContain('Senin agent\'ın grep refreshToken sordu · cevaplandı · 0 token')
+    // The terminal says the exchange in one line; the desktop draws it as a question and its answer.
+    const said = surface === 'terminal' ? ['Senin yapay zekân grep refreshToken sordu · cevaplandı · 0 token'] : ['Senin yapay zekân sordu', 'Repoda metin ara · refreshToken', '0 token']
+    for (const text of said) expect(before).toContain(text)
     expect(before).not.toContain('lib/auth/session_store.dart:42')
     // The search is the room's newest exchange: its button is the last "open-tx-" in the drawing.
     const id = [...before.matchAll(/"key":"open-tx-([0-9A-Z]+)"/g)].at(-1)?.[1] ?? ''

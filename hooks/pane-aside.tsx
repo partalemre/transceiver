@@ -23,7 +23,7 @@ function Gate(ctx: Ctx, room: RoomView): RenderElement {
     <Box key="info-gate" flexDirection="column">
       <Text color={ctx.look.role[word.paint as 'ok'].fg} bold>{`${word.glyph} ${word.label} · ${passedOf(rows)}/${rows.length}`}</Text>
       {rows.map((r, i) => <Text key={`check-${i}`} color={r.state === false ? ctx.look.role.danger.fg : ctx.look.hi}>{`${markOf(r.state)} ${r.text}`}</Text>)}
-      <Text color={ctx.look.lo}>{checkedText(room, ctx.model.now)}</Text>
+      <Text {...ctx.look.loText}>{checkedText(room, ctx.model.now)}</Text>
     </Box>
   )
 }
@@ -36,8 +36,8 @@ function Today(ctx: Ctx, room: RoomView): RenderElement {
   return (
     <Box key="info-today" flexDirection="column">
       <Text color={used >= limit ? ctx.look.role.warn.fg : ctx.look.hi}>{chatWords().budget({ used, limit })}</Text>
-      <Text color={ctx.look.lo} wrap="wrap">{chatWords().budgetNote}</Text>
-      <Text color={ctx.look.lo} wrap="wrap">{chatWords().today({ answered: p?.today.answered ?? 0, modelless: p?.today.modelless ?? 0, denied: p?.today.denied ?? 0 })}</Text>
+      <Text {...ctx.look.loText} wrap="wrap">{chatWords().budgetNote}</Text>
+      <Text {...ctx.look.loText} wrap="wrap">{chatWords().today({ answered: p?.today.answered ?? 0, modelless: p?.today.modelless ?? 0, denied: p?.today.denied ?? 0 })}</Text>
     </Box>
   )
 }
@@ -50,7 +50,7 @@ function Live(ctx: Ctx, room: RoomView): RenderElement {
         <Text color={room.isLive ? ctx.look.signal.fg : ctx.look.hi}>{chatWords().live(room.isLive)}</Text>
         <Button key={`live-${room.id}`} label={room.isLive ? chatWords().turnOff : chatWords().turnOn} plain onPress={() => ctx.on.toggleLive(room.id)} />
       </Box>
-      <Text color={ctx.look.lo} wrap="wrap">{chatWords().liveNote}</Text>
+      <Text {...ctx.look.loText} wrap="wrap">{chatWords().liveNote}</Text>
     </Box>
   )
 }

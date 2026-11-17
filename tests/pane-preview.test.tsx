@@ -66,6 +66,8 @@ type Shot = {
   texts?: string[]
 }
 
+// A repo's own room nobody else has opened yet: it fills by itself, so it says so instead of offering a link.
+const REPO_ROOM = room({ id: 'rg', kind: 'project', repo: 'partalemre/eliti', url: 'git:github.com/partalemre/eliti', title: 'partalemre/eliti', peers: [] })
 const DEVICE_ROOM = room({ id: 'rd', kind: 'devices', title: 'Transceiver · Devices', url: 'https://claude.ai/artifact/rd', boxes: ['https://claude.ai/artifact/rd2'] })
 const DEVICE_ALONE = room({ id: 'rd', kind: 'devices', title: 'Transceiver · Devices', url: 'https://claude.ai/artifact/rd', boxes: [] })
 const PC = `${ALPEREN}@rd2`
@@ -97,10 +99,11 @@ const SHOTS: Shot[] = [
   { label: 'invite', rooms: [ROOMS.alperen, room({ id: 'ri', status: 'invited' }), { ...ROOMS.eliti, peers: [] }], isBypass: true, sees: 'seninle yazışmak' },
   { label: 'dm', isBypass: true, presses: ['open-ra'], sees: '2 yeni mesaj', hides: 'okundu bilgisi açık' },
   { label: 'dm-waiting', syncs: syncs({ isPending: true }), presses: ['connect-later', 'open-ra'], sees: 'bağlantı bekleniyor' },
-  { label: 'project', isBypass: true, presses: ['open-re'], sees: 'diff sordu · cevaplandı · 0 token', hides: 'Bu oturumun reposu' },
+  { label: 'project', isBypass: true, presses: ['open-re'], sees: 'Alperen\'in yapay zekâsı', hides: 'Bu oturumun reposu' },
+  { label: 'repo-alone', rooms: [REPO_ROOM, ...ALL], syncs: { ...syncs(), rg: { ...dmZeynep(), entries: [], peers: {} } }, isBypass: true, presses: ['open-rg'], sees: 'kendiliğinden gelir', texts: ['Şimdilik burada yalnızca sen varsın'] },
   { label: 'project-open', isBypass: true, presses: ['open-re', OPEN_DIFF], sees: 'makine' },
   { label: 'project-info', isBypass: true, presses: ['open-re', 'info-re'], sees: 'Bu oturumun reposu' },
-  { label: 'project-closed', isBypass: true, remote: ELSEWHERE, presses: ['open-re'], sees: 'Agent\'lar kapalı' },
+  { label: 'project-closed', isBypass: true, remote: ELSEWHERE, presses: ['open-re'], sees: 'Yapay zekâlar kapalı' },
   { label: 'project-draft', isBypass: true, presses: ['open-re'], extra: DRAFT, sees: 'onayını bekliyor' },
   { label: 'project-sheet', isBypass: true, presses: ['open-re', 'ask-more-re'], sees: 'sheet-grep' },
   { label: 'project-mode', isBypass: true, presses: ['open-re', 'ask-more-re', 'sheet-grep'], sees: 'Aranacak metin' },
@@ -109,7 +112,7 @@ const SHOTS: Shot[] = [
   { label: 'add', isBypass: true, presses: ['open-add'], sees: 'Linkim var' },
   { label: 'settings', presses: ['open-settings'], sees: 'Nasıl paylaşılır' },
   { label: 'wide', isBypass: true, presses: ['open-ra'], columns: WIDE, sees: 'Gelirim! Saat kaçta?' },
-  { label: 'wide-project', isBypass: true, presses: ['open-re'], columns: WIDE, sees: 'diff sordu', hides: 'Bu oturumun reposu' },
+  { label: 'wide-project', isBypass: true, presses: ['open-re'], columns: WIDE, sees: 'Alperen\'in yapay zekâsı', hides: 'Bu oturumun reposu' },
   { label: 'wide-project-info', isBypass: true, presses: ['open-re', 'info-re'], columns: WIDE, extra: DRAFT, sees: 'Bu oturumun reposu' },
   { label: 'wide-empty', rooms: [], syncs: {}, columns: WIDE, sees: 'Bilgisayarlarını bağla' },
   { label: 'wide-rooms', isBypass: true, columns: WIDE, sees: 'Bir sohbet seç' },

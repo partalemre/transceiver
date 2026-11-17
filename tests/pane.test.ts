@@ -168,31 +168,24 @@ test('/transceiver ayarlar opens the settings; a bad link or repo is answered in
 
 type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
 const kids = (n: Node): Node[] => (n.children ?? []).filter((c): c is Node => typeof c === 'object' && c !== null)
-const textOf = (n: Node): string => (n.children ?? []).map(c => (typeof c === 'string' ? c : textOf(c as Node))).join('')
-// The bordered Box whose own Text child says `text`: the bubble that holds it.
-function bubbleOf(n: Node, text: string): Node | null {
-  if (n.type === 'Box' && n.props?.borderStyle !== undefined && kids(n).some(c => c.type === 'Text' && textOf(c) === text)) return n
-  for (const c of kids(n)) {
-    const hit = bubbleOf(c, text)
-    if (hit !== null) return hit
-  }
-  return null
-}
+const all = (n: Node): Node[] => [n, ...kids(n).flatMap(all)]
+// The drawing that holds `text`: a run of one sender's lines is one Svg, its alt naming who, when and every line.
+const runOf = (n: Node, text: string): Node | undefined => all(n).find(c => c.type === 'Svg' && String(c.props?.alt ?? '').includes(text))
 
-test('desktop: a bubble holds its text; the last of a run carries its time, a pending one is dashed', async ($: any, on: any) => {
+test('desktop: one sender\'s lines are one drawing that says who wrote them and when; a line going out says so', async ($: any, on: any) => {
   const w = paneWorld(on, { rooms: ALL, syncs: { ...SYNCS(), ra: dmAlperen({ isPending: true }) } })
   await startSession($, w, { surface: 'desktop' })
   const ui = await mountPane($, { surface: 'desktop', columns: NARROW })
   await ui.press({ key: 'open-ra' })
   const tree = (await ui.drawn()) as Node
-  const first = bubbleOf(tree, 'Gelirim! Saat kaçta?')
-  const last = bubbleOf(tree, 'Bu arada yeni branch\'i pushladım, eliti odasından agent\'ına sorabilirsin.')
-  const pending = bubbleOf(tree, 'Sekizde stadyum önünde.')
-  expect(first?.props?.borderStyle).toBe('round')
-  expect(kids(first ?? {}).length).toBe(1)
-  // Text, the chip to the eliti room it names, and the time.
-  expect(kids(last ?? {}).map(k => k.props?.key ?? k.type)).toEqual(['Text', 'room-chip', 'stamp'])
-  expect(pending?.props?.borderStyle).toBe('dashed')
-  expect(kids(pending ?? {}).length).toBe(2)
+  const theirs = runOf(tree, 'Gelirim! Saat kaçta?')
+  // Alperen's two lines a minute apart: one run, under his name and the time of the first.
+  expect(String(theirs?.props?.alt).startsWith('Alperen, 14:18')).toBe(true)
+  expect(String(theirs?.props?.alt)).toContain('eliti odasından agent\'ına sorabilirsin')
+  // The eliti room his second line names is one quiet press under it.
+  expect(all(tree).some(n => n.type === 'Button' && String(n.props?.label).includes('eliti'))).toBe(true)
+  const pending = runOf(tree, 'Sekizde stadyum önünde.')
+  expect(String(pending?.props?.alt)).toContain('bağlantı bekleniyor')
+  expect(String(pending?.props?.source)).toContain('stroke-dasharray')
   await ui.unmount()
 })

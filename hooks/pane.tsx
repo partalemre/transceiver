@@ -4,7 +4,7 @@
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
-import { HomeButton } from './kit/home'
+import { HomeButton } from './home'
 import { RoomInfo } from './pane-aside'
 import { ChatView } from './pane-chat'
 import { AddView, SettingsView } from './pane-forms'
@@ -20,6 +20,8 @@ export const WIDE_COLUMNS = 104
 const RAIL_COLUMNS = 36
 const ASIDE_COLUMNS = 33
 const PAD = 2
+// The "← MODZ" line and the gap under it.
+const HOME_ROWS = 2
 const MIN_COLUMNS = 24
 // With no rooms yet there is nothing to put beside a chat: one column, no wider than reads well.
 const SINGLE_MAX_COLUMNS = 72
@@ -27,7 +29,10 @@ const SINGLE_MAX_COLUMNS = 72
 export type DrawOpts = {
   surface: RenderSurface
   columns: number
+  // The pane's height in rows, when the host says it: the chat then stands as tall as the pane, its field at the foot.
+  rows?: number
   isLight: boolean
+  pin?: boolean
   model: PaneModel
   on: PaneHandlers
   // Given only while the MODZ hub runs: the pane then opens with the way back to it.
@@ -64,7 +69,7 @@ function Wide(ctx: Ctx, pad: number): RenderElement {
   const rail = sized(ctx, RAIL_COLUMNS - pad)
   return (
     <Box flexDirection="row" width={ctx.columns}>
-      <Box key="rail" flexDirection="column" width={RAIL_COLUMNS} flexShrink={0} backgroundColor={ctx.look.inset} paddingX={pad / 2} paddingY={pad}>
+      <Box key="rail" flexDirection="column" width={RAIL_COLUMNS} flexShrink={0} paddingX={pad / 2} paddingY={pad}>
         {RoomsColumn(rail)}
       </Box>
       <Box key="main" flexDirection="column" flexGrow={1} paddingX={pad} paddingY={pad / 2}>{MainView(main) ?? Placeholder(main)}</Box>
@@ -85,17 +90,20 @@ export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   const hasRooms = o.model.rooms.length > 0 || o.model.invites.length > 0
   const columns = Math.max(MIN_COLUMNS, hasRooms ? o.columns : Math.min(o.columns, SINGLE_MAX_COLUMNS))
   const isText = o.surface === 'terminal' || !('Svg' in ui)
-  const look = lookOf({ isText, isLight: o.isLight })
+  const look = lookOf({ isText, isLight: o.isLight, pin: o.pin })
   const pad = isText ? 0 : PAD
   const isWide = columns >= WIDE_COLUMNS
-  const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, model: o.model, on: o.on }
   const { Box } = ui
   // Inside a room the way back is its own: one back control at a time.
   const home = o.model.view === 'chat' && !isWide ? null : HomeRow(ui, { onHome: o.onHome, pad })
-  if (isWide) return <Box flexDirection="column" width={columns} backgroundColor={look.sheet}>{home}{Wide(ctx, pad)}</Box>
+  // Less the pane's own padding above and below, so the field ends inside the pane, not under its fold.
+  const rows = o.rows === undefined || isText ? undefined : Math.max(1, o.rows - pad - (home === null ? 0 : HOME_ROWS))
+  const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, rows, model: o.model, on: o.on }
+  if (isWide) return <Box flexDirection="column" width={columns}>{home}{Wide(ctx, pad)}</Box>
+  // No ground of its own: the pane is drawn straight on the app's panel, as the MODZ hub is.
   const inner = sized(ctx, columns - pad * 2)
   return (
-    <Box flexDirection="column" gap={1} {...(isText ? { width: columns } : { flexGrow: 1, minWidth: 0 })} paddingX={pad} paddingY={pad / 2} backgroundColor={look.sheet}>
+    <Box flexDirection="column" gap={1} {...(isText ? { width: columns } : { flexGrow: 1, minWidth: 0 })} paddingX={pad} paddingY={pad / 2}>
       {home}
       {MainView(inner) ?? RoomsColumn(inner)}
       {o.surface === 'mobile' ? Meta(inner, paneWords().phoneNote, 'mobile-note') : null}

@@ -9,10 +9,9 @@ import { paneMotion } from './kit/moving'
 import type { Part, SvgPic } from './kit/svg-core'
 import { PRESENCE_MS } from './limits'
 import { sigPic } from './sig'
-import { facePart } from './sig-chat'
 import { glyphPiece, rowPart, rulePart, type GlyphName } from './sig-ui'
 import type { PaneModel, Receipt, RoomView } from './state-types'
-import { avatarRole, initialsOf, type Look } from './theme'
+import type { Look } from './theme'
 
 export type BandGlyph = BandLine['glyph']
 
@@ -25,6 +24,8 @@ export type Ctx = {
   px: number
   // Two columns (rooms beside the chat) rather than one view at a time.
   isWide: boolean
+  // The part's height in rows when the host says it (desktop only).
+  rows?: number
   model: PaneModel
   on: PaneHandlers
 }
@@ -50,7 +51,7 @@ export function SvgOf(ctx: Ctx, pic: SvgPic, key: string): RenderElement | null 
 // A Part drawn as its own Svg, or its alt as text where the surface has no Svg.
 export function Pic(ctx: Ctx, part: Part, key: string): RenderElement {
   const { Text } = ctx.ui
-  return SvgOf(ctx, sigPic(part), key) ?? <Text key={key} color={ctx.look.lo}>{part.alt}</Text>
+  return SvgOf(ctx, sigPic(part), key) ?? <Text key={key} {...ctx.look.loText}>{part.alt}</Text>
 }
 
 const GLYPH_PX = 16
@@ -65,7 +66,7 @@ export function GlyphPic(ctx: Ctx, o: { glyph: GlyphName; paint: string; key: st
 // One line of meta text in text.lo.
 export function Meta(ctx: Ctx, text: string, key?: string): RenderElement {
   const { Text } = ctx.ui
-  return <Text key={key} color={ctx.look.lo} wrap="wrap">{text}</Text>
+  return <Text key={key} {...ctx.look.loText} wrap="wrap">{text}</Text>
 }
 
 // A hairline across the part: a rule Svg on the desktop, a line of ─ on the terminal.
@@ -83,15 +84,6 @@ export function glyphOf(room: RoomView): BandGlyph {
   if (room.kind === 'project') return 'branch'
   if (room.kind === 'devices') return 'laptop'
   return room.isWaiting ? 'clock' : 'person'
-}
-
-// A room's face: a person's initials (with presence), a project's branch tile, an amber clock while nobody joined.
-export function roomFace(room: RoomView, o: { size: number; now: number; isMuted?: boolean }): Part {
-  if (room.kind !== 'dm' || room.isWaiting) {
-    const glyph = glyphPiece(glyphOf(room), { size: o.size, paint: o.isMuted === true ? 'lo' : 'mid', stroke: 1.5 })
-    return { body: glyph.body, width: o.size, height: o.size, alt: room.title }
-  }
-  return { ...facePart({ initials: initialsOf(room.title), paint: avatarRole(room.seed), size: o.size, isHere: isHere(room, o.now) }), alt: room.title }
 }
 
 export type ReceiptTone = { glyph: string; color?: string }

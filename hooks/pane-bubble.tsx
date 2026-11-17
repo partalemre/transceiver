@@ -1,130 +1,79 @@
-// A person's message on the desktop: a rounded bubble, mine in signal on the right, theirs on the card colour on
-// the left (a project room puts their face beside the last of a run); a run shows its time once, under the last;
-// a reply quotes what it answers; a DM that names a shared project room carries a chip to it; a message still
-// going out is dashed and says so. System lines sit centred; an unreadable doc says it is one.
+// A run of lines from one sender on the desktop: one drawing (sig-talk.ts) that says who wrote them (a monogram for a
+// person, a crab for an AI, "Alperen's AI" in words), when, and what became of mine. A DM that names a shared project
+// room carries a quiet press to it. System lines sit centred; an unreadable doc says it is one.
 import type { RenderElement } from 'claude-code'
 
 import { waitingText } from './connection'
-import { GlyphPic, isText, Pic, receiptTone, type Ctx } from './pane-kit'
-import { facePart } from './sig-chat'
+import { SvgOf, type Ctx } from './pane-kit'
+import { runPic, type Said } from './sig-talk'
+import { themed } from './sig-ink'
 import type { Line, RoomView } from './state-types'
-import { avatarRole, initialsOf } from './theme'
+import { firstName } from './tr'
 import { messageOf } from './traffic'
+import { agentOf } from './tx-words'
 import { clockText } from './when'
 import { chatWords } from './words-chat'
 import { paneWords } from './words-pane'
 import { shownSystem } from './words-wire'
 
-const FACE = 24
-const FACE_CELLS = 3
-// The empty side of a bubble: about a fifth of the pane, so mine and theirs never line up into one column.
-const GUTTER_RATIO = 0.18
+// Under their bubbles: the drawing's text column in cells, less the button's own padding.
+const CHIP_INDENT = 3
 
-export type BubbleOpts = { line: Line; isFirst: boolean; isLast: boolean; room: RoomView }
+export type RunOpts = { lines: Line[]; room: RoomView }
 
-const gutterOf = (ctx: Ctx) => Math.max(4, Math.round(ctx.columns * GUTTER_RATIO))
-
-// A message still going out says so, in amber while it waits for "Connect".
-function pendingStatus(ctx: Ctx, line: Line): { text: string; color?: string } | null {
-  if (line.receipt !== 'pending') return null
-  return ctx.model.isConnected ? { text: chatWords().sending, color: ctx.look.lo } : { text: waitingText(), color: ctx.look.role.warn.fg }
+// A line still going out says so, as a warning while the session may not write yet.
+function pendingOf(ctx: Ctx, lines: Line[]): { text: string; isWarn: boolean } | undefined {
+  if (!lines.some(l => l.receipt === 'pending')) return undefined
+  return ctx.model.isConnected ? { text: chatWords().sending, isWarn: false } : { text: waitingText(), isWarn: true }
 }
 
-// The time, then the receipt ticks or why it has none yet; text, so the host draws it in Claude's theme.
-function Stamp(ctx: Ctx, line: Line, ts: number): RenderElement {
-  const { Box, Text } = ctx.ui
-  const status = pendingStatus(ctx, line)
-  const tick = status === null && line.receipt !== undefined ? receiptTone(ctx, line.receipt) : null
-  return (
-    <Box key="stamp" flexDirection="row" justifyContent="flex-end" gap={1}>
-      <Text color={ctx.look.lo}>{clockText(ts)}</Text>
-      {status === null ? null : <Text color={status.color}>{status.text}</Text>}
-      {tick === null ? null : <Text color={tick.color}>{tick.glyph}</Text>}
-    </Box>
-  )
-}
-
-// The message a reply answers: who wrote it and its first words, on the inset.
-function Quote(ctx: Ctx, line: Line): RenderElement | null {
-  const { Box, Text } = ctx.ui
-  const quote = line.replyTo
-  if (quote === undefined) return null
-  return (
-    <Box key="quote" flexDirection="column" backgroundColor={ctx.look.inset} paddingX={1}>
-      <Text color={ctx.look.mid} bold>{quote.name}</Text>
-      <Text color={ctx.look.lo} wrap="truncate-end">{quote.text}</Text>
-    </Box>
-  )
-}
-
-// ⌥ partalemre/eliti ··· Go to room: a shared project room this DM names.
-function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
-  const { Box, Button, Text } = ctx.ui
-  const link = line.roomLink
-  if (link === undefined) return null
-  const run = ctx.look.role.run
-  return (
-    <Box key="room-chip" flexDirection="row" alignItems="center" gap={1} borderStyle="round" borderColor={run.line} backgroundColor={run.tint} paddingX={1}>
-      {GlyphPic(ctx, { glyph: 'branch', paint: 'run', key: `chip-glyph-${line.id}` })}
-      <Box flexGrow={1} flexShrink={1}><Text color={ctx.look.hi} wrap="truncate-end">{link.repo}</Text></Box>
-      <Button key={`goto-${line.id}`} label={chatWords().goToRoom} plain onPress={() => ctx.on.select(link.roomId)} />
-    </Box>
-  )
-}
+const isAgentLine = (line: Line): boolean => messageOf(line)?.kind === 'agent'
 
 // In the person's own room both sides are them: what tells a line apart is who wrote it, and on which computer.
-function whoLine(ctx: Ctx, line: Line): string {
-  const who = messageOf(line)?.kind === 'agent' ? 'Claude' : paneWords().you
-  return `${who} · ${line.isMine ? ctx.model.bridge.name : line.authorName}`
+function labelOf(ctx: Ctx, o: { line: Line; room: RoomView }): string {
+  const { line } = o
+  if (o.room.kind === 'devices') return `${isAgentLine(line) ? 'Claude' : paneWords().you} · ${line.isMine ? ctx.model.bridge.name : line.authorName}`
+  return isAgentLine(line) ? agentOf(line) : firstName(line.authorName)
 }
 
-function bubbleBody(ctx: Ctx, o: BubbleOpts & { text: string; ts: number }): RenderElement {
-  const { Box, Text } = ctx.ui
-  const { line } = o
-  // Mine on the track, theirs on the card: the side already says whose, and colour stays for state.
-  const tone = line.isMine ? { tint: ctx.look.track, line: ctx.look.track } : { tint: ctx.look.card, line: ctx.look.card }
-  const isPending = line.receipt === 'pending'
+const saidOf = (line: Line): Said => ({ text: messageOf(line)?.text ?? '', quote: line.replyTo, isPending: line.receipt === 'pending' })
+
+// "Go to room · eliti": a shared project room this DM names, one quiet press under the line. The words alone, so
+// the button's own hover box is all of it.
+function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
+  const { Box, Button } = ctx.ui
+  const link = line.roomLink
+  if (link === undefined) return null
   return (
-    <Box flexDirection="column" borderStyle={isPending ? 'dashed' : 'round'} borderColor={tone.line} backgroundColor={tone.tint} paddingX={1} gap={0}>
-      {o.isFirst && o.room.kind === 'devices' ? <Text key="author" color={ctx.look.lo} bold wrap="truncate-end">{whoLine(ctx, line)}</Text> : null}
-      {Quote(ctx, line)}
-      <Text key="text" color={ctx.look.hi} wrap="wrap">{o.text}</Text>
-      {RoomChip(ctx, line)}
-      {o.isLast || isPending ? Stamp(ctx, line, o.ts) : null}
+    <Box key={`room-chip-${line.id}`} flexDirection="row" alignItems="center" paddingLeft={line.isMine ? 0 : CHIP_INDENT} justifyContent={line.isMine ? 'flex-end' : 'flex-start'}>
+      <Button key={`goto-${line.id}`} label={`${chatWords().goToRoom} · ${link.repo.split('/')[1] ?? link.repo}`} plain dimColor onPress={() => ctx.on.select(link.roomId)} />
     </Box>
   )
 }
 
-// Their face beside the last bubble of a run, a blank of its width beside the others; only project rooms show faces.
-function Face(ctx: Ctx, o: BubbleOpts): RenderElement | null {
-  const { line } = o
-  if (o.room.kind !== 'project') return null
-  if (o.isLast) return Pic(ctx, facePart({ initials: initialsOf(line.authorName), paint: avatarRole(line.seed), size: FACE }), `face-${line.id}`)
-  const { Box } = ctx.ui
-  return <Box key={`face-${line.id}`} width={FACE_CELLS} flexShrink={0} />
-}
-
-// Mine to the right with the gutter on the left; theirs to the left, behind their face in a project room.
-function Side(ctx: Ctx, o: BubbleOpts & { body: RenderElement }): RenderElement {
-  const { Box } = ctx.ui
-  const { line } = o
-  const gutter = gutterOf(ctx)
-  if (line.isMine) return <Box key={`msg-${line.id}`} flexDirection="row" justifyContent="flex-end" paddingLeft={gutter}>{o.body}</Box>
-  const face = Face(ctx, o)
-  return (
-    <Box key={`msg-${line.id}`} flexDirection="row" alignItems="flex-end" gap={1} paddingRight={gutter}>
-      {face}
-      {o.body}
-    </Box>
-  )
-}
-
-export function Bubble(ctx: Ctx, o: BubbleOpts): RenderElement {
+function Lone(ctx: Ctx, line: Line): RenderElement {
   const { Box, Text } = ctx.ui
-  const m = messageOf(o.line)
-  if (m === null) return <Box key={`msg-${o.line.id}`} paddingLeft={FACE_CELLS + 1}><Text color={ctx.look.lo} italic>{chatWords().unreadable}</Text></Box>
-  if (m.kind === 'system' || isText(ctx)) {
-    return <Box key={`msg-${o.line.id}`} justifyContent="center"><Text color={ctx.look.lo} italic wrap="wrap">{shownSystem(m.text)}</Text></Box>
-  }
-  return Side(ctx, { ...o, body: bubbleBody(ctx, { ...o, text: m.text, ts: m.ts }) })
+  const m = messageOf(line)
+  const text = m === null ? chatWords().unreadable : shownSystem(m.text)
+  return <Box key={`msg-${line.id}`} justifyContent="center"><Text {...ctx.look.loText} italic wrap="wrap">{text}</Text></Box>
+}
+
+export function Run(ctx: Ctx, o: RunOpts): RenderElement {
+  const { Box } = ctx.ui
+  const first = o.lines[0] as Line
+  const m = messageOf(first)
+  if (m === null || m.kind === 'system') return Lone(ctx, first)
+  const last = o.lines.at(-1) as Line
+  const lastTs = messageOf(last)?.ts ?? m.ts
+  // My own lines need no name, unless my AI wrote them or the room is between my own computers.
+  const hasHead = !first.isMine || isAgentLine(first) || o.room.kind === 'devices'
+  const pic = runPic({
+    width: ctx.px, said: o.lines.map(saidOf), hasHead, pending: pendingOf(ctx, o.lines),
+    who: { label: labelOf(ctx, { line: first, room: o.room }), name: first.authorName, isAgent: isAgentLine(first), isMine: first.isMine },
+    time: clockText(first.isMine ? lastTs : m.ts), tick: last.receipt,
+  })
+  const drawing = SvgOf(ctx, themed(pic, ctx.look.pin), `msg-${first.id}`)
+  const chips = o.lines.map(line => RoomChip(ctx, line)).filter((c): c is RenderElement => c !== null)
+  if (chips.length === 0 && drawing !== null) return drawing
+  return <Box key={`run-${first.id}`} flexDirection="column" gap={1}>{drawing}{chips}</Box>
 }

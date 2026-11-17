@@ -79,6 +79,7 @@ test('the team line names the teammate, their branch, and the newest line they o
   expect(line?.mates).toEqual([{ name: 'Yusuf', at: 50, branch: 'feature/mix' }])
   expect(line?.last).toEqual({ id: ID2, name: 'Yusuf', text: 'testler geçti', ts: 40, isAgent: true })
   expect(line?.unread).toBe(1)
+  expect(line?.recent.map(r => [r.isMine, r.isAgent, r.text])).toEqual([[true, false, 'selam'], [false, true, 'testler geçti']])
   const read = teamIn(syncWith({ peers: { [KEY]: head }, entries, ownHead: { ...emptyHead(), readUpTo: ID2 } }))
   expect(read?.unread).toBe(0)
 })
