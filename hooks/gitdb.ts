@@ -1,7 +1,7 @@
 // The relay's ArtifactData calls, answered from a git room (gitbox.ts) in the tool's own wording, so the relay,
 // the sync loop and everything above them run on a repo exactly as they do on an artifact.
 import type { CallResult } from './host'
-import { commit, inCollection, isSafePath, oneDoc, parseGitUrl, refOf, refresh, rows, withBox, OWN_REF, type Box, type GitIo, type Op, type Row } from './gitbox'
+import { commit, inCollection, isSafePath, oneDoc, parseGitUrl, refOf, refresh, rows, tipOf, withBox, type Box, type GitIo, type Op, type Row } from './gitbox'
 
 type Write = { op?: string; collection: string; doc_id: string; data?: Record<string, unknown>; if_version?: number }
 type Query = { where?: [string, string, number][]; order_by?: { field: string; direction?: string }; limit?: number }
@@ -73,11 +73,13 @@ const lineOf = (w: Write, op: Op): string =>
 
 async function write(ctx: Ctx, writes: Write[]): Promise<CallResult> {
   if (!writes.every(w => isSafePath(pathOf(w)))) return missing()
-  const have = await rows(ctx.io, ctx.box, { ref: OWN_REF, specs: writes.map(w => oneDoc(pathOf(w))) })
+  // Decided from one commit and written on top of that same commit (gitbox.ts commit).
+  const parent = await tipOf(ctx.io, ctx.box)
+  const have = parent === null ? new Map<string, Row>() : await rows(ctx.io, ctx.box, { ref: parent, specs: writes.map(w => oneDoc(pathOf(w))) })
   const refused = refusal(have, writes)
   if (refused !== null) return { isError: true, text: refused }
   const ops = writes.map(w => opOf(have, w))
-  await commit(ctx.io, ctx.box, { ops, self: ctx.self })
+  await commit(ctx.io, ctx.box, { ops, self: ctx.self, parent })
   return { text: [`Database batch committed atomically — ${writes.length} writes:`, ...writes.map((w, i) => lineOf(w, ops[i] as Op))].join('\n') }
 }
 

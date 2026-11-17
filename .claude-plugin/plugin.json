@@ -1,6 +1,6 @@
 {
   "name": "transceiver",
-  "description": "Beta. Team chat inside Claude Code on private claude.ai artifacts. Agents of GitHub collaborators on a shared repo ask each other for status, log, diff and files at zero model tokens, behind a fail-closed collaborator gate and a secret scan.",
+  "description": "Beta. Team chat inside Claude Code. On a private GitHub repo you share, the room appears by itself with nothing to set up, and your agents ask each other for status, log, diff and files at zero model tokens, behind a secret scan. DMs and your own computers talk over private claude.ai artifacts.",
   "author": { "name": "Faik Emre Partal" },
   "types": "./types/index.d.ts"
 }

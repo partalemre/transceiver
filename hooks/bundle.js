@@ -19,7 +19,7 @@ const ASK_MODEL = "haiku";
 const ASK_MAX_TOKENS = 800;
 const ASK_TIMEOUT_MS = 20000;
 const ASK_DAILY_LIMIT = 10;
-const ASK_WAIT_MS = 20000;
+const ASK_WAIT_MS = 30000;
 const ASK_WAIT_STEP_MS = 1000;
 const QUERY_TTL_MS = 600000;
 const QUERY_RATE_PER_MIN = 60;
@@ -403,9 +403,11 @@ function syncOwn(io, box, self) {
 async function restoreOwn(io, box, self) {
   if (box.hasOwn || box.shas[self] === undefined)
     return;
-  const got = await git$1(io, box, ["update-ref", OWN_REF, `${PEER_NS}${self}`]);
-  if (got.exitCode !== 0)
-    throw new Error("transceiver: the mailbox could not be restored");
+  if (await tipOf(io, box) === null) {
+    const got = await git$1(io, box, ["update-ref", OWN_REF, `${PEER_NS}${self}`, ""]);
+    if (got.exitCode !== 0)
+      throw new Error("transceiver: the mailbox could not be restored");
+  }
   box.hasOwn = true;
 }
 async function refresh(io, box, self) {
@@ -447,7 +449,7 @@ async function rows(io, box, opts) {
   const out = await git$1(io, box, ["grep", "--no-color", "-I", "-e", "", opts.ref, "--", ...opts.specs]);
   if (out.exitCode === NO_MATCH$1 || NO_REF.test(out.stderr))
     return found;
-  if (out.exitCode !== 0)
+  if (out.exitCode !== 0 || out.isStdoutTruncated === true)
     throw new Error("transceiver: the mailbox could not be read");
   for (const line of out.stdout.split(`
 `)) {
@@ -459,10 +461,15 @@ async function rows(io, box, opts) {
 }
 const inCollection = (collection) => `:(glob)${collection}/*${DOC_EXT}`;
 const oneDoc = (path) => `:(literal)${path}${DOC_EXT}`;
+async function tipOf(io, box) {
+  const out = await git$1(io, box, ["rev-parse", "-q", "--verify", OWN_REF]);
+  const sha = out.stdout.trim();
+  return out.exitCode === 0 && sha !== "" ? sha : null;
+}
 function importStream(ops, opts) {
   const lines = [`commit ${OWN_REF}`, `committer transceiver <transceiver@localhost> ${Math.floor(opts.at / 1000)} +0000`, "data 2", "tx"];
-  if (opts.hasParent)
-    lines.push(`from ${OWN_REF}^0`);
+  if (opts.parent !== null)
+    lines.push(`from ${opts.parent}`);
   for (const op of ops) {
     if (op.row === null) {
       lines.push(`D ${op.path}${DOC_EXT}`);
@@ -476,7 +483,7 @@ function importStream(ops, opts) {
 `;
 }
 async function commit$1(io, box, opts) {
-  const stream = importStream(opts.ops, { hasParent: box.hasOwn, at: await io.now() });
+  const stream = importStream(opts.ops, { parent: opts.parent, at: await io.now() });
   const out = await git$1(io, box, ["fast-import", "--quiet"], stream);
   if (out.exitCode !== 0)
     throw new Error("transceiver: the mailbox could not be written");
@@ -556,12 +563,13 @@ const lineOf$3 = (w, op) => op.row === null ? `- delete "${w.collection}"/"${w.d
 async function write(ctx, writes) {
   if (!writes.every((w) => isSafePath(pathOf(w))))
     return missing();
-  const have = await rows(ctx.io, ctx.box, { ref: OWN_REF, specs: writes.map((w) => oneDoc(pathOf(w))) });
+  const parent = await tipOf(ctx.io, ctx.box);
+  const have = parent === null ? new Map : await rows(ctx.io, ctx.box, { ref: parent, specs: writes.map((w) => oneDoc(pathOf(w))) });
   const refused = refusal(have, writes);
   if (refused !== null)
     return { isError: true, text: refused };
   const ops = writes.map((w) => opOf(have, w));
-  await commit$1(ctx.io, ctx.box, { ops, self: ctx.self });
+  await commit$1(ctx.io, ctx.box, { ops, self: ctx.self, parent });
   return { text: [`Database batch committed atomically — ${writes.length} writes:`, ...writes.map((w, i) => lineOf$3(w, ops[i]))].join(`
 `) };
 }
@@ -1795,7 +1803,8 @@ function carryQueued(opts) {
 }
 async function step(host, scheduled) {
   const room = (await loadRooms(host)).find((r) => r.id === scheduled.id) ?? scheduled;
-  if (skip !== null && await skip(room))
+  const isOnScreen = isPaneOpen && viewing === room.id;
+  if (skip !== null && !isOnScreen && await skip(room))
     return schedule(host, room, DISCOVER_MS);
   const before = await loadSync(host, room);
   const settings = await loadSettings(host);
@@ -2157,7 +2166,7 @@ async function lineOf$2(host, argv) {
   return line === "" ? undefined : line;
 }
 async function sharePresence(host, ev) {
-  if (!isGitUrl(ev.room.url) || ev.room.status !== "active")
+  if (!isGitUrl(ev.room.url) || ev.room.status !== "active" || !sameName(await repoHere(host), ev.room.repo))
     return;
   const { state } = ev;
   const now = await host.now();
@@ -8281,7 +8290,7 @@ async function onPaneTick(ev) {
 function runnerOf(processRun) {
   return async (argv, init) => {
     const out = await processRun(argv, { timeoutMs: RUN_TIMEOUT_MS, ...init });
-    return { exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr };
+    return { exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr, isStdoutTruncated: out.isStdoutTruncated };
   };
 }
 function realPathOf(stat) {
@@ -8733,6 +8742,9 @@ function onBand(on) {
     const theirs = await next(e);
     const line = e.props.hasSurvey ? null : (await $.state.get(BAND_STATE)).value ?? null;
     if (line === null)
+      return theirs;
+    const onStrip = await $.state.get({ plugin: "savvy-progress", key: "teamShown" }).catch(() => null);
+    if (onStrip?.value?.roomId === line.roomId)
       return theirs;
     const open = () => void openPane($).then(() => paneHandlers.select(line.roomId)).catch(() => {
       return;

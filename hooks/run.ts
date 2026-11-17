@@ -1,6 +1,6 @@
 import { RUN_TIMEOUT_MS } from './limits'
 
-export type RunResult = { exitCode: number; stdout: string; stderr: string }
+export type RunResult = { exitCode: number; stdout: string; stderr: string; isStdoutTruncated?: boolean }
 type RunInit = { cwd?: string; timeoutMs?: number; env?: Record<string, string>; stdin?: string }
 export type Run = (argv: string[], init?: RunInit) => Promise<RunResult>
 // Absolute path with every link and `..` resolved, or null when it leads nowhere.
@@ -14,7 +14,7 @@ export type StatResolve = (abs: string) => Promise<{ realPath?: string }>
 export function runnerOf(processRun: ProcessRun): Run {
   return async (argv, init) => {
     const out = await processRun(argv, { timeoutMs: RUN_TIMEOUT_MS, ...init })
-    return { exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr }
+    return { exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr, isStdoutTruncated: out.isStdoutTruncated }
   }
 }
 

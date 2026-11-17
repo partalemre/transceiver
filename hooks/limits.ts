@@ -22,7 +22,8 @@ export const ASK_MODEL = 'haiku'
 export const ASK_MAX_TOKENS = 800
 export const ASK_TIMEOUT_MS = 20_000
 export const ASK_DAILY_LIMIT = 10
-export const ASK_WAIT_MS = 20_000
+// A question through a repo room takes two trips to GitHub each way: measured at 9–17 s.
+export const ASK_WAIT_MS = 30_000
 export const ASK_WAIT_STEP_MS = 1_000
 export const QUERY_TTL_MS = 600_000
 export const QUERY_RATE_PER_MIN = 60

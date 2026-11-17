@@ -84,7 +84,9 @@ function carryQueued(opts: { before: RoomSync; during: RoomSync | undefined; aft
 async function step(host: Host, scheduled: RoomRecord): Promise<void> {
   // Read fresh: a mailbox found since the poll was scheduled is read on this tick.
   const room = (await loadRooms(host)).find(r => r.id === scheduled.id) ?? scheduled
-  if (skip !== null && await skip(room)) return schedule(host, room, DISCOVER_MS)
+  // A room this session leaves to others is still read while the person has it on screen here.
+  const isOnScreen = isPaneOpen && viewing === room.id
+  if (skip !== null && !isOnScreen && await skip(room)) return schedule(host, room, DISCOVER_MS)
   const before = await loadSync(host, room)
   const settings = await loadSettings(host)
   const isViewing = isPaneOpen && viewing === room.id

@@ -6,7 +6,7 @@
 // index, its branches and its hooks are never touched. A document is one file holding one line of JSON.
 import { utf8Bytes } from './protocol'
 
-export type GitResult = { exitCode: number; stdout: string; stderr: string }
+export type GitResult = { exitCode: number; stdout: string; stderr: string; isStdoutTruncated?: boolean }
 export type GitRun = (argv: string[], init: { stdin?: string; env?: Record<string, string>; timeoutMs?: number }) => Promise<GitResult>
 // `dir` is where the room's own bare repository is kept; `remotes` the addresses to reach `repo` at, best first;
 // `selfUid` this computer's id in git rooms.
@@ -166,8 +166,11 @@ function syncOwn(io: GitIo, box: Box, self: string): void {
 
 async function restoreOwn(io: GitIo, box: Box, self: string): Promise<void> {
   if (box.hasOwn || box.shas[self] === undefined) return
-  const got = await git(io, box, ['update-ref', OWN_REF, `${PEER_NS}${self}`])
-  if (got.exitCode !== 0) throw new Error('transceiver: the mailbox could not be restored')
+  // Really absent, not only unknown to this session: another session may have written it since this one started.
+  if ((await tipOf(io, box)) === null) {
+    const got = await git(io, box, ['update-ref', OWN_REF, `${PEER_NS}${self}`, ''])
+    if (got.exitCode !== 0) throw new Error('transceiver: the mailbox could not be restored')
+  }
   box.hasOwn = true
 }
 
@@ -214,7 +217,8 @@ export async function rows(io: GitIo, box: Box, opts: { ref: string; specs: stri
   // No file matched, or the mailbox has no ref yet (nobody wrote it): both are an empty read. Anything else is a
   // failure, never "empty": a write decides from this read what already exists.
   if (out.exitCode === NO_MATCH || NO_REF.test(out.stderr)) return found
-  if (out.exitCode !== 0) throw new Error('transceiver: the mailbox could not be read')
+  // A read cut short is a failed read: half a collection must never pass for all of it.
+  if (out.exitCode !== 0 || out.isStdoutTruncated === true) throw new Error('transceiver: the mailbox could not be read')
   for (const line of out.stdout.split('\n')) {
     const row = parseRow(opts.ref, line)
     if (row !== null) found.set(row[0], row[1])
@@ -225,9 +229,17 @@ export async function rows(io: GitIo, box: Box, opts: { ref: string; specs: stri
 export const inCollection = (collection: string): string => `:(glob)${collection}/*${DOC_EXT}`
 export const oneDoc = (path: string): string => `:(literal)${path}${DOC_EXT}`
 
-function importStream(ops: Op[], opts: { hasParent: boolean; at: number }): string {
+// The own mailbox's newest commit, or null before the first. Asked from git each time: another session of the same
+// person on this computer writes the same mailbox.
+export async function tipOf(io: GitIo, box: Box): Promise<string | null> {
+  const out = await git(io, box, ['rev-parse', '-q', '--verify', OWN_REF])
+  const sha = out.stdout.trim()
+  return out.exitCode === 0 && sha !== '' ? sha : null
+}
+
+function importStream(ops: Op[], opts: { parent: string | null; at: number }): string {
   const lines = [`commit ${OWN_REF}`, `committer transceiver <transceiver@localhost> ${Math.floor(opts.at / 1000)} +0000`, 'data 2', 'tx']
-  if (opts.hasParent) lines.push(`from ${OWN_REF}^0`)
+  if (opts.parent !== null) lines.push(`from ${opts.parent}`)
   for (const op of ops) {
     if (op.row === null) {
       lines.push(`D ${op.path}${DOC_EXT}`)
@@ -239,10 +251,11 @@ function importStream(ops: Op[], opts: { hasParent: boolean; at: number }): stri
   return `${lines.join('\n')}\n`
 }
 
-// One commit on the own mailbox; the push follows behind it. A push that fails leaves the commit here, and the
-// next look at the remote sends it.
-export async function commit(io: GitIo, box: Box, opts: { ops: Op[]; self: string }): Promise<void> {
-  const stream = importStream(opts.ops, { hasParent: box.hasOwn, at: await io.now() })
+// One commit on the own mailbox, on top of the commit the write was decided from (`parent`): git refuses it when
+// the mailbox moved meanwhile (another session wrote), so two sessions never both pass one pin or take one claim.
+// The push follows behind; one that fails leaves the commit here, and the next look at the remote sends it.
+export async function commit(io: GitIo, box: Box, opts: { ops: Op[]; self: string; parent: string | null }): Promise<void> {
+  const stream = importStream(opts.ops, { parent: opts.parent, at: await io.now() })
   const out = await git(io, box, ['fast-import', '--quiet'], stream)
   if (out.exitCode !== 0) throw new Error('transceiver: the mailbox could not be written')
   box.hasOwn = true

@@ -159,7 +159,8 @@ async function lineOf(host: AgentHost, argv: string[]): Promise<string | undefin
 // The person's name and branch on their own head, and a beat while they work, so the others see who is on the repo.
 // It rides on a head that is written anyway when it can; a quiet session writes nothing.
 async function sharePresence(host: AgentHost, ev: TickEvent): Promise<void> {
-  if (!isGitUrl(ev.room.url) || ev.room.status !== 'active') return
+  // Only from a session in the repo: the branch read here is this session's.
+  if (!isGitUrl(ev.room.url) || ev.room.status !== 'active' || !sameName(await repoHere(host), ev.room.repo)) return
   const { state } = ev
   const now = await host.now()
   const own = state.ownHead

@@ -19,6 +19,8 @@ export type WorldOpts = {
   extra?: Record<string, unknown>
   // The session's git `origin` (`git remote get-url origin`); absent, the session has no repo.
   remote?: string
+  // The session's repo answers a caller with no credentials: anyone can read it.
+  isPublicRepo?: boolean
   // The interface in English (no MODZ_LANG); the other pane tests read the Turkish one.
   isEnglish?: boolean
   // Where the clock starts; NOW by default.
@@ -70,7 +72,11 @@ function roomDbs(o: WorldOpts): Map<string, FakeDb> {
 }
 
 // Every command succeeds with no output, but `git remote get-url origin`, which names the session's repo if any.
-function runAnswer(argv: string[], remote: string | undefined) {
+const NO_ACCESS = 128
+
+function runAnswer(argv: string[], remote: string | undefined, isPublicRepo = false) {
+  // The look with no credentials (gitbox.ts visibilityOf): a private repo refuses it.
+  if (argv.includes('credential.helper=')) return { exitCode: isPublicRepo ? 0 : NO_ACCESS, stdout: '', stderr: '' }
   if (!argv.includes('get-url')) return { exitCode: 0, stdout: '', stderr: '' }
   return { exitCode: remote === undefined ? 2 : 0, stdout: remote === undefined ? '' : `${remote}\n`, stderr: '' }
 }
@@ -105,7 +111,7 @@ export function paneWorld(on: any, o: WorldOpts = {}): World {
   on('ui.copy', (_$: unknown, e: { text: string }) => { world.copies.push(e.text); return { value: { isCopied: true } } })
   on('fs.write', () => ({ value: undefined }))
   on('fs.stat', (_$: unknown, e: { path: string }) => ({ value: { kind: e.path.endsWith('.html') ? 'file' : 'dir', size: 0, mtimeMs: 0, isLink: false } }))
-  on('process.run', (_$: unknown, e: { argv: string[] }) => { world.runs.push(e.argv); return { value: runAnswer(e.argv, o.remote) } })
+  on('process.run', (_$: unknown, e: { argv: string[] }) => { world.runs.push(e.argv); return { value: runAnswer(e.argv, o.remote, o.isPublicRepo) } })
   on('tool.call', async (_$: unknown, e: Record<string, unknown>) => {
     world.calls.push(e)
     if (e.tool === 'Artifact') return asToolResult((o.artifact ?? publishAnswer)(e))

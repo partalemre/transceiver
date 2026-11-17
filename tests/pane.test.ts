@@ -54,6 +54,17 @@ for (const surface of SURFACES) {
     expect(roomsIn(w).map(r => [r.kind, r.repo])).toEqual([['project', 'partalemre/eliti']])
   })
 
+  test(`${surface}: a public repo gets no team room, and the pane says why`, async ($: any, on: any) => {
+    const w = paneWorld(on, { rooms: [], syncs: {}, remote: 'git@github.com:partalemre/eliti.git', isPublicRepo: true })
+    await startSession($, w, { surface, isBypass: true })
+    await $.command.run({ command: 'transceiver', args: '' })
+    const ui = await mountPane($, { surface, columns: NARROW })
+    await ui.press({ key: 'open-project' })
+    await ui.input({ key: 'add-repo', text: 'partalemre/eliti' })
+    expect(roomsIn(w)).toEqual([])
+    expect(await drawn(ui)).toContain('herkese açık')
+  })
+
   test(`${surface}: outside a GitHub repo the "Yeni sohbet" project field starts empty`, async ($: any, on: any) => {
     const w = paneWorld(on, { rooms: ALL, syncs: SYNCS(), remote: 'git@gitlab.com:someone/thing.git' })
     await startSession($, w, { surface, isBypass: true })

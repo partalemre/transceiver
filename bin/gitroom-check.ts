@@ -5,7 +5,7 @@ import { join } from 'node:path'
 // The git room against real git: two people's mailboxes and a bare repo between them, in a temp folder.
 // Run: bun bin/gitroom-check.ts   (the plugin's own tests may not start a process, so this lives outside them)
 import { deepStrictEqual } from 'node:assert'
-import { forgetBoxes, gitUrl, peersOf, pushed, REFRESH_MS, type GitIo } from '../hooks/gitbox'
+import { commit, forgetBoxes, gitUrl, peersOf, pushed, REFRESH_MS, tipOf, withBox, type GitIo } from '../hooks/gitbox'
 import { gitDb } from '../hooks/gitdb'
 import type { Message } from '../hooks/protocol'
 import { relayOf } from '../hooks/relay'
@@ -99,6 +99,26 @@ test('the first address that answers is the one used', async () => {
   await a.relay(A).send({ uid: A, message: msg(ID1, 10) })
   await pushed(REPO)
   expect((await w.as(B).relay(A).heads()).length).toBe(1)
+})
+
+test('two sessions of one person share the mailbox: neither loses a line, a claim is taken once, a stale write is refused', async () => {
+  const w = world()
+  const first = w.as(A)
+  await first.relay(A).send({ uid: A, message: msg(ID1, 10) })
+  expect(await first.relay(A).claim({ uid: A, qid: ID2, now: 1 })).toBe(true)
+  const stale = await withBox(first.io, REPO, box => tipOf(first.io, box))
+  await pushed(REPO)
+  // A second session starts with no memory of the first and writes the same mailbox.
+  const second = w.as(A)
+  expect(await second.relay(A).claim({ uid: A, qid: ID2, now: 2 })).toBe(false)
+  await second.relay(A).send({ uid: A, message: msg(ID2, 20) })
+  // The first session, still holding the commit it last saw, is refused rather than writing over the second.
+  let refused = false
+  await withBox(second.io, REPO, box => commit(second.io, box, { ops: [{ path: 'outbox/x', row: { id: 'x', data: {}, version: 1 } }], self: A, parent: stale }))
+    .catch(() => { refused = true })
+  expect(refused).toBe(true)
+  await pushed(REPO)
+  expect((await w.as(B).relay(A).since(A, 0)).length).toBe(2)
 })
 
 let failed = 0

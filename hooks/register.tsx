@@ -256,6 +256,10 @@ function onBand(on: On): void {
     const theirs = await next(e)
     const line = e.props.hasSurvey ? null : (await $.state.get(BAND_STATE)).value ?? null
     if (line === null) return theirs
+    // MODZ's session strip already shows this room's unread line on its teammate chip: one notice, not two.
+    type Shown = Promise<{ value?: { roomId?: unknown } | null }>
+    const onStrip = await ($.state.get({ plugin: 'savvy-progress', key: 'teamShown' } as never) as Shown).catch(() => null)
+    if (onStrip?.value?.roomId === line.roomId) return theirs
     const open = () => void openPane($).then(() => paneHandlers.select(line.roomId)).catch(() => undefined)
     const dismiss = () => { dismissBand(line.lastId); void refreshPane().catch(() => undefined) }
     return pinned(e, bandTree($.ui.resolve(e), {
