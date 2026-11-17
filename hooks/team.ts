@@ -2,7 +2,7 @@
 // `team` state): the teammates with a mailbox in the repo's room, when each last worked and on which branch, and
 // the newest line one of them or their agent wrote. Null while nobody else is there. No clock in it: the reader
 // decides what "now" is, so the value moves only when the room does.
-import type { TeamLine } from '../types'
+import type { TeamLine, TeamSaid } from '../types'
 import { repoRoomOf } from './gitroom'
 import { isUnreadable } from './protocol'
 import type { RoomRecord } from './rooms'
@@ -14,6 +14,7 @@ import { peerUids } from './view-room'
 
 const MAX_MATES = 3
 const MAX_PREVIEW_CHARS = 120
+const MAX_RECENT = 3
 const AGENT_KINDS = new Set(['agent', 'query', 'answer'])
 
 type Opts = { rooms: readonly RoomRecord[]; syncs: Record<string, RoomSync>; names: Record<string, string>; repo: string | null | undefined; readMark: (sync: RoomSync, roomId: string) => string }
@@ -29,6 +30,19 @@ function lastOf(sync: RoomSync, names: Record<string, string>): TeamLine['last']
   }
 }
 
+// The talk's newest lines, both sides: what was said, by whom, and whether a person or their agent said it.
+function recentOf(sync: RoomSync, names: Record<string, string>): TeamSaid[] {
+  return sync.entries.flatMap(entry => {
+    const { message } = entry
+    if (isUnreadable(message)) return []
+    const isMine = entry.author === sync.selfUid
+    return [{
+      id: message.id, name: isMine ? '' : firstName(nameOf(names, entry.author)), text: previewOf(message).slice(0, MAX_PREVIEW_CHARS),
+      ts: message.ts, isAgent: AGENT_KINDS.has(message.kind), isMine,
+    }]
+  }).slice(-MAX_RECENT)
+}
+
 export function teamOf(o: Opts): TeamLine | null {
   const room = typeof o.repo === 'string' ? repoRoomOf(o.rooms, o.repo) : undefined
   const sync = room === undefined ? undefined : o.syncs[room.id]
@@ -40,5 +54,5 @@ export function teamOf(o: Opts): TeamLine | null {
   }).sort((a, b) => b.at - a.at).slice(0, MAX_MATES)
   if (mates.length === 0) return null
   const unread = unreadCount({ entries: sync.entries, selfUid: sync.selfUid, readUpTo: o.readMark(sync, room.id) })
-  return { roomId: room.id, repo: room.repo ?? '', mates, last: lastOf(sync, o.names), unread }
+  return { roomId: room.id, repo: room.repo ?? '', mates, last: lastOf(sync, o.names), unread, recent: recentOf(sync, o.names) }
 }

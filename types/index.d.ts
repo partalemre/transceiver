@@ -69,9 +69,12 @@ export type BandLine = { roomId: string; lastId: string; glyph: 'laptop' | 'pers
 // The session repo's teammates, for a strip outside this mod. `at` is when a teammate last worked (ms); `last` the
 // newest line one of them (or their agent) wrote; `unread` how many of their lines this person has not read.
 export type TeamMate = { name: string; at: number; branch?: string }
+// `recent`: the room's newest lines, oldest first, this person's own included (`isMine`), for a small view of the talk.
+export type TeamSaid = { id: string; name: string; text: string; ts: number; isAgent: boolean; isMine: boolean }
 export type TeamLine = {
   roomId: string; repo: string; mates: TeamMate[]; unread: number
   last: { id: string; name: string; text: string; ts: number; isAgent: boolean } | null
+  recent: TeamSaid[]
 }
 
 export type Draft = { roomId: string; qid: string; question: string; asker: string }
