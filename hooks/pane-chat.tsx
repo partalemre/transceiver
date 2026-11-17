@@ -181,7 +181,7 @@ export function ChatView(ctx: Ctx): RenderElement | null {
       {ShareCard(ctx, room)}
       {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
       {isInfoHere ? RoomInfo(ctx, room) : null}
-      <Box key="timeline-grow" flexDirection="column" flexGrow={1} paddingTop={1}>{Timeline(ctx, room)}</Box>
+      <Box key="timeline-grow" flexDirection="column" flexGrow={1} justifyContent="flex-end" paddingTop={1}>{Timeline(ctx, room)}</Box>
       {ctx.isWide ? null : ErrorCard(ctx)}
       {ConnectBanner(ctx)}
       {Composer(ctx, room)}

@@ -6,13 +6,15 @@ import { fitText, textWidth } from './kit/svg-metrics'
 import { faceOf, markOf, themed } from './sig-ink'
 import { glyphPiece } from './sig-ui'
 
-export const HEAD_H = 46
+export const HEAD_H = 48
 const BACK = { size: 18, stroke: 1.75, room: 26 }
-const FACE = 26
+const FACE = 32
+// A room that is not a person wears its mark on a tile of Claude's clay, the transceiver's own colour.
+const TILE = { r: 9, fill: 0.16 }
 const FACE_GAP = 10
 const HERE_R = 4
-const NAME = { size: 15, weight: 600, top: 4, height: 22 }
-const SUB = { size: 12, top: 26, height: 16 }
+const NAME = { size: 15, weight: 650, top: 5, height: 22 }
+const SUB = { size: 12, top: 27, height: 16 }
 
 export type HeadOpts = {
   width: number; title: string; sub: string; isSubLive: boolean; hasBack: boolean
@@ -27,7 +29,7 @@ export function chatHeadPic(o: HeadOpts): SvgPic {
   const faceY = (HEAD_H - FACE) / 2
   const face = o.face.kind === 'person'
     ? faceOf({ name: o.face.name, isAgent: false, x: faceX, y: faceY, size: FACE })
-    : markOf({ name: o.face.mark, x: faceX, y: faceY, box: FACE, paint: 'mid' })
+    : `<rect x="${faceX}" y="${faceY}" width="${FACE}" height="${FACE}" rx="${TILE.r}" class="f-edit" fill-opacity="${TILE.fill}"/>${markOf({ name: o.face.mark, x: faceX, y: faceY, box: FACE, paint: 'edit' })}`
   const dot = o.face.kind === 'person' && o.face.isHere === true
     ? `<circle cx="${faceX + FACE - HERE_R}" cy="${faceY + FACE - HERE_R}" r="${HERE_R}" class="f-ok here"/>`
     : ''

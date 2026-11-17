@@ -3516,6 +3516,7 @@ const veilRect = (o) => {
   const edge = o.edge === undefined ? "" : ` stroke-opacity="${o.edge}" stroke-width="1"${o.isDashed === true ? ' stroke-dasharray="3 3"' : ""}`;
   return `<rect x="${num$1(o.x + 0.5)}" y="${num$1(o.y + 0.5)}" width="${num$1(o.w - 1)}" height="${num$1(o.h - 1)}" rx="${o.r}" class="${classes}"${fill}${edge}/>`;
 };
+const hairline = (o) => `<path d="M${num$1(o.x1)} ${num$1(o.y + 0.5)}H${num$1(o.x2)}" class="s-hi" stroke-opacity="${VEIL.rule}" stroke-width="1"/>`;
 const MONO_INK = { disc: 0.12, size: 0.44, weight: 700 };
 function monogram(o) {
   const r = o.size / 2;
@@ -3663,18 +3664,18 @@ const ROOM_ROW_H = 32;
 const ICON = 16;
 const NAME_X = 28;
 const NAME$2 = { size: 13, weight: 500 };
-const NOTE = { size: 12, weight: 400 };
+const NOTE$1 = { size: 12, weight: 400 };
 const GAP$1 = 10;
 const COUNT_WEIGHT = 650;
 const MIN_PREVIEW = 48;
 const WASH$1 = { inset: 6, radius: 7 };
 function rightOf(o) {
-  const y = baseline(0, ROOM_ROW_H, NOTE.size);
+  const y = baseline(0, ROOM_ROW_H, NOTE$1.size);
   const count = o.unread > 0 ? String(o.unread) : "";
-  const countWidth = count === "" ? 0 : textWidth(count, NOTE.size, COUNT_WEIGHT) + GAP$1;
-  const timeWidth = textWidth(o.time, NOTE.size, NOTE.weight);
-  const time = textEl({ x: o.width - countWidth, y, text: o.time, paint: "lo", ...NOTE, anchor: "end" });
-  const mark = count === "" ? "" : textEl({ x: o.width, y, text: count, paint: "edit", size: NOTE.size, weight: COUNT_WEIGHT, anchor: "end" });
+  const countWidth = count === "" ? 0 : textWidth(count, NOTE$1.size, COUNT_WEIGHT) + GAP$1;
+  const timeWidth = textWidth(o.time, NOTE$1.size, NOTE$1.weight);
+  const time = textEl({ x: o.width - countWidth, y, text: o.time, paint: "lo", ...NOTE$1, anchor: "end" });
+  const mark = count === "" ? "" : textEl({ x: o.width, y, text: count, paint: "edit", size: NOTE$1.size, weight: COUNT_WEIGHT, anchor: "end" });
   return { body: time + mark, width: timeWidth + countWidth };
 }
 function markPaint(o) {
@@ -3702,14 +3703,14 @@ function roomRowPic(o) {
   const name = fitText(o.name, Math.max(MIN_PREVIEW, room), (t) => textWidth(t, NAME$2.size, NAME$2.weight));
   const nameWidth = textWidth(name, NAME$2.size, NAME$2.weight);
   const left = room - nameWidth - GAP$1;
-  const preview = left < MIN_PREVIEW ? "" : fitText(o.preview, left, (t) => textWidth(t, NOTE.size, NOTE.weight));
+  const preview = left < MIN_PREVIEW ? "" : fitText(o.preview, left, (t) => textWidth(t, NOTE$1.size, NOTE$1.weight));
   const y = baseline(0, ROOM_ROW_H, NAME$2.size);
   const mark = markSvg(o);
   const body = [
     o.isActive === true ? veilRect({ x: -WASH$1.inset, y: 1, w: o.width + WASH$1.inset * 2, h: ROOM_ROW_H - 2, r: WASH$1.radius, fill: VEIL.fill }) : "",
     mark,
     textEl({ x: NAME_X, y, text: name, paint: "hi", ...NAME$2 }),
-    preview === "" ? "" : textEl({ x: NAME_X + nameWidth + GAP$1, y, text: preview, paint: previewPaint(o), ...NOTE }),
+    preview === "" ? "" : textEl({ x: NAME_X + nameWidth + GAP$1, y, text: preview, paint: previewPaint(o), ...NOTE$1 }),
     right.body
   ].join("");
   const alt = [o.name, o.preview, o.time, o.unread > 0 ? String(o.unread) : ""].filter(Boolean).join(" · ");
@@ -3722,8 +3723,8 @@ const PACKET = 2;
 const TRAVEL_MS = 520;
 function deviceRow(o) {
   const { device, y } = o;
-  const note = textEl({ x: o.width, y: y + baseline(0, DEVICE_H, NOTE.size), text: device.note, paint: "lo", ...NOTE, anchor: "end" });
-  const room = o.width - NAME_X - textWidth(device.note, NOTE.size, NOTE.weight) - GAP$1;
+  const note = textEl({ x: o.width, y: y + baseline(0, DEVICE_H, NOTE$1.size), text: device.note, paint: "lo", ...NOTE$1, anchor: "end" });
+  const room = o.width - NAME_X - textWidth(device.note, NOTE$1.size, NOTE$1.weight) - GAP$1;
   const name = fitText(device.name, room, (t) => textWidth(t, NAME$2.size, NAME$2.weight));
   return [
     place(glyphPiece("laptop", { size: ICON, paint: device.isWaiting ? "lo" : "hi", stroke: 1.5 }).body, 0, y + (DEVICE_H - ICON) / 2),
@@ -3914,13 +3915,13 @@ const isText = (ctx) => ctx.look.isText || !("Svg" in ctx.ui);
 const pxOf = (columns) => Math.max(MIN_PX, (columns - 1) * PX_PER_CELL);
 const within = (ctx, columns) => ({ ...ctx, columns, px: pxOf(columns) });
 const motion = paneMotion();
-function SvgOf(ctx, pic, key) {
+function SvgOf(ctx, pic, key, opts) {
   if (!("Svg" in ctx.ui))
     return null;
   const { Svg } = ctx.ui;
   return h(Svg, {
     key,
-    ...motion.pic(key, pic)
+    ...motion.pic(key, pic, opts)
   });
 }
 function Pic(ctx, part, key) {
@@ -3978,8 +3979,8 @@ const MONTHS = {
 };
 const DAYS = { en: { today: "Today", yesterday: "Yesterday" }, tr: { today: "Bugün", yesterday: "Dün" } };
 const DAY_MS = 86400000;
-const PAD$1 = 2;
-const two = (n) => String(n).padStart(PAD$1, "0");
+const PAD$2 = 2;
+const two = (n) => String(n).padStart(PAD$2, "0");
 const clockText = (ts) => {
   const d = new Date(ts);
   return `${two(d.getHours())}:${two(d.getMinutes())}`;
@@ -4091,7 +4092,7 @@ function bandTree(ui, o) {
 
 const VOWELS = "aeıioöuü";
 const BACK$1 = "aıou";
-function shapeOf(name) {
+function shapeOf$1(name) {
   const lower = [...name.toLocaleLowerCase("tr")];
   const last = lower.filter((c) => VOWELS.includes(c)).at(-1) ?? "e";
   return { last, endsInVowel: VOWELS.includes(lower.at(-1) ?? "") };
@@ -4104,11 +4105,11 @@ function genitiveVowel(last) {
   return "ou".includes(last) ? "u" : "ü";
 }
 function genitive(name) {
-  const { last, endsInVowel } = shapeOf(name);
+  const { last, endsInVowel } = shapeOf$1(name);
   return `${name}'${endsInVowel ? "n" : ""}${genitiveVowel(last)}n`;
 }
 function dative(name) {
-  const { last, endsInVowel } = shapeOf(name);
+  const { last, endsInVowel } = shapeOf$1(name);
   return `${name}'${endsInVowel ? "y" : ""}${BACK$1.includes(last) ? "a" : "e"}`;
 }
 const firstName = (name) => name.trim().split(/\s+/)[0] ?? name;
@@ -5992,6 +5993,101 @@ function HomeButton(ui, onPress) {
   }));
 }
 
+const PAD$1 = 14;
+const RADIUS = 12;
+const HEAD = { h: 26, size: 14, weight: 650, glyph: 16, gap: 8 };
+const ROW = { h: 22, size: 13, lamp: 3.5, textX: 20 };
+const META = { h: 20, size: 12 };
+const NOTE = { size: 12, lineH: 17, maxLines: 3 };
+const SECTION_GAP = 12;
+const METER = { h: 6, gap: 3, top: 6, r: 2, rest: 0.1 };
+const SWITCH = { w: 32, h: 18, knob: 7 };
+const LIVE_ROW_H = 24;
+const GATE_GLYPH = { ok: "check", danger: "cross", warn: "clock" };
+function lamp(state, cy) {
+  const cx = PAD$1 + ROW.lamp + 1;
+  if (state === null)
+    return `<circle cx="${num$1(cx)}" cy="${num$1(cy)}" r="${ROW.lamp}" fill="none" class="s-lo" stroke-width="1.25"/>`;
+  return `<circle cx="${num$1(cx)}" cy="${num$1(cy)}" r="${ROW.lamp}" class="${state ? "f-ok" : "f-danger"}"/>`;
+}
+function gateHead(o, y) {
+  const g = o.gate;
+  const glyph = glyphPiece(GATE_GLYPH[g.paint] ?? "clock", { size: HEAD.glyph, paint: g.paint, stroke: 1.9 });
+  const by = baseline(y, HEAD.h, HEAD.size);
+  const room = o.width - PAD$1 * 2 - HEAD.glyph - HEAD.gap - textWidth(g.passed, META.size) - HEAD.gap;
+  return [
+    `<g transform="translate(${PAD$1} ${num$1(y + (HEAD.h - HEAD.glyph) / 2)})">${glyph.body}</g>`,
+    textEl({ x: PAD$1 + HEAD.glyph + HEAD.gap, y: by, text: fitText(g.label, room, sans(HEAD.size, HEAD.weight)), paint: g.paint, size: HEAD.size, weight: HEAD.weight }),
+    textEl({ x: o.width - PAD$1, y: by, text: g.passed, paint: "lo", size: META.size, isMono: true, anchor: "end" })
+  ].join("");
+}
+function meter(o, y) {
+  const { used, limit } = o.budget;
+  const cells = Math.max(1, limit);
+  const w = (o.width - PAD$1 * 2 - METER.gap * (cells - 1)) / cells;
+  const isSpent = used >= limit;
+  return Array.from({ length: cells }, (_, i) => {
+    const x = PAD$1 + i * (w + METER.gap);
+    const look = i < used ? `class="${isSpent ? "f-warn" : "f-edit"}"` : `class="f-hi" fill-opacity="${METER.rest}"`;
+    return `<rect x="${num$1(x)}" y="${num$1(y)}" width="${num$1(w)}" height="${METER.h}" rx="${METER.r}" ${look}/>`;
+  }).join("");
+}
+const note = (text, width, y) => {
+  const part = linesPart({ text, width: width - PAD$1 * 2, size: NOTE.size, weight: 400, lineHeight: NOTE.lineH, paint: "lo", maxLines: NOTE.maxLines });
+  return { body: `<g transform="translate(${PAD$1} ${num$1(y)})">${part.body}</g>`, h: part.height };
+};
+function infoPic(o) {
+  const w = Math.floor(o.width);
+  const parts = [];
+  let y = PAD$1 - 4;
+  parts.push(gateHead(o, y));
+  y += HEAD.h + 4;
+  for (const c of o.gate.checks) {
+    parts.push(lamp(c.state, y + ROW.h / 2), textEl({ x: PAD$1 + ROW.textX, y: baseline(y, ROW.h, ROW.size), text: fitText(c.text, w - PAD$1 * 2 - ROW.textX, sans(ROW.size)), paint: c.state === false ? "danger" : "hi", size: ROW.size }));
+    y += ROW.h;
+  }
+  parts.push(textEl({ x: PAD$1 + ROW.textX, y: baseline(y, META.h, META.size), text: o.gate.checked, paint: "lo", size: META.size }));
+  y += META.h + SECTION_GAP;
+  parts.push(hairline({ x1: PAD$1, x2: w - PAD$1, y }));
+  y += SECTION_GAP;
+  parts.push(textEl({ x: PAD$1, y: baseline(y, META.h, ROW.size), text: o.budget.text, paint: "hi", size: ROW.size, weight: 600 }));
+  y += META.h + METER.top - 4;
+  parts.push(meter(o, y));
+  y += METER.h + 10;
+  for (const text of [o.budget.note, o.budget.today]) {
+    const n = note(text, w, y);
+    parts.push(n.body);
+    y += n.h + 2;
+  }
+  const h = Math.ceil(y + PAD$1 - 4);
+  const card = veilRect({ x: 0, y: 0, w, h, r: RADIUS, fill: VEIL.soft, edge: VEIL.rule });
+  const alt = [`${o.gate.label} · ${o.gate.passed}`, ...o.gate.checks.map((c) => c.text), o.gate.checked, o.budget.text, o.budget.note, o.budget.today].join(" — ");
+  return themed(toPic({ body: card + parts.join(""), width: w, height: h, alt }), o.pin);
+}
+function switchSvg(x, y, isOn) {
+  const r = SWITCH.h / 2;
+  const track = isOn ? `<rect x="${num$1(x)}" y="${num$1(y)}" width="${SWITCH.w}" height="${SWITCH.h}" rx="${r}" class="f-ok"/>` : `<rect x="${num$1(x + 0.5)}" y="${num$1(y + 0.5)}" width="${SWITCH.w - 1}" height="${SWITCH.h - 1}" rx="${r}" class="f-hi s-hi" fill-opacity="0.08" stroke-opacity="0.28"/>`;
+  const cx = isOn ? x + SWITCH.w - r : x + r;
+  return `${track}<circle cx="${num$1(cx)}" cy="${num$1(y + r)}" r="${SWITCH.knob}" class="${isOn ? "f-sheet" : "f-lo"}"/>`;
+}
+function livePic(o) {
+  const w = Math.floor(o.width);
+  const y = PAD$1 - 4;
+  const by = baseline(y, LIVE_ROW_H, ROW.size);
+  const swX = w - PAD$1 - SWITCH.w;
+  const actionX = swX - 8;
+  const n = note(o.note, w, y + LIVE_ROW_H + 4);
+  const h = Math.ceil(y + LIVE_ROW_H + 4 + n.h + PAD$1 - 4);
+  const body = [
+    veilRect({ x: 0, y: 0, w, h, r: RADIUS, fill: VEIL.soft, edge: VEIL.rule }),
+    textEl({ x: PAD$1, y: by, text: o.label, paint: o.isOn ? "ok" : "hi", size: ROW.size, weight: 600 }),
+    textEl({ x: actionX, y: by, text: o.action, paint: "lo", size: META.size, anchor: "end" }),
+    switchSvg(swX, y + (LIVE_ROW_H - SWITCH.h) / 2, o.isOn),
+    n.body
+  ].join("");
+  return themed(toPic({ body, width: w, height: h, alt: `${o.label} · ${o.action} — ${o.note}` }), o.pin);
+}
+
 const EN$2 = {
   waitingPeer: "Project room · waiting for a teammate",
   withPeer: (peer) => `Project room · you and ${peer}`,
@@ -6220,7 +6316,7 @@ const TR$1 = {
   budgetNote: "Gece yarısı sıfırlanır; dolunca yeni sorular onayını bekler.",
   liveNote: "Açıkken karşı tarafın yapay zekâsından gelen mesaj bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.",
   budget: (o) => `Ask bütçesi ${o.used}/${o.limit} bugün`,
-  today: (o) => `bugün: ${o.answered} sorgu · ${o.modelless} 0 token · ${o.denied} reddedildi`,
+  today: (o) => `Bugün ${o.answered} sorgu cevaplandı, ${o.modelless} tanesi 0 token · ${o.denied} reddedildi`,
   live: (isOn) => `Canlı mod ${isOn ? "açık" : "kapalı"}`,
   turnOff: "Kapat",
   turnOn: "Aç",
@@ -6300,10 +6396,33 @@ function Live(ctx, room) {
     wrap: "wrap"
   }, chatWords().liveNote));
 }
+function InfoCards(ctx, room) {
+  const { Box } = ctx.ui;
+  const p = room.project;
+  if (p === undefined)
+    return null;
+  const rows = checkRows(room);
+  const word = gateWord(room.gate);
+  const w = chatWords();
+  const used = p.askUsed;
+  const gate = { paint: word.paint, label: word.label, passed: `${passedOf(rows)}/${rows.length}`, checks: rows, checked: checkedText(room, ctx.model.now) };
+  const budget = { text: w.budget({ used, limit: p.askLimit }), used, limit: p.askLimit, note: w.budgetNote, today: w.today(p.today) };
+  const card = SvgOf(ctx, infoPic({ width: ctx.px, gate, budget, pin: ctx.look.pin }), `info-card-${room.id}`);
+  const live = SvgOf(ctx, livePic({ width: ctx.px, label: w.live(room.isLive), action: room.isLive ? w.turnOff : w.turnOn, note: w.liveNote, isOn: room.isLive, pin: ctx.look.pin }), `info-live-${room.id}`);
+  if (card === null || live === null)
+    return null;
+  return h(Box, {
+    key: "info",
+    flexDirection: "column",
+    gap: 1
+  }, card, PressRow(ctx.ui, { box: "live-row", key: `live-${room.id}`, drawing: live, onPress: () => ctx.on.toggleLive(room.id) }));
+}
 function RoomInfo(ctx, room) {
   const { Box } = ctx.ui;
   if (room.project === undefined)
     return null;
+  if (!isText(ctx))
+    return InfoCards(ctx, room);
   return h(Box, {
     key: "info",
     flexDirection: "column",
@@ -6470,7 +6589,7 @@ const TALK = {
   lineH: 20,
   padX: 12,
   padY: 8,
-  gap: 4,
+  gap: 3,
   metaH: 20,
   radius: 13,
   maxBubble: 480,
@@ -6502,11 +6621,32 @@ function quoteSvg(q, o) {
     textEl({ x: left + QUOTE.inset, y: top + QUOTE.textY, text: fitText(q.text, room, sans(QUOTE.textSize)), paint: "lo", size: QUOTE.textSize })
   ].join("");
 }
+const MINE = { fill: 0.2, edge: 0.34, pendingFill: 0.1, pendingEdge: 0.55 };
+const TUCK = 5;
+function shapeOf(o) {
+  const [tl = 0, tr = 0, br = 0, bl = 0] = o.r;
+  const [x, y, x2, y2] = [o.x + 0.5, o.y + 0.5, o.x + o.w - 0.5, o.y + o.h - 0.5];
+  return `M${num$1(x + tl)} ${num$1(y)}H${num$1(x2 - tr)}Q${num$1(x2)} ${num$1(y)} ${num$1(x2)} ${num$1(y + tr)}V${num$1(y2 - br)}Q${num$1(x2)} ${num$1(y2)} ${num$1(x2 - br)} ${num$1(y2)}H${num$1(x + bl)}Q${num$1(x)} ${num$1(y2)} ${num$1(x)} ${num$1(y2 - bl)}V${num$1(y + tl)}Q${num$1(x)} ${num$1(y)} ${num$1(x + tl)} ${num$1(y)}Z`;
+}
+function radiiOf(o) {
+  const top = o.isFirst ? TALK.radius : TUCK;
+  const bottom = o.isLast ? TALK.radius : TUCK;
+  return o.isMine ? [TALK.radius, top, bottom, TALK.radius] : [top, TALK.radius, TALK.radius, bottom];
+}
+function surfaceOf(b, o) {
+  if (o.isMine) {
+    const fill = b.isPending ? MINE.pendingFill : MINE.fill;
+    const edge = b.isPending ? MINE.pendingEdge : MINE.edge;
+    return `<path d="${o.d}" class="f-edit s-edit" fill-opacity="${fill}" stroke-opacity="${edge}" stroke-width="1"${b.isPending ? ' stroke-dasharray="3 3"' : ""}/>`;
+  }
+  const edge = b.isPending ? ` class="f-hi s-hi" stroke-opacity="${VEIL.edge}" stroke-width="1" stroke-dasharray="3 3"` : ' class="f-hi"';
+  return `<path d="${o.d}"${edge} fill-opacity="${VEIL.fill}"/>`;
+}
 function bubbleSvg(b, o) {
-  const surface = o.isMine ? veilRect({ x: o.x, y: o.y, w: b.w, h: b.h, r: TALK.radius, fill: VEIL.fill, ...b.isPending ? { edge: VEIL.edge, isDashed: true } : {} }) : veilRect({ x: o.x, y: o.y, w: b.w, h: b.h, r: TALK.radius, fill: VEIL.soft, edge: VEIL.edge, isDashed: b.isPending });
+  const d = shapeOf({ x: o.x, y: o.y, w: b.w, h: b.h, r: radiiOf(o) });
   const top = o.y + TALK.padY + (b.quote === undefined ? 0 : TALK.quoteH);
   const words = b.lines.map((line, i) => textEl({ x: o.x + TALK.padX, y: baseline(top + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: "hi", size: TALK.size }));
-  return [surface, b.quote === undefined ? "" : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join("");
+  return [surfaceOf(b, { d, isMine: o.isMine }), b.quote === undefined ? "" : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join("");
 }
 function mineHeadSvg(o) {
   const room = o.width - TALK.textX;
@@ -6552,10 +6692,10 @@ function runPic(o) {
   const isTheirs = !o.who.isMine;
   let y = o.hasHead ? TALK.headH + TALK.gap : 0;
   const parts = o.hasHead ? [headSvg$1(o)] : [];
-  for (const b of bubbles) {
-    parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs }));
+  bubbles.forEach((b, i) => {
+    parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs, isFirst: i === 0, isLast: i === bubbles.length - 1 }));
     y += b.h + TALK.gap;
-  }
+  });
   if (!isTheirs)
     parts.push(metaSvg(o, y));
   const height = Math.ceil(isTheirs ? y - TALK.gap : y + TALK.metaH);
@@ -6610,7 +6750,7 @@ function questionSvg(o, top) {
   const w = Math.ceil(Math.min(max, Math.max(...lines.map(BODY)) + TALK.padX * 2));
   const h = lines.length * TALK.lineH + TALK.padY * 2;
   const words = lines.map((line, i) => textEl({ x: TALK.textX + TALK.padX, y: baseline(top + TALK.padY + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: "hi", size: TALK.size }));
-  return { svg: veilRect({ x: TALK.textX, y: top, w, h, r: TALK.radius, fill: VEIL.soft, edge: VEIL.edge }) + words.join(""), h };
+  return { svg: veilRect({ x: TALK.textX, y: top, w, h, r: TALK.radius, fill: VEIL.fill }) + words.join(""), h };
 }
 function answerSvg(o, top) {
   const look = OUTCOME[o.outcome];
@@ -7037,7 +7177,7 @@ function Run(ctx, o) {
     time: clockText(first.isMine ? lastTs : m.ts),
     tick: last.receipt
   });
-  const drawing = SvgOf(ctx, themed(pic, ctx.look.pin), `msg-${first.id}`);
+  const drawing = SvgOf(ctx, themed(pic, ctx.look.pin), `msg-${first.id}`, { shows: first.id });
   const chips = o.lines.map((line) => RoomChip(ctx, line)).filter((c) => c !== null);
   if (chips.length === 0 && drawing !== null)
     return drawing;
@@ -7233,13 +7373,18 @@ function placeholderOf(room, mode) {
 }
 const canAskAgents = (room) => room.kind === "project" && room.peerName !== undefined;
 function AskButton(ctx, room) {
-  const { Button } = ctx.ui;
-  return h(Button, {
+  const { Box, Button } = ctx.ui;
+  return h(Box, {
+    key: "ask-more",
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0
+  }, GlyphPic(ctx, { glyph: "star", paint: "edit", key: "ask-more-star" }), h(Button, {
     key: `ask-more-${room.id}`,
     label: ctx.model.isSheetOpen ? chatWords().close : chatWords().askAgent(room.peerName),
-    variant: "secondary",
+    plain: true,
     onPress: () => ctx.on.toggleSheet(room.id)
-  });
+  }));
 }
 function Cell(ctx, o) {
   const { Box, Button, Text } = ctx.ui;
@@ -7408,19 +7553,20 @@ function Composer(ctx, room) {
   })), HintRow(ctx));
 }
 
-const HEAD_H = 46;
+const HEAD_H = 48;
 const BACK = { size: 18, stroke: 1.75, room: 26 };
-const FACE = 26;
+const FACE = 32;
+const TILE = { r: 9, fill: 0.16 };
 const FACE_GAP = 10;
 const HERE_R = 4;
-const NAME = { size: 15, weight: 600, top: 4, height: 22 };
-const SUB = { size: 12, top: 26, height: 16 };
+const NAME = { size: 15, weight: 650, top: 5, height: 22 };
+const SUB = { size: 12, top: 27, height: 16 };
 function chatHeadPic(o) {
   const faceX = o.hasBack ? BACK.room : 0;
   const textX = faceX + FACE + FACE_GAP;
   const room = o.width - textX;
   const faceY = (HEAD_H - FACE) / 2;
-  const face = o.face.kind === "person" ? faceOf({ name: o.face.name, isAgent: false, x: faceX, y: faceY, size: FACE }) : markOf$1({ name: o.face.mark, x: faceX, y: faceY, box: FACE, paint: "mid" });
+  const face = o.face.kind === "person" ? faceOf({ name: o.face.name, isAgent: false, x: faceX, y: faceY, size: FACE }) : `<rect x="${faceX}" y="${faceY}" width="${FACE}" height="${FACE}" rx="${TILE.r}" class="f-edit" fill-opacity="${TILE.fill}"/>${markOf$1({ name: o.face.mark, x: faceX, y: faceY, box: FACE, paint: "edit" })}`;
   const dot = o.face.kind === "person" && o.face.isHere === true ? `<circle cx="${faceX + FACE - HERE_R}" cy="${faceY + FACE - HERE_R}" r="${HERE_R}" class="f-ok here"/>` : "";
   const title = fitText(o.title, room, (t) => textWidth(t, NAME.size, NAME.weight));
   const sub = fitText(o.sub, room, (t) => textWidth(t, SUB.size));
@@ -7980,6 +8126,7 @@ function ChatView(ctx) {
     key: "timeline-grow",
     flexDirection: "column",
     flexGrow: 1,
+    justifyContent: "flex-end",
     paddingTop: 1
   }, Timeline(ctx, room)), ctx.isWide ? null : ErrorCard(ctx), ConnectBanner(ctx), Composer(ctx, room));
 }

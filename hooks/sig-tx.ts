@@ -45,7 +45,7 @@ function questionSvg(o: TxPicOpts, top: number): { svg: string; h: number } {
   const w = Math.ceil(Math.min(max, Math.max(...lines.map(BODY)) + TALK.padX * 2))
   const h = lines.length * TALK.lineH + TALK.padY * 2
   const words = lines.map((line, i) => textEl({ x: TALK.textX + TALK.padX, y: baseline(top + TALK.padY + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: 'hi', size: TALK.size }))
-  return { svg: veilRect({ x: TALK.textX, y: top, w, h, r: TALK.radius, fill: VEIL.soft, edge: VEIL.edge }) + words.join(''), h }
+  return { svg: veilRect({ x: TALK.textX, y: top, w, h, r: TALK.radius, fill: VEIL.fill }) + words.join(''), h }
 }
 
 // ↳ ✓ Answered on this computer · 0 tokens · 0.4 s, on a second line when the pane is narrow.

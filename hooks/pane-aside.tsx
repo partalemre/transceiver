@@ -4,7 +4,9 @@
 // surface, so it reads in Claude's theme.
 import type { RenderElement } from 'claude-code'
 
-import { isText, type Ctx } from './pane-kit'
+import { PressRow } from './kit/press'
+import { isText, SvgOf, type Ctx } from './pane-kit'
+import { infoPic, livePic } from './sig-info'
 import { checkedText, checkRows, gateWord, passedOf } from './pane-words'
 import type { RoomView } from './state-types'
 import { chatWords } from './words-chat'
@@ -55,9 +57,32 @@ function Live(ctx: Ctx, room: RoomView): RenderElement {
   )
 }
 
+// The desktop's two cards: the gate with the day's asks, and the live switch pressed as a whole.
+function InfoCards(ctx: Ctx, room: RoomView): RenderElement | null {
+  const { Box } = ctx.ui
+  const p = room.project
+  if (p === undefined) return null
+  const rows = checkRows(room)
+  const word = gateWord(room.gate)
+  const w = chatWords()
+  const used = p.askUsed
+  const gate = { paint: word.paint, label: word.label, passed: `${passedOf(rows)}/${rows.length}`, checks: rows, checked: checkedText(room, ctx.model.now) }
+  const budget = { text: w.budget({ used, limit: p.askLimit }), used, limit: p.askLimit, note: w.budgetNote, today: w.today(p.today) }
+  const card = SvgOf(ctx, infoPic({ width: ctx.px, gate, budget, pin: ctx.look.pin }), `info-card-${room.id}`)
+  const live = SvgOf(ctx, livePic({ width: ctx.px, label: w.live(room.isLive), action: room.isLive ? w.turnOff : w.turnOn, note: w.liveNote, isOn: room.isLive, pin: ctx.look.pin }), `info-live-${room.id}`)
+  if (card === null || live === null) return null
+  return (
+    <Box key="info" flexDirection="column" gap={1}>
+      {card}
+      {PressRow(ctx.ui, { box: 'live-row', key: `live-${room.id}`, drawing: live, onPress: () => ctx.on.toggleLive(room.id) })}
+    </Box>
+  )
+}
+
 export function RoomInfo(ctx: Ctx, room: RoomView): RenderElement | null {
   const { Box } = ctx.ui
   if (room.project === undefined) return null
+  if (!isText(ctx)) return InfoCards(ctx, room)
   return (
     <Box key="info" flexDirection="column" gap={isText(ctx) ? 0 : 1}>
       {Gate(ctx, room)}

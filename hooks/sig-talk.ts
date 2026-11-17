@@ -5,12 +5,12 @@
 import { baseline, num, sans, textEl, toPic } from './kit/svg-core'
 import type { SvgPic } from './kit/svg-core'
 import { fitText, textWidth } from './kit/svg-metrics'
-import { faceOf, themed, veilRect, VEIL } from './sig-ink'
+import { faceOf, themed, VEIL } from './sig-ink'
 import { checksPiece } from './sig-ui'
 import { wrapLines } from './sig-wrap'
 
 export const TALK = {
-  face: 22, textX: 32, headH: 26, size: 13.5, lineH: 20, padX: 12, padY: 8, gap: 4, metaH: 20, radius: 13,
+  face: 22, textX: 32, headH: 26, size: 13.5, lineH: 20, padX: 12, padY: 8, gap: 3, metaH: 20, radius: 13,
   maxBubble: 480, sideRoom: 36, nameSize: 13, metaSize: 11.5, quoteH: 36,
 } as const
 const NAME_WEIGHT = 600
@@ -60,13 +60,40 @@ function quoteSvg(q: NonNullable<Said['quote']>, o: { x: number; y: number; w: n
   ].join('')
 }
 
-function bubbleSvg(b: Bubble, o: { x: number; y: number; isMine: boolean }): string {
-  const surface = o.isMine
-    ? veilRect({ x: o.x, y: o.y, w: b.w, h: b.h, r: TALK.radius, fill: VEIL.fill, ...(b.isPending ? { edge: VEIL.edge, isDashed: true } : {}) })
-    : veilRect({ x: o.x, y: o.y, w: b.w, h: b.h, r: TALK.radius, fill: VEIL.soft, edge: VEIL.edge, isDashed: b.isPending })
+// Mine wear Claude's clay, laid thin over the panel; theirs a breath of the app's own ink. A line still going out keeps
+// a dashed edge.
+const MINE = { fill: 0.2, edge: 0.34, pendingFill: 0.1, pendingEdge: 0.55 }
+const TUCK = 5
+
+// A rounded rect whose four corners are given apart (top-left, top-right, bottom-right, bottom-left).
+function shapeOf(o: { x: number; y: number; w: number; h: number; r: readonly number[] }): string {
+  const [tl = 0, tr = 0, br = 0, bl = 0] = o.r
+  const [x, y, x2, y2] = [o.x + 0.5, o.y + 0.5, o.x + o.w - 0.5, o.y + o.h - 0.5]
+  return `M${num(x + tl)} ${num(y)}H${num(x2 - tr)}Q${num(x2)} ${num(y)} ${num(x2)} ${num(y + tr)}V${num(y2 - br)}Q${num(x2)} ${num(y2)} ${num(x2 - br)} ${num(y2)}H${num(x + bl)}Q${num(x)} ${num(y2)} ${num(x)} ${num(y2 - bl)}V${num(y + tl)}Q${num(x)} ${num(y)} ${num(x + tl)} ${num(y)}Z`
+}
+
+// In a run the bubbles lean on each other: the corners on the writer's side tuck in where another bubble follows.
+function radiiOf(o: { isMine: boolean; isFirst: boolean; isLast: boolean }): number[] {
+  const top = o.isFirst ? TALK.radius : TUCK
+  const bottom = o.isLast ? TALK.radius : TUCK
+  return o.isMine ? [TALK.radius, top, bottom, TALK.radius] : [top, TALK.radius, TALK.radius, bottom]
+}
+
+function surfaceOf(b: Bubble, o: { d: string; isMine: boolean }): string {
+  if (o.isMine) {
+    const fill = b.isPending ? MINE.pendingFill : MINE.fill
+    const edge = b.isPending ? MINE.pendingEdge : MINE.edge
+    return `<path d="${o.d}" class="f-edit s-edit" fill-opacity="${fill}" stroke-opacity="${edge}" stroke-width="1"${b.isPending ? ' stroke-dasharray="3 3"' : ''}/>`
+  }
+  const edge = b.isPending ? ` class="f-hi s-hi" stroke-opacity="${VEIL.edge}" stroke-width="1" stroke-dasharray="3 3"` : ' class="f-hi"'
+  return `<path d="${o.d}"${edge} fill-opacity="${VEIL.fill}"/>`
+}
+
+function bubbleSvg(b: Bubble, o: { x: number; y: number; isMine: boolean; isFirst: boolean; isLast: boolean }): string {
+  const d = shapeOf({ x: o.x, y: o.y, w: b.w, h: b.h, r: radiiOf(o) })
   const top = o.y + TALK.padY + (b.quote === undefined ? 0 : TALK.quoteH)
   const words = b.lines.map((line, i) => textEl({ x: o.x + TALK.padX, y: baseline(top + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: 'hi', size: TALK.size }))
-  return [surface, b.quote === undefined ? '' : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join('')
+  return [surfaceOf(b, { d, isMine: o.isMine }), b.quote === undefined ? '' : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join('')
 }
 
 // Mine, when it says something the side does not: who wrote ("Your AI", or the computer in the person's own room),
@@ -119,10 +146,10 @@ export function runPic(o: RunOpts): SvgPic {
   const isTheirs = !o.who.isMine
   let y = o.hasHead ? TALK.headH + TALK.gap : 0
   const parts: string[] = o.hasHead ? [headSvg(o)] : []
-  for (const b of bubbles) {
-    parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs }))
+  bubbles.forEach((b, i) => {
+    parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs, isFirst: i === 0, isLast: i === bubbles.length - 1 }))
     y += b.h + TALK.gap
-  }
+  })
   if (!isTheirs) parts.push(metaSvg(o, y))
   const height = Math.ceil(isTheirs ? y - TALK.gap : y + TALK.metaH)
   return toPic({ body: parts.join(''), width: Math.floor(o.width), height, alt: altOf(o) })
