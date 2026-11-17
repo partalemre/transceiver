@@ -66,7 +66,7 @@ function Row(ctx: Ctx, o: { key: string; mark: RenderElement; title: string; sub
       {o.mark}
       <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         <Text bold color={ctx.look.hi}>{o.title}</Text>
-        <Text color={ctx.look.lo} wrap="wrap">{o.sub}</Text>
+        <Text {...ctx.look.loText} wrap="wrap">{o.sub}</Text>
       </Box>
       {o.button}
     </Box>

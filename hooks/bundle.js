@@ -57,7 +57,8 @@ const REPO_CACHE_MS = 60000;
 const LOGIN_RETRY_MS = 600000;
 const LIVE_COOLDOWN_MS = 30000;
 const LIVE_MAX_CHARS = 2000;
-const HOUR_MS$1 = 60 * 60000;
+const LIVE_HOURLY_MAX = 20;
+const HOUR_MS$2 = 60 * 60000;
 const SOUND_FRESH_MS = 60000;
 const SOUND_GAP_MS = 3000;
 const BRIDGE_WAKES_PER_HOUR = 20;
@@ -2037,6 +2038,8 @@ const FNV_OFFSET = 2166136261;
 const FNV_PRIME = 16777619;
 const BEAT_MS = 5 * 60000;
 let uid = null;
+const ALONE_KEPT_MS = 60 * 60000;
+const aloneAt = new Map;
 let lastWorkAt = 0;
 let wired = null;
 let lastLookAt = 0;
@@ -2108,6 +2111,16 @@ async function openRepoRoom(repo) {
   pokeRoom(host, room);
   return room;
 }
+async function isShared(host, repo) {
+  const now = await host.now();
+  if (now - (aloneAt.get(repo) ?? Number.NEGATIVE_INFINITY) < ALONE_KEPT_MS)
+    return false;
+  const out = await host.run(["gh", "api", `repos/${repo}/collaborators`, "--jq", "length"]).catch(() => null);
+  const isMany = out !== null && out.exitCode === 0 && Number(out.stdout.trim()) > 1;
+  if (!isMany)
+    aloneAt.set(repo, now);
+  return isMany;
+}
 async function ensureRepoRoom(host) {
   const repo = await repoHere(host);
   if (repo === null)
@@ -2119,7 +2132,9 @@ async function ensureRepoRoom(host) {
       setConnected(true);
     return held.status === "active" ? held : null;
   }
-  if (!await peek(gitIoOf(host), repo) || await visibilityOf(gitIoOf(host), repo) !== "private")
+  if (!await peek(gitIoOf(host), repo) && !await isShared(host, repo))
+    return null;
+  if (await visibilityOf(gitIoOf(host), repo) !== "private")
     return null;
   const room = repoRoomRecord({ repo, uid: await selfUidOf(host), now: await host.now() });
   const rooms = await loadRooms(host);
@@ -2336,7 +2351,7 @@ const EN$6 = {
   needs: (o) => `${o.type} needs ${o.arg}.`,
   typeOneOf: (names) => `type must be one of: ${names}`,
   liveToast: "Transceiver: new message in the project room",
-  liveHead: (title) => `Transceiver: a new message arrived in ${title}. Read it with mcp__transceiver__inbox if needed.`,
+  liveHead: (title) => `Transceiver: a new message arrived in ${title}. If it asks something of you or hands work over, carry on and answer with mcp__transceiver__send; if it only reports, do not reply. mcp__transceiver__inbox shows the lines before it.`,
   rolledOver: "Transceiver: your mailbox is full. Share your new mailbox with the room again.",
   rolloverFailed: "Transceiver: your mailbox is full, but a new one could not be opened. Try again with /transceiver.",
   limitReached: (n) => `Transceiver: today's question limit is reached, ${countOf$1(n, { one: "question waits", many: "questions wait" })} for your approval`,
@@ -2373,7 +2388,7 @@ const TR$6 = {
   needs: (o) => `${o.type} için ${o.arg} gerekli.`,
   typeOneOf: (names) => `type şunlardan biri olmalı: ${names}`,
   liveToast: "Transceiver: proje odasında yeni mesaj var",
-  liveHead: (title) => `Transceiver: ${title} odasına yeni mesaj geldi. Gerekirse mcp__transceiver__inbox ile oku.`,
+  liveHead: (title) => `Transceiver: ${title} odasına yeni mesaj geldi. Senden bir şey istiyor ya da iş devrediyorsa devam et ve mcp__transceiver__send ile cevapla; yalnızca haber veriyorsa cevap yazma. Öncesini mcp__transceiver__inbox gösterir.`,
   rolledOver: "Transceiver: kutun doldu; yeni kutunu Paylaş ile odadakilere tekrar aç.",
   rolloverFailed: "Transceiver: kutun doldu ama yeni kutu açılamadı; /transceiver ile tekrar dene.",
   limitReached: (n) => `Transceiver: günlük soru sınırı doldu, ${n} soru onayını bekliyor`,
@@ -2386,9 +2401,12 @@ const TR$6 = {
 const agentWords = () => pick({ en: EN$6, tr: TR$6 });
 
 const WAKE_KINDS = new Set(["agent", "human", "answer"]);
+const AGENT_KINDS$1 = new Set(["agent"]);
 const CUT$2 = "…";
+const HOUR_MS$1 = 60 * 60000;
 let isRunning = false;
 const lastWake$1 = new Map;
+const wakes$1 = new Map;
 const idle = [];
 const isTurnRunning = () => isRunning;
 function setTurnRunning(is) {
@@ -2420,22 +2438,36 @@ async function wake(host, text) {
   host.toast(agentWords().liveToast);
   return "noted";
 }
-const isWakeWorthy = (selfUid) => (e) => e.author !== selfUid && !isUnreadable(e.message) && WAKE_KINDS.has(e.message.kind);
+const isWakeWorthy = (selfUid, kinds) => (e) => e.author !== selfUid && !isUnreadable(e.message) && kinds.has(e.message.kind);
+function wakeKinds(room) {
+  if (room.isLive)
+    return WAKE_KINDS;
+  return isGitUrl(room.url) ? AGENT_KINDS$1 : null;
+}
+function isOverHour(roomId, now) {
+  const recent = (wakes$1.get(roomId) ?? []).filter((at) => now - at < HOUR_MS$1);
+  wakes$1.set(roomId, recent);
+  return recent.length >= LIVE_HOURLY_MAX;
+}
 async function onLiveTick(host, ev) {
   if (ev.room.kind !== "project" || isRunning)
     return false;
-  const entries = ev.fresh.filter(isWakeWorthy(ev.state.selfUid));
-  if (entries.length === 0)
-    return false;
   const room = (await loadRooms(host)).find((r) => r.id === ev.room.id);
-  if (room === undefined || !room.isLive || room.status !== "active")
+  const kinds = room === undefined || room.status !== "active" ? null : wakeKinds(room);
+  if (room === undefined || kinds === null)
+    return false;
+  const entries = ev.fresh.filter(isWakeWorthy(ev.state.selfUid, kinds));
+  if (entries.length === 0)
     return false;
   if (!sameName(room.repo, await repoHere(host)))
     return false;
   const now = await host.now();
   if (now - (lastWake$1.get(room.id) ?? Number.NEGATIVE_INFINITY) < LIVE_COOLDOWN_MS)
     return false;
+  if (isOverHour(room.id, now))
+    return false;
   lastWake$1.set(room.id, now);
+  wakes$1.set(room.id, [...wakes$1.get(room.id) ?? [], now]);
   await wake(host, wakeText({ title: room.title, entries, nonce: newNonce(now) }));
   return true;
 }
@@ -2640,7 +2672,7 @@ async function showSent(host, o) {
   host.say(bridgeLine({ name: `${whoOf(o.message.kind)} · ${await deviceNameOf(host)}`, text: o.message.text, isMine: true }));
 }
 function isOverCeiling(now) {
-  wakes = wakes.filter((at) => now - at < HOUR_MS$1);
+  wakes = wakes.filter((at) => now - at < HOUR_MS$2);
   return wakes.length >= BRIDGE_WAKES_PER_HOUR;
 }
 function wakeTextOf(said, now) {
@@ -3261,7 +3293,6 @@ const WEIGHT_SPAN = 300;
 const UNKNOWN_EM = 0.6;
 const WIDE_EM = 1;
 const FIRST_WIDE = 11904;
-const MONO_EM$1 = 0.6;
 const TRACKING = [
   [10.5, 0.0146],
   [13, 0],
@@ -3295,7 +3326,6 @@ function textWidth(text, size, weight = WEIGHT_LOW) {
   const advance = chars.reduce((sum, char) => sum + charEm(char, boldness), 0);
   return Math.max(0, (advance + chars.length * trackingAt(size)) * size);
 }
-const monoWidth = (text, size) => [...text].length * size * MONO_EM$1;
 function fitText(text, max, measure) {
   if (measure(text) <= max)
     return text;
@@ -3395,7 +3425,7 @@ const LOOPS = {
   shimmer: `@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.4}}.shimmer{animation:shimmer ${MOTION.shimmerS}s linear infinite}`
 };
 const FONT = `-apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI', system-ui, sans-serif`;
-const MONO = `ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace`;
+const MONO$1 = `ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace`;
 const REDUCED$1 = "@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}";
 const varBlock = (vars, names) => `svg{${names.map((name) => `--${name}:${vars[name]}`).join(";")}}`;
 function svgStyle(body) {
@@ -3405,7 +3435,7 @@ function svgStyle(body) {
   return [
     varBlock(paintVars(false), used),
     `@media (prefers-color-scheme: light){${varBlock(paintVars(true), used)}}`,
-    `text{font-family:${FONT}}.mono{font-family:${MONO};font-variant-numeric:tabular-nums}`,
+    `text{font-family:${FONT}}.mono{font-family:${MONO$1};font-variant-numeric:tabular-nums}`,
     rules,
     loops,
     REDUCED$1
@@ -3429,7 +3459,6 @@ const DECIMALS = 100;
 const num$1 = (value) => String(Math.round(value * DECIMALS) / DECIMALS);
 const escapeXml = (text) => text.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
 const sans = (size, weight) => (text) => textWidth(text, size, weight);
-const mono = (size) => (text) => monoWidth(text, size);
 const baseline = (top, height, size) => Math.round(top + height / 2 + size * CAP_EM / 2);
 const SCHEME$1 = ":root{color-scheme:light dark}";
 function toPic(part) {
@@ -3452,14 +3481,56 @@ function textEl(t) {
   return `<text ${attrs}>${escapeXml(t.text)}</text>`;
 }
 
-const LINE_RATIO = 1.3;
-function textPiece(text, o) {
-  const measure = o.isMono ? mono(o.size) : sans(o.size, o.weight);
-  const fitted = o.max === undefined ? text : fitText(text, o.max, measure);
-  const height = Math.round(o.size * LINE_RATIO);
-  const body = textEl({ x: 0, y: baseline(0, height, o.size), text: fitted, size: o.size, weight: o.weight, paint: o.paint, isMono: o.isMono });
-  return { body, width: Math.ceil(measure(fitted)), height, alt: fitted };
+const VEIL = { fill: 0.075, soft: 0.035, edge: 0.16, rule: 0.13 };
+const veilRect = (o) => {
+  const classes = [o.fill === undefined ? "" : "f-hi", o.edge === undefined ? "" : "s-hi"].filter(Boolean).join(" ");
+  const fill = o.fill === undefined ? ' fill="none"' : ` fill-opacity="${o.fill}"`;
+  const edge = o.edge === undefined ? "" : ` stroke-opacity="${o.edge}" stroke-width="1"${o.isDashed === true ? ' stroke-dasharray="3 3"' : ""}`;
+  return `<rect x="${num$1(o.x + 0.5)}" y="${num$1(o.y + 0.5)}" width="${num$1(o.w - 1)}" height="${num$1(o.h - 1)}" rx="${o.r}" class="${classes}"${fill}${edge}/>`;
+};
+const MONO_INK = { disc: 0.12, size: 0.44, weight: 700 };
+function monogram(o) {
+  const r = o.size / 2;
+  const fontSize = Math.round(o.size * MONO_INK.size);
+  const letter = upper([...o.name.trim()][0] ?? "·");
+  return [
+    `<circle cx="${num$1(o.x + r)}" cy="${num$1(o.y + r)}" r="${num$1(r)}" class="f-hi" fill-opacity="${MONO_INK.disc}"/>`,
+    textEl({ x: o.x + r, y: baseline(o.y, o.size, fontSize), text: letter, paint: "mid", size: fontSize, weight: MONO_INK.weight, anchor: "middle" })
+  ].join("");
 }
+const CRAB = ["X.....X", "XX...XX", ".XXXXX.", "XXXXXXX", ".X.X.X."];
+const CRAB_FILL = 0.84;
+function crab(o) {
+  const pitch = o.size / CRAB[0].length;
+  const top = o.y + (o.size - CRAB.length * pitch) / 2;
+  const cell = num$1(pitch * CRAB_FILL);
+  return CRAB.flatMap((row, r) => [...row].flatMap((c, i) => c === "X" ? [`<rect x="${num$1(o.x + i * pitch)}" y="${num$1(top + r * pitch)}" width="${cell}" height="${cell}" class="f-edit"/>`] : [])).join("");
+}
+const faceOf = (o) => o.isAgent ? crab(o) : monogram(o);
+const MARKS = {
+  branch: ["X...X", "X...X", "X..X.", "X.X..", "XX...", "X....", "X...."],
+  laptop: [".XXXXX.", ".X...X.", ".X...X.", ".XXXXX.", "XXXXXXX"],
+  person: ["..XXX..", "..XXX..", ".......", ".XXXXX.", "XXXXXXX"],
+  clock: [".XXXXX.", "X..X..X", "X..XX.X", "X.....X", ".XXXXX."]
+};
+const MARK = { cell: 2, pitch: 2.5 };
+function markOf$1(o) {
+  const grid = MARKS[o.name] ?? MARKS.person;
+  const w = Math.max(...grid.map((row) => row.length)) * MARK.pitch;
+  const left = o.x + (o.box - w) / 2;
+  const top = o.y + (o.box - grid.length * MARK.pitch) / 2;
+  return grid.flatMap((row, r) => [...row].flatMap((c, i) => c === "X" ? [`<rect x="${num$1(left + i * MARK.pitch)}" y="${num$1(top + r * MARK.pitch)}" width="${MARK.cell}" height="${MARK.cell}" rx="0.45" class="f-${o.paint}"/>`] : [])).join("");
+}
+const VAR_USE = /[fs]-([a-z-]+)\b/g;
+function themed(pic, pin) {
+  if (pin === undefined)
+    return pic;
+  const vars = paintVars(pin);
+  const used = new Set([...pic.source.matchAll(VAR_USE)].map((m) => m[1]));
+  const block = Object.entries(vars).filter(([name]) => used.has(name)).map(([name, value]) => `--${name}:${value}`).join(";");
+  return { ...pic, source: pic.source.replace(/<\/style>/, `svg{${block}}</style>`) };
+}
+
 const GLYPHS = {
   back: "M10 3.5 5.5 8l4.5 4.5",
   plus: "M8 3.5v9M3.5 8h9",
@@ -3483,6 +3554,15 @@ function glyphPiece(name, o) {
   const body = `<g transform="scale(${num$1(scale)})" fill="none" class="s-${o.paint}" stroke-width="${num$1((o.stroke ?? GLYPH_STROKE) / scale)}" stroke-linecap="round" stroke-linejoin="round"><path d="${GLYPHS[name]}"/></g>`;
   return { body, width: o.size, height: o.size };
 }
+const CHECKS = { one: "M1 5.5 4 8.5 10 1.5", two: "M1 5.5 4 8.5 10 1.5M7 8.5 13.5 1.5" };
+const CHECKS_W = 16;
+const CHECKS_H = 10;
+const CHECKS_STROKE = 1.6;
+const checksPiece = (o) => ({
+  body: `<path d="${o.isDouble ? CHECKS.two : CHECKS.one}" fill="none" class="s-${o.paint}" stroke-width="${CHECKS_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>`,
+  width: CHECKS_W,
+  height: CHECKS_H
+});
 const ROW_GAP = 8;
 function rowPart(o) {
   const gap = o.gap ?? ROW_GAP;
@@ -3504,46 +3584,52 @@ function rowPart(o) {
 }
 const rulePart = (width, paint = "line") => ({ body: `<path d="M0 0.5H${width}" class="s-${paint}"/>`, width, height: 1, alt: "" });
 
-const ROOM_ROW_H = 34;
+const ROOM_ROW_H = 32;
 const ICON = 16;
-const NAME_X = 26;
-const NAME$1 = { size: 13, weight: 500 };
+const NAME_X = 28;
+const NAME$2 = { size: 13, weight: 500 };
 const NOTE = { size: 12, weight: 400 };
 const GAP$1 = 10;
+const COUNT_WEIGHT = 650;
 const MIN_PREVIEW = 48;
-const VAR_USE = /[fs]-([a-z-]+)\b/g;
-function themed(pic, isLight) {
-  const vars = paintVars(isLight);
-  const used = new Set([...pic.source.matchAll(VAR_USE)].map((m) => m[1]));
-  const block = Object.entries(vars).filter(([name]) => used.has(name)).map(([name, value]) => `--${name}:${value}`).join(";");
-  return { ...pic, source: pic.source.replace(/<\/style>/, `svg{${block}}</style>`) };
-}
+const WASH$1 = { inset: 6, radius: 7 };
 function rightOf(o) {
   const y = baseline(0, ROOM_ROW_H, NOTE.size);
   const count = o.unread > 0 ? String(o.unread) : "";
-  const countWidth = count === "" ? 0 : textWidth(count, NOTE.size, 650) + GAP$1;
+  const countWidth = count === "" ? 0 : textWidth(count, NOTE.size, COUNT_WEIGHT) + GAP$1;
   const timeWidth = textWidth(o.time, NOTE.size, NOTE.weight);
   const time = textEl({ x: o.width - countWidth, y, text: o.time, paint: "lo", ...NOTE, anchor: "end" });
-  const mark = count === "" ? "" : textEl({ x: o.width, y, text: count, paint: "edit", size: NOTE.size, weight: 650, anchor: "end" });
+  const mark = count === "" ? "" : textEl({ x: o.width, y, text: count, paint: "edit", size: NOTE.size, weight: COUNT_WEIGHT, anchor: "end" });
   return { body: time + mark, width: timeWidth + countWidth };
+}
+const markPaint = (o) => o.isWarn ? "warn" : o.unread > 0 ? "edit" : "mid";
+const MONO = 18;
+function markSvg(o) {
+  const top = (ROOM_ROW_H - ICON) / 2;
+  if (o.glyph === "back")
+    return place(glyphPiece("back", { size: ICON, paint: "mid", stroke: 1.75 }).body, 0, top);
+  if (o.glyph === "person")
+    return monogram({ name: o.name, x: (ICON - MONO) / 2, y: (ROOM_ROW_H - MONO) / 2, size: MONO });
+  return markOf$1({ name: o.glyph, x: 0, y: top, box: ICON, paint: markPaint(o) });
 }
 function roomRowPic(o) {
   const right = rightOf(o);
   const room = o.width - NAME_X - right.width - GAP$1;
-  const name = fitText(o.name, Math.max(MIN_PREVIEW, room), (t) => textWidth(t, NAME$1.size, NAME$1.weight));
-  const nameWidth = textWidth(name, NAME$1.size, NAME$1.weight);
+  const name = fitText(o.name, Math.max(MIN_PREVIEW, room), (t) => textWidth(t, NAME$2.size, NAME$2.weight));
+  const nameWidth = textWidth(name, NAME$2.size, NAME$2.weight);
   const left = room - nameWidth - GAP$1;
   const preview = left < MIN_PREVIEW ? "" : fitText(o.preview, left, (t) => textWidth(t, NOTE.size, NOTE.weight));
-  const y = baseline(0, ROOM_ROW_H, NAME$1.size);
-  const glyph = glyphPiece(o.glyph, { size: ICON, paint: o.unread > 0 ? "hi" : "mid", stroke: 1.5 });
+  const y = baseline(0, ROOM_ROW_H, NAME$2.size);
+  const mark = markSvg(o);
   const body = [
-    place(glyph.body, 0, (ROOM_ROW_H - ICON) / 2),
-    textEl({ x: NAME_X, y, text: name, paint: "hi", ...NAME$1 }),
+    o.isActive === true ? veilRect({ x: -WASH$1.inset, y: 1, w: o.width + WASH$1.inset * 2, h: ROOM_ROW_H - 2, r: WASH$1.radius, fill: VEIL.fill }) : "",
+    mark,
+    textEl({ x: NAME_X, y, text: name, paint: "hi", ...NAME$2 }),
     preview === "" ? "" : textEl({ x: NAME_X + nameWidth + GAP$1, y, text: preview, paint: o.isWarn ? "warn" : o.unread > 0 ? "mid" : "lo", ...NOTE }),
     right.body
   ].join("");
   const alt = [o.name, o.preview, o.time, o.unread > 0 ? String(o.unread) : ""].filter(Boolean).join(" · ");
-  return themed(toPic({ body, width: o.width, height: ROOM_ROW_H, alt }), o.isLight);
+  return themed(toPic({ body, width: Math.floor(o.width), height: ROOM_ROW_H, alt }), o.pin);
 }
 const DEVICE_H = 26;
 const DEVICE_GAP = 6;
@@ -3554,10 +3640,10 @@ function deviceRow(o) {
   const { device, y } = o;
   const note = textEl({ x: o.width, y: y + baseline(0, DEVICE_H, NOTE.size), text: device.note, paint: "lo", ...NOTE, anchor: "end" });
   const room = o.width - NAME_X - textWidth(device.note, NOTE.size, NOTE.weight) - GAP$1;
-  const name = fitText(device.name, room, (t) => textWidth(t, NAME$1.size, NAME$1.weight));
+  const name = fitText(device.name, room, (t) => textWidth(t, NAME$2.size, NAME$2.weight));
   return [
     place(glyphPiece("laptop", { size: ICON, paint: device.isWaiting ? "lo" : "hi", stroke: 1.5 }).body, 0, y + (DEVICE_H - ICON) / 2),
-    textEl({ x: NAME_X, y: y + baseline(0, DEVICE_H, NAME$1.size), text: name, paint: device.isWaiting ? "lo" : "hi", ...NAME$1 }),
+    textEl({ x: NAME_X, y: y + baseline(0, DEVICE_H, NAME$2.size), text: name, paint: device.isWaiting ? "lo" : "hi", ...NAME$2 }),
     note
   ].join("");
 }
@@ -3582,7 +3668,7 @@ function bridgePic(o) {
     deviceRow({ device: o.there, y: lower, width: o.width }),
     packet(o, rail)
   ].join("");
-  return themed(toPic({ body, width: o.width, height: lower + DEVICE_H, alt: o.alt }), o.isLight);
+  return themed(toPic({ body, width: o.width, height: lower + DEVICE_H, alt: o.alt }), o.pin);
 }
 
 const FILL = /<rect\b[^>]*\bdata-m-fill\b[^>]*>/g;
@@ -3738,73 +3824,6 @@ function sigPic(part) {
   return { source, width: part.width, height: part.height, alt: part.alt };
 }
 
-const INITIALS_RATIO = 0.36;
-const INITIALS_WEIGHT = 650;
-const DOT_RATIO = 0.3;
-const RING = 2;
-function hereDot(size) {
-  const dot = Math.round(size * DOT_RATIO);
-  const c = size - dot / 2;
-  const r = dot / 2 + RING / 2;
-  return `<circle cx="${num$1(c)}" cy="${num$1(c)}" r="${num$1(r)}" class="f-ok s-sheet" stroke-width="${RING}"/>`;
-}
-function facePart(o) {
-  const r = o.size / 2;
-  const fontSize = Math.round(o.size * INITIALS_RATIO);
-  const body = [
-    `<circle cx="${r}" cy="${r}" r="${r}" class="f-track"/>`,
-    textEl({ x: r, y: baseline(0, o.size, fontSize), text: o.initials, paint: "mid", size: fontSize, weight: INITIALS_WEIGHT, anchor: "middle" }),
-    o.isHere === true ? hereDot(o.size) : ""
-  ];
-  return { body: body.join(""), width: o.size, height: o.size, alt: o.isHere === true ? `${o.initials}, ${pick({ en: "here", tr: "burada" })}` : o.initials };
-}
-
-const ROLES = ["read", "edit", "run", "ok", "warn", "danger", "plan"];
-function desktopLook(isLight) {
-  const p = palette(isLight);
-  return {
-    isText: false,
-    isLight,
-    hi: p.hi,
-    mid: p.mid,
-    lo: p.lo,
-    line: p.line,
-    lineStrong: p.lineStrong,
-    card: p.card,
-    inset: p.inset,
-    sheet: p.sheet,
-    track: p.track,
-    signal: { fg: p.roles.edit.fg, tint: p.card, line: p.line },
-    role: p.roles
-  };
-}
-function terminalLook(isLight) {
-  const role = Object.fromEntries(ROLES.map((r) => [r, { fg: ROLE_KEY[r], line: ROLE_KEY[r] }]));
-  return {
-    isText: true,
-    isLight,
-    lo: "inactive",
-    line: "subtle",
-    lineStrong: "inactive",
-    signal: { fg: "planMode", line: "planMode" },
-    role
-  };
-}
-const lookOf = (opts) => opts.isText ? terminalLook(opts.isLight) : desktopLook(opts.isLight);
-const AVATAR_ROLES = ["read", "run", "ok", "plan", "edit", "warn"];
-const HASH_PRIME = 31;
-function avatarRole(seed) {
-  let h = 0;
-  for (const ch of seed)
-    h = h * HASH_PRIME + (ch.codePointAt(0) ?? 0) >>> 0;
-  return AVATAR_ROLES[h % AVATAR_ROLES.length] ?? "read";
-}
-function initialsOf(name) {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const letters = words.length > 1 ? [words[0], words.at(-1)] : [words[0]];
-  return upper(letters.map((w) => [...w ?? ""][0] ?? "").join("")) || "·";
-}
-
 const PX_PER_CELL = 9;
 const MIN_PX = 160;
 const isText = (ctx) => ctx.look.isText || !("Svg" in ctx.ui);
@@ -3824,7 +3843,7 @@ function Pic(ctx, part, key) {
   const { Text } = ctx.ui;
   return SvgOf(ctx, sigPic(part), key) ?? h(Text, {
     key,
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, part.alt);
 }
 const GLYPH_PX = 16;
@@ -3839,7 +3858,7 @@ function Meta(ctx, text, key) {
   const { Text } = ctx.ui;
   return h(Text, {
     key,
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "wrap"
   }, text);
 }
@@ -3859,13 +3878,6 @@ function glyphOf(room) {
   if (room.kind === "devices")
     return "laptop";
   return room.isWaiting ? "clock" : "person";
-}
-function roomFace(room, o) {
-  if (room.kind !== "dm" || room.isWaiting) {
-    const glyph = glyphPiece(glyphOf(room), { size: o.size, paint: o.isMuted === true ? "lo" : "mid", stroke: 1.5 });
-    return { body: glyph.body, width: o.size, height: o.size, alt: room.title };
-  }
-  return { ...facePart({ initials: initialsOf(room.title), paint: avatarRole(room.seed), size: o.size, isHere: isHere(room, o.now) }), alt: room.title };
 }
 function receiptTone(ctx, receipt) {
   if (receipt === "pending") {
@@ -3970,7 +3982,7 @@ function Row$1(ui, o) {
   }
   const { Svg } = ui;
   const width = Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (o.columns - DISMISS_COLUMNS) * PX_PER_COLUMN)));
-  const pic = roomRowPic({ width, glyph: line.glyph, name: line.name, preview: line.preview, time: line.time, unread: line.unread, isWarn: false, isLight: o.isLight });
+  const pic = roomRowPic({ width, glyph: line.glyph, name: line.name, preview: line.preview, time: line.time, unread: line.unread, isWarn: false });
   return PressRow(ui, { box: "tx-band-row", key: "tx-band-open", drawing: h(Svg, {
     ...pic
   }), onPress: o.onOpen }) ?? h(Text, null, line.name);
@@ -3994,7 +4006,7 @@ function bandTree(ui, o) {
 }
 
 const VOWELS = "aeıioöuü";
-const BACK = "aıou";
+const BACK$1 = "aıou";
 function shapeOf(name) {
   const lower = [...name.toLocaleLowerCase("tr")];
   const last = lower.filter((c) => VOWELS.includes(c)).at(-1) ?? "e";
@@ -4013,7 +4025,7 @@ function genitive(name) {
 }
 function dative(name) {
   const { last, endsInVowel } = shapeOf(name);
-  return `${name}'${endsInVowel ? "y" : ""}${BACK.includes(last) ? "a" : "e"}`;
+  return `${name}'${endsInVowel ? "y" : ""}${BACK$1.includes(last) ? "a" : "e"}`;
 }
 const firstName = (name) => name.trim().split(/\s+/)[0] ?? name;
 const possessive = (name) => /s$/i.test(name) ? `${name}'` : `${name}'s`;
@@ -4185,6 +4197,7 @@ function waitingOf(rooms, syncs) {
 
 const MAX_MATES = 3;
 const MAX_PREVIEW_CHARS = 120;
+const MAX_RECENT = 3;
 const AGENT_KINDS = new Set(["agent", "query", "answer"]);
 function lastOf$1(sync, names) {
   const theirs = sync.entries.filter((e) => e.author !== sync.selfUid && !isUnreadable(e.message));
@@ -4200,6 +4213,22 @@ function lastOf$1(sync, names) {
     isAgent: AGENT_KINDS.has(message.kind)
   };
 }
+function recentOf(sync, names) {
+  return sync.entries.flatMap((entry) => {
+    const { message } = entry;
+    if (isUnreadable(message))
+      return [];
+    const isMine = entry.author === sync.selfUid;
+    return [{
+      id: message.id,
+      name: isMine ? "" : firstName(nameOf$1(names, entry.author)),
+      text: previewOf(message).slice(0, MAX_PREVIEW_CHARS),
+      ts: message.ts,
+      isAgent: AGENT_KINDS.has(message.kind),
+      isMine
+    }];
+  }).slice(-MAX_RECENT);
+}
 function teamOf(o) {
   const room = typeof o.repo === "string" ? repoRoomOf(o.rooms, o.repo) : undefined;
   const sync = room === undefined ? undefined : o.syncs[room.id];
@@ -4213,7 +4242,7 @@ function teamOf(o) {
   if (mates.length === 0)
     return null;
   const unread = unreadCount({ entries: sync.entries, selfUid: sync.selfUid, readUpTo: o.readMark(sync, room.id) });
-  return { roomId: room.id, repo: room.repo ?? "", mates, last: lastOf$1(sync, o.names), unread };
+  return { roomId: room.id, repo: room.repo ?? "", mates, last: lastOf$1(sync, o.names), unread, recent: recentOf(sync, o.names) };
 }
 
 const EMPTY_PANE = {
@@ -5153,7 +5182,7 @@ function pubspecDeps(text) {
 
 const NO_MANIFEST = "bağımlılık dosyası yok";
 const UNKNOWN = "?";
-const NAME = /^[A-Za-z0-9@][A-Za-z0-9@._/+-]*$/;
+const NAME$1 = /^[A-Za-z0-9@][A-Za-z0-9@._/+-]*$/;
 const VERSION = /^[A-Za-z0-9 .,*^~<>=!+_:-]*$/;
 const MANIFESTS = [
   ["package.json", npmDeps],
@@ -5165,7 +5194,7 @@ const MANIFESTS = [
   ["pubspec.yaml", pubspecDeps]
 ];
 function depLine(dep) {
-  if (!NAME.test(dep.name) || [...dep.name].length > DEPS_ITEM_CHARS)
+  if (!NAME$1.test(dep.name) || [...dep.name].length > DEPS_ITEM_CHARS)
     return null;
   const version = dep.version.trim();
   const isShown = VERSION.test(version) && [...version].length <= DEPS_ITEM_CHARS;
@@ -6007,6 +6036,13 @@ const EN$1 = {
   newMessages: (n) => countOf$1(n, { one: "new message", many: "new messages" }),
   older: "Older messages are on the room's page.",
   noMessages: "No messages yet. Write the first one below.",
+  noMessagesTitle: "A quiet room for now",
+  aiAsked: (who) => `${who} asked`,
+  refused: "Not answered: no access",
+  repoAlone: {
+    title: "Only you are here so far",
+    body: "When a teammate who has MODZ opens this project, they show up here by themselves. You can already leave them a note below."
+  },
   waitingBanner: "Your messages are waiting. Allow this session once.",
   connect: "Connect",
   connecting: "Connecting…",
@@ -6020,7 +6056,7 @@ const EN$1 = {
   thisMachine: "Answered on this machine",
   waitingAnswer: "Waiting for an answer…",
   wrote: (who) => `${who} wrote`,
-  asking: (asker) => `${possessive(asker)} agent is asking · waiting for your approval`,
+  asking: (asker) => `${possessive(asker)} AI is asking · waiting for your approval`,
   send: "Send",
   cancel: "Cancel",
   ask: "Ask",
@@ -6029,9 +6065,9 @@ const EN$1 = {
   placeProject: "Message the room...",
   placeAnyone: "Write a message...",
   placePeer: (name) => `Message ${name}...`,
-  askAgent: (peer) => peer === undefined ? "ask their agent" : `ask ${possessive(peer)} agent`,
+  askAgent: (peer) => peer === undefined ? "ask their AI" : `ask ${possessive(peer)} AI`,
   perDay: (n) => `${n} a day`,
-  sheetTitle: (peer) => peer === undefined ? "Ask the other side's agent" : `Ask ${possessive(peer)} agent`,
+  sheetTitle: (peer) => peer === undefined ? "Ask the other side's AI" : `Ask ${possessive(peer)} AI`,
   ready: (n) => `${countOf$1(n, { one: "ready query", many: "ready queries" })} · 0 tokens`,
   readOnly: "Read only here. Open Transceiver in Claude Code to write.",
   budgetNote: "Resets at midnight. Once it is used up, new questions wait for your approval.",
@@ -6051,7 +6087,7 @@ const EN$1 = {
   detailsLower: "details",
   closeDetails: "close details",
   roomsLower: "‹ rooms",
-  askAgentLower: (peer) => peer === undefined ? "ask their agent" : `ask ${possessive(peer)} agent`,
+  askAgentLower: (peer) => peer === undefined ? "ask their AI" : `ask ${possessive(peer)} AI`,
   thisMachineLower: "answered on this machine"
 };
 const TR$1 = {
@@ -6061,6 +6097,13 @@ const TR$1 = {
   newMessages: (n) => `${n} yeni mesaj`,
   older: "Daha eski mesajlar odanın sayfasında.",
   noMessages: "Henüz mesaj yok. İlk mesajı aşağıdan yaz.",
+  noMessagesTitle: "Şimdilik sessiz bir oda",
+  aiAsked: (who) => `${who} sordu`,
+  refused: "Cevaplanmadı: erişim yok",
+  repoAlone: {
+    title: "Şimdilik burada yalnızca sen varsın",
+    body: "MODZ'u olan bir takım arkadaşın bu projeyi açınca buraya kendiliğinden gelir. Şimdiden aşağıya bir not bırakabilirsin."
+  },
   waitingBanner: "Yazdıkların bekliyor; bu oturumda bir kez izin ver.",
   connect: "Bağlan",
   connecting: "Bağlanıyor…",
@@ -6074,7 +6117,7 @@ const TR$1 = {
   thisMachine: "Bu makine cevapladı",
   waitingAnswer: "Cevap bekleniyor…",
   wrote: (who) => `${who} yazdı`,
-  asking: (asker) => `${genitive(asker)} agent'ı soruyor · onayını bekliyor`,
+  asking: (asker) => `${genitive(asker)} yapay zekâsı soruyor · onayını bekliyor`,
   send: "Gönder",
   cancel: "Vazgeç",
   ask: "Sor",
@@ -6083,9 +6126,9 @@ const TR$1 = {
   placeProject: "Odaya yaz",
   placeAnyone: "Mesaj yaz",
   placePeer: (name) => `${dative(name)} yaz`,
-  askAgent: () => "Agent'a sor",
+  askAgent: () => "Yapay zekâya sor",
   perDay: (n) => `günde ${n}`,
-  sheetTitle: (peer) => `${peer === undefined ? "Karşı tarafın" : genitive(peer)} agent'ına sor`,
+  sheetTitle: (peer) => `${peer === undefined ? "Karşı tarafın" : genitive(peer)} yapay zekâsına sor`,
   ready: (n) => `${n} hazır sorgu · 0 token`,
   readOnly: "Bu yüzeyde yalnızca okunur. Yazmak için Transceiver'ı Claude Code'da aç.",
   budgetNote: "Gece yarısı sıfırlanır; dolunca yeni sorular onayını bekler.",
@@ -6105,7 +6148,7 @@ const TR$1 = {
   detailsLower: "ayrıntılar",
   closeDetails: "ayrıntıları kapat",
   roomsLower: "‹ odalar",
-  askAgentLower: () => "agent'a sor",
+  askAgentLower: () => "yapay zekâya sor",
   thisMachineLower: "bu makine"
 };
 const chatWords = () => pick({ en: EN$1, tr: TR$1 });
@@ -6129,7 +6172,7 @@ function Gate(ctx, room) {
     key: `check-${i}`,
     color: r.state === false ? ctx.look.role.danger.fg : ctx.look.hi
   }, `${markOf(r.state)} ${r.text}`)), h(Text, {
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, checkedText(room, ctx.model.now)));
 }
 function Today(ctx, room) {
@@ -6143,10 +6186,10 @@ function Today(ctx, room) {
   }, h(Text, {
     color: used >= limit ? ctx.look.role.warn.fg : ctx.look.hi
   }, chatWords().budget({ used, limit })), h(Text, {
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "wrap"
   }, chatWords().budgetNote), h(Text, {
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "wrap"
   }, chatWords().today({ answered: p?.today.answered ?? 0, modelless: p?.today.modelless ?? 0, denied: p?.today.denied ?? 0 })));
 }
@@ -6167,7 +6210,7 @@ function Live(ctx, room) {
     plain: true,
     onPress: () => ctx.on.toggleLive(room.id)
   })), h(Text, {
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "wrap"
   }, chatWords().liveNote));
 }
@@ -6280,14 +6323,201 @@ function compactOf(type, body) {
   return compactTyped(type, body) ?? { kind: "text", text: body };
 }
 
-function tinyFace(o) {
-  const r = o.size / 2;
-  const label = textPiece(o.initials, { size: Math.round(o.size * 0.47), weight: 700, paint: "mid" });
-  return {
-    body: `<circle cx="${r}" cy="${r}" r="${num$1(r - 0.5)}" class="f-track"/>${place(label.body, (o.size - label.width) / 2, (o.size - label.height) / 2)}`,
-    width: o.size,
-    height: o.size
-  };
+const MAX_LINES = 40;
+function pieces(word, o) {
+  if (o.measure(word) <= o.max)
+    return [word];
+  const out = [];
+  let piece = "";
+  for (const ch of word) {
+    if (piece !== "" && o.measure(piece + ch) > o.max) {
+      out.push(piece);
+      piece = "";
+    }
+    piece += ch;
+  }
+  return piece === "" ? out : [...out, piece];
+}
+function paragraph(text, o) {
+  const lines = [];
+  let line = "";
+  for (const word of text.split(/[ \t]+/).filter(Boolean).flatMap((w) => pieces(w, o))) {
+    const next = line === "" ? word : `${line} ${word}`;
+    if (line !== "" && o.measure(next) > o.max) {
+      lines.push(line);
+      line = word;
+    } else
+      line = next;
+  }
+  return [...lines, line];
+}
+function wrapLines(text, o) {
+  const cap = o.maxLines ?? MAX_LINES;
+  const lines = text.replace(/\r/g, "").trim().split(`
+`).flatMap((p) => paragraph(p, o));
+  if (lines.length <= cap)
+    return lines;
+  return [...lines.slice(0, cap - 1), fitText(`${lines[cap - 1] ?? ""} …`, o.max, o.measure)];
+}
+
+const TALK = {
+  face: 22,
+  textX: 32,
+  headH: 26,
+  size: 13.5,
+  lineH: 20,
+  padX: 12,
+  padY: 8,
+  gap: 4,
+  metaH: 20,
+  radius: 13,
+  maxBubble: 480,
+  sideRoom: 36,
+  nameSize: 13,
+  metaSize: 11.5,
+  quoteH: 36
+};
+const NAME_WEIGHT$1 = 600;
+const TIME_GAP$1 = 8;
+const BODY$1 = sans(TALK.size);
+const bubbleWidthOf = (o) => Math.min(TALK.maxBubble, o.width - (o.who.isMine ? TALK.sideRoom : TALK.textX + TALK.sideRoom / 2));
+function bubbleOf(said, max) {
+  const inner = max - TALK.padX * 2;
+  const lines = wrapLines(said.text, { max: inner, measure: BODY$1 });
+  const textW = Math.max(...lines.map((line) => BODY$1(line)), said.quote === undefined ? 0 : inner);
+  const w = Math.ceil(Math.min(max, textW + TALK.padX * 2));
+  const h = lines.length * TALK.lineH + TALK.padY * 2 + (said.quote === undefined ? 0 : TALK.quoteH);
+  return { lines, quote: said.quote, w, h, isPending: said.isPending };
+}
+const QUOTE = { bar: 2, inset: 8, nameY: 11, textY: 25, nameSize: 11.5, textSize: 12 };
+function quoteSvg(q, o) {
+  const left = o.x + TALK.padX;
+  const room = o.w - TALK.padX * 2 - QUOTE.inset;
+  const top = o.y + TALK.padY;
+  return [
+    `<rect x="${num$1(left)}" y="${num$1(top)}" width="${QUOTE.bar}" height="${TALK.quoteH - QUOTE.inset}" rx="1" class="f-lo"/>`,
+    textEl({ x: left + QUOTE.inset, y: top + QUOTE.nameY, text: fitText(q.name, room, sans(QUOTE.nameSize, NAME_WEIGHT$1)), paint: "mid", size: QUOTE.nameSize, weight: NAME_WEIGHT$1 }),
+    textEl({ x: left + QUOTE.inset, y: top + QUOTE.textY, text: fitText(q.text, room, sans(QUOTE.textSize)), paint: "lo", size: QUOTE.textSize })
+  ].join("");
+}
+function bubbleSvg(b, o) {
+  const surface = o.isMine ? veilRect({ x: o.x, y: o.y, w: b.w, h: b.h, r: TALK.radius, fill: VEIL.fill, ...b.isPending ? { edge: VEIL.edge, isDashed: true } : {} }) : veilRect({ x: o.x, y: o.y, w: b.w, h: b.h, r: TALK.radius, fill: VEIL.soft, edge: VEIL.edge, isDashed: b.isPending });
+  const top = o.y + TALK.padY + (b.quote === undefined ? 0 : TALK.quoteH);
+  const words = b.lines.map((line, i) => textEl({ x: o.x + TALK.padX, y: baseline(top + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: "hi", size: TALK.size }));
+  return [surface, b.quote === undefined ? "" : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join("");
+}
+function headSvg$1(o) {
+  const room = o.width - TALK.textX - textWidth(o.time, TALK.metaSize) - TIME_GAP$1;
+  const label = fitText(o.who.label, room, sans(TALK.nameSize, NAME_WEIGHT$1));
+  const y = baseline(0, TALK.headH, TALK.nameSize);
+  const timeX = TALK.textX + textWidth(label, TALK.nameSize, NAME_WEIGHT$1) + TIME_GAP$1;
+  return [
+    faceOf({ name: o.who.name, isAgent: o.who.isAgent, x: 0, y: (TALK.headH - TALK.face) / 2, size: TALK.face }),
+    textEl({ x: TALK.textX, y, text: label, paint: "hi", size: TALK.nameSize, weight: NAME_WEIGHT$1 }),
+    textEl({ x: timeX, y, text: o.time, paint: "lo", size: TALK.metaSize })
+  ].join("");
+}
+const TICK_GAP = 6;
+function metaSvg(o, y) {
+  const by = baseline(y, TALK.metaH, TALK.metaSize);
+  if (o.pending !== undefined) {
+    const words = `${o.time} · ${o.pending.text}`;
+    return textEl({ x: o.width - 2, y: by, text: words, paint: o.pending.isWarn ? "warn" : "lo", size: TALK.metaSize, anchor: "end" });
+  }
+  if (o.tick === undefined || o.tick === "pending")
+    return textEl({ x: o.width - 2, y: by, text: o.time, paint: "lo", size: TALK.metaSize, anchor: "end" });
+  const checks = checksPiece({ isDouble: o.tick !== "sent", paint: o.tick === "read" ? "read" : "lo" });
+  const cx = o.width - 2 - checks.width;
+  return [
+    textEl({ x: cx - TICK_GAP, y: by, text: o.time, paint: "lo", size: TALK.metaSize, anchor: "end" }),
+    `<g transform="translate(${num$1(cx)} ${num$1(y + (TALK.metaH - checks.height) / 2)})">${checks.body}</g>`
+  ].join("");
+}
+function runPic(o) {
+  const max = bubbleWidthOf(o);
+  const bubbles = o.said.map((s) => bubbleOf(s, max));
+  const isTheirs = !o.who.isMine;
+  let y = isTheirs && o.hasHead ? TALK.headH + TALK.gap : 0;
+  const parts = isTheirs && o.hasHead ? [headSvg$1(o)] : [];
+  for (const b of bubbles) {
+    parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs }));
+    y += b.h + TALK.gap;
+  }
+  if (!isTheirs)
+    parts.push(metaSvg(o, y));
+  const height = Math.ceil(isTheirs ? y - TALK.gap : y + TALK.metaH);
+  return toPic({ body: parts.join(""), width: Math.floor(o.width), height, alt: altOf(o) });
+}
+function altOf(o) {
+  const words = o.said.map((s) => s.quote === undefined ? s.text : `(${s.quote.name}: ${s.quote.text}) ${s.text}`).join(" / ");
+  return [`${o.who.label}, ${o.time}`, words, o.pending?.text ?? ""].filter(Boolean).join(": ");
+}
+const DIVIDER_H = 28;
+const DIVIDER_SIZE = 11.5;
+const DIVIDER_GAP = 10;
+function dividerPic(o) {
+  const w = Math.floor(o.width);
+  const tw = textWidth(o.text, DIVIDER_SIZE, NAME_WEIGHT$1);
+  const y = DIVIDER_H / 2;
+  const left = (w - tw) / 2 - DIVIDER_GAP;
+  const rule = (x1, x2) => `<path d="M${num$1(x1)} ${num$1(y + 0.5)}H${num$1(x2)}" class="${o.isNew ? "s-edit" : "s-hi"}" stroke-opacity="${o.isNew ? 0.5 : VEIL.rule}"/>`;
+  const body = [
+    rule(0, left),
+    textEl({ x: w / 2, y: baseline(0, DIVIDER_H, DIVIDER_SIZE), text: o.text, paint: o.isNew ? "edit" : "lo", size: DIVIDER_SIZE, weight: NAME_WEIGHT$1, anchor: "middle" }),
+    rule(w - left, w)
+  ].join("");
+  return toPic({ body, width: w, height: DIVIDER_H, alt: o.text });
+}
+
+const ANSWER = { h: 24, lineH: 17, size: 12, icon: 14, iconGap: 6, hook: 12 };
+const ANSWER_LINES = 2;
+const HOOK_R = 4;
+const QUESTION_LINES = 4;
+const NAME_WEIGHT = 600;
+const TIME_GAP = 8;
+const BODY = sans(TALK.size);
+const OUTCOME = {
+  answered: { glyph: "check", paint: "ok", text: "mid" },
+  waiting: { glyph: "clock", paint: "lo", text: "lo" },
+  denied: { glyph: "lock", paint: "danger", text: "danger" }
+};
+function headSvg(o) {
+  const y = baseline(0, TALK.headH, TALK.nameSize);
+  const label = fitText(o.asker.label, o.width - TALK.textX - textWidth(o.time, TALK.metaSize) - TIME_GAP, sans(TALK.nameSize, NAME_WEIGHT));
+  return [
+    faceOf({ name: o.asker.name, isAgent: o.asker.isAgent, x: 0, y: (TALK.headH - TALK.face) / 2, size: TALK.face }),
+    textEl({ x: TALK.textX, y, text: label, paint: "hi", size: TALK.nameSize, weight: NAME_WEIGHT }),
+    textEl({ x: TALK.textX + textWidth(label, TALK.nameSize, NAME_WEIGHT) + TIME_GAP, y, text: o.time, paint: "lo", size: TALK.metaSize })
+  ].join("");
+}
+function questionSvg(o, top) {
+  const max = Math.min(TALK.maxBubble, o.width - TALK.textX - TALK.sideRoom / 2);
+  const lines = wrapLines(o.question, { max: max - TALK.padX * 2, measure: BODY, maxLines: QUESTION_LINES });
+  const w = Math.ceil(Math.min(max, Math.max(...lines.map(BODY)) + TALK.padX * 2));
+  const h = lines.length * TALK.lineH + TALK.padY * 2;
+  const words = lines.map((line, i) => textEl({ x: TALK.textX + TALK.padX, y: baseline(top + TALK.padY + i * TALK.lineH, TALK.lineH, TALK.size), text: line, paint: "hi", size: TALK.size }));
+  return { svg: veilRect({ x: TALK.textX, y: top, w, h, r: TALK.radius, fill: VEIL.soft, edge: VEIL.edge }) + words.join(""), h };
+}
+function answerSvg(o, top) {
+  const look = OUTCOME[o.outcome];
+  const hookX = TALK.textX + ANSWER.hook;
+  const mid = top + ANSWER.h / 2;
+  const iconX = hookX + ANSWER.hook - 2;
+  const textX = iconX + ANSWER.icon + ANSWER.iconGap;
+  const lines = wrapLines(o.answer, { max: o.width - textX, measure: sans(ANSWER.size), maxLines: ANSWER_LINES });
+  const hook = `<path d="M${num$1(hookX + 0.5)} ${num$1(top - TALK.gap)}V${num$1(mid - HOOK_R)}q0 ${HOOK_R} ${HOOK_R} ${HOOK_R}H${num$1(iconX - HOOK_R)}" fill="none" class="s-hi" stroke-opacity="${VEIL.edge}"/>`;
+  const icon = glyphPiece(look.glyph, { size: ANSWER.icon, paint: look.paint, stroke: 1.75 });
+  const words = lines.map((line, i) => textEl({ x: textX, y: baseline(top + i * ANSWER.lineH, ANSWER.h, ANSWER.size), text: line, paint: look.text, size: ANSWER.size }));
+  const svg = [hook, `<g transform="translate(${num$1(iconX)} ${num$1(mid - ANSWER.icon / 2)})">${icon.body}</g>`, ...words].join("");
+  return { svg, h: ANSWER.h + (lines.length - 1) * ANSWER.lineH };
+}
+function txPic(o) {
+  const q = questionSvg(o, TALK.headH + TALK.gap);
+  const answerTop = TALK.headH + TALK.gap + q.h + TALK.gap;
+  const a = answerSvg(o, answerTop);
+  const body = [headSvg(o), q.svg, a.svg].join("");
+  const alt = `${o.asker.label}, ${o.time}: ${o.question} — ${o.answer}`;
+  return themed(toPic({ body, width: Math.floor(o.width), height: Math.ceil(answerTop + a.h), alt }), o.pin);
 }
 
 const isMessage = (m) => !("isUnreadable" in m);
@@ -6314,13 +6544,13 @@ function itemsOf(lines) {
   }
   return items;
 }
-const answerOf = (line) => messageOf(line)?.answer;
+const answerOf$1 = (line) => messageOf(line)?.answer;
 function joined(tx) {
   const first = tx.answers[0];
   if (first === undefined)
     return null;
   const own = tx.answers.filter((l) => l.authorUid === first.authorUid);
-  const parts = own.map(answerOf).filter((a) => a !== undefined).sort((a, b) => (a.part ?? 1) - (b.part ?? 1));
+  const parts = own.map(answerOf$1).filter((a) => a !== undefined).sort((a, b) => (a.part ?? 1) - (b.part ?? 1));
   const last = own.at(-1) ?? first;
   return {
     body: parts.map((a) => a.body).join(""),
@@ -6340,9 +6570,9 @@ function askedArg(tx) {
 }
 
 const EN = {
-  nouns: { agent: "agent", machine: "machine" },
+  nouns: { agent: "AI", machine: "computer" },
   theirs: (noun) => `The other side's ${noun}`,
-  mine: "Your agent",
+  mine: "Your AI",
   whose: (o) => `${possessive(o.name)} ${o.noun}`,
   answered: (who) => `${who} answered`,
   question: "asked a question",
@@ -6356,9 +6586,9 @@ const EN = {
   matches: (n) => countOf$1(n, { one: "match", many: "matches" })
 };
 const TR = {
-  nouns: { agent: "agent'ı", machine: "makinesi" },
+  nouns: { agent: "yapay zekâsı", machine: "bilgisayarı" },
   theirs: (noun) => `Karşı tarafın ${noun}`,
-  mine: "Senin agent'ın",
+  mine: "Senin yapay zekân",
   whose: (o) => `${genitive(o.name)} ${o.noun}`,
   answered: (who) => who,
   question: "soru sordu",
@@ -6425,7 +6655,7 @@ function compactText(c) {
 `).find((r) => r.trim() !== "")?.trim() ?? "");
 }
 
-const LEAD = 16;
+const TEXT_CELLS = 4;
 const FULL_SUFFIX = ":full";
 const fullIdOf = (txId) => `${txId}${FULL_SUFFIX}`;
 function clipLines(text, isOpen) {
@@ -6470,7 +6700,7 @@ function AnswerBody(ctx, o) {
     gap: 1,
     alignItems: "center"
   }, more === "" ? null : h(Text, {
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, more), toggle);
   return [h(Text, {
     key: "compact",
@@ -6478,113 +6708,60 @@ function AnswerBody(ctx, o) {
     wrap: "wrap"
   }, compactText(c)), row, ...isFull ? [full] : []];
 }
-function AnswerMeta(ctx, o) {
-  const { Box, Text } = ctx.ui;
-  const { a } = o;
-  const who = a.line.isMine ? chatWords().thisMachine : answererOf(a);
-  const q = o.tx.query === undefined ? null : messageOf(o.tx.query);
-  const took = q === null ? "" : ` · ${secondsText(a.ts - q.ts)}`;
-  return h(Box, {
-    key: "answer-meta",
-    flexDirection: "row",
-    gap: 1
-  }, h(Box, {
-    flexGrow: 1,
-    flexShrink: 1
-  }, h(Text, {
-    color: ctx.look.mid,
-    wrap: "truncate-end"
-  }, h(Text, {
-    bold: true
-  }, who), h(Text, {
-    color: a.tokens === 0 ? ctx.look.signal.fg : ctx.look.lo
-  }, ` · ${tokensText(a.tokens)}`), h(Text, {
-    color: ctx.look.lo
-  }, took))), h(Text, {
-    color: ctx.look.lo
-  }, clockText(a.ts)));
-}
 function Detail(ctx, tx) {
-  const { Box, Text } = ctx.ui;
+  const { Box } = ctx.ui;
   const a = joined(tx);
-  const question = queryType(tx) === "ask" ? askedArg(tx) : undefined;
-  const kids = question === undefined ? [] : [h(Text, {
-    key: "question",
-    color: ctx.look.hi,
-    wrap: "wrap"
-  }, question)];
-  if (a === null)
-    kids.push(h(Text, {
-      key: "waiting",
-      color: ctx.look.lo
-    }, chatWords().waitingAnswer));
-  else
-    kids.push(AnswerMeta(ctx, { tx, a }), ...AnswerBody(ctx, { tx, body: a.body }));
   return h(Box, {
     key: "detail",
     flexDirection: "column",
-    gap: 1,
-    backgroundColor: ctx.look.inset,
-    paddingX: 1,
-    paddingY: 1
-  }, kids);
+    gap: 1
+  }, a === null ? [] : AnswerBody(ctx, { tx, body: a.body }));
 }
-function Lead(ctx, o) {
-  const key = `lead-${o.id}`;
-  if (o.isDenied)
-    return GlyphPic(ctx, { glyph: "lock", paint: "danger", key });
-  if (o.line === undefined || o.line.isMine)
-    return GlyphPic(ctx, { glyph: "robot", paint: "run", key });
-  const face = tinyFace({ initials: initialsOf(o.line.authorName), paint: avatarRole(o.line.seed), size: LEAD });
-  return Pic(ctx, rowPart({ width: LEAD, height: LEAD, left: [face], alt: "" }), key);
+function questionOf(tx) {
+  const arg = askedArg(tx);
+  const type = queryType(tx);
+  if (type === "ask")
+    return arg ?? specOf("ask")?.desc ?? "";
+  const desc = specOf(type)?.desc ?? type;
+  return arg === undefined ? desc : `${desc} · ${arg}`;
+}
+function answerOf(tx) {
+  const a = joined(tx);
+  if (a === null)
+    return { text: chatWords().waitingAnswer, outcome: "waiting" };
+  if (a.isDenied)
+    return { text: chatWords().refused, outcome: "denied" };
+  const q = tx.query === undefined ? null : messageOf(tx.query);
+  const who = a.line.isMine ? chatWords().thisMachine : answererOf(a);
+  const took = q === null ? "" : ` · ${secondsText(a.ts - q.ts)}`;
+  return { text: `${who} · ${tokensText(a.tokens)}${took}`, outcome: "answered" };
 }
 function TxLine(ctx, tx) {
-  const { Box, Text } = ctx.ui;
-  const s = txSummary(tx);
-  const isDenied = s.outcome === "denied";
-  const isOpen = !isDenied && ctx.model.expanded.includes(tx.id);
+  const { Box } = ctx.ui;
+  const end = answerOf(tx);
+  const asker = tx.query ?? tx.answers[0];
+  const ts = asker === undefined ? 0 : messageOf(asker)?.ts ?? 0;
+  const pic = txPic({
+    width: ctx.px,
+    pin: ctx.look.pin,
+    time: clockText(ts),
+    question: questionOf(tx),
+    answer: end.text,
+    outcome: end.outcome,
+    asker: { label: chatWords().aiAsked(agentOf(tx.query)), name: tx.query?.authorName ?? "", isAgent: true }
+  });
+  const isOpen = end.outcome === "answered" && ctx.model.expanded.includes(tx.id);
+  const toggle = end.outcome === "answered" ? Toggle(ctx, { key: `open-tx-${tx.id}`, id: tx.id, open: chatWords().hide, closed: viewLabel(tx) }) : null;
   return h(Box, {
     key: `tx-${tx.id}`,
     flexDirection: "column",
-    gap: 1
-  }, h(Box, {
+    gap: isOpen ? 1 : 0
+  }, SvgOf(ctx, pic, `tx-pic-${tx.id}`), toggle === null ? null : h(Box, {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 1
-  }, Lead(ctx, { line: tx.query, isDenied, id: tx.id }), h(Box, {
-    flexGrow: 1,
-    flexShrink: 1
-  }, h(Text, {
-    color: isDenied ? ctx.look.role.danger.fg : ctx.look.mid,
-    wrap: "truncate-end"
-  }, s.text)), isDenied ? null : Toggle(ctx, { key: `open-tx-${tx.id}`, id: tx.id, open: chatWords().hide, closed: viewLabel(tx) })), isOpen ? Detail(ctx, tx) : null);
-}
-function AgentNote(ctx, line) {
-  const { Box, Text } = ctx.ui;
-  const m = messageOf(line);
-  return h(Box, {
-    key: `msg-${line.id}`,
-    flexDirection: "column",
-    gap: 1
-  }, h(Box, {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 1
-  }, Lead(ctx, { line, isDenied: false, id: line.id }), h(Box, {
-    flexGrow: 1
-  }, h(Text, {
-    color: ctx.look.mid,
-    bold: true
-  }, chatWords().wrote(agentOf(line)))), h(Text, {
-    color: ctx.look.lo
-  }, m === null ? "" : clockText(m.ts))), h(Box, {
-    backgroundColor: ctx.look.inset,
-    paddingX: 1,
-    paddingY: 1
-  }, h(Text, {
-    color: ctx.look.hi,
-    wrap: "wrap"
-  }, m?.text ?? "")));
+    paddingLeft: TEXT_CELLS
+  }, toggle), isOpen ? h(Box, {
+    paddingLeft: TEXT_CELLS + 1
+  }, Detail(ctx, tx)) : null);
 }
 function DraftCard(ctx, draft) {
   const { Box, Button, Text } = ctx.ui;
@@ -6593,7 +6770,6 @@ function DraftCard(ctx, draft) {
     key: `draft-${draft.qid}`,
     flexDirection: "column",
     gap: 1,
-    backgroundColor: warn.tint,
     paddingX: 1,
     paddingY: 1
   }, h(Text, {
@@ -6629,9 +6805,10 @@ function Title(ctx, o) {
 }
 function Sentence(ctx, o) {
   const { Text } = ctx.ui;
+  const ink = o.paint === "lo" ? ctx.look.loText : { color: ctx.look.mid };
   return h(Text, {
     key: o.key,
-    color: ctx.look[o.paint ?? "mid"],
+    ...ink,
     wrap: "wrap"
   }, o.text);
 }
@@ -6648,7 +6825,7 @@ function BridgeCard(ctx) {
     gap: 1,
     borderStyle: "round",
     borderColor: ctx.look.line,
-    backgroundColor: ctx.look.card,
+    borderDimColor: true,
     paddingX: isText(ctx) ? 1 : 2,
     paddingY: isText(ctx) ? 0 : 1
   }, Title(ctx, { key: "bridge-title", text: w.bridgeTitle }), Sentence(ctx, { key: "bridge-body", text: w.bridgeBody }), h(Box, {
@@ -6673,7 +6850,7 @@ function BridgeHead(ctx, room) {
     alt,
     lastId: room.lastId ?? "",
     lastIsMine: room.lastIsMine,
-    isLight: ctx.look.isLight,
+    pin: ctx.look.pin,
     here: { name, note: w.bridgeThisOne, isWaiting: false },
     there: { name: peer ?? w.bridgeOther, note: isAlone ? w.bridgeWaiting : seen, isWaiting: isAlone }
   });
@@ -6684,160 +6861,78 @@ function BridgeHead(ctx, room) {
   }, isText(ctx) ? Meta(ctx, alt, `bridge-${room.id}`) : SvgOf(ctx, pic, `bridge-${room.id}`), isAlone ? Sentence(ctx, { key: "bridge-next", text: w.bridgeNext, paint: "lo" }) : null);
 }
 
-const FACE$1 = 24;
-const FACE_CELLS = 3;
-const GUTTER_RATIO = 0.18;
-const gutterOf = (ctx) => Math.max(4, Math.round(ctx.columns * GUTTER_RATIO));
-function pendingStatus(ctx, line) {
-  if (line.receipt !== "pending")
-    return null;
-  return ctx.model.isConnected ? { text: chatWords().sending, color: ctx.look.lo } : { text: waitingText(), color: ctx.look.role.warn.fg };
+function pendingOf(ctx, lines) {
+  if (!lines.some((l) => l.receipt === "pending"))
+    return;
+  return ctx.model.isConnected ? { text: chatWords().sending, isWarn: false } : { text: waitingText(), isWarn: true };
 }
-function Stamp(ctx, line, ts) {
-  const { Box, Text } = ctx.ui;
-  const status = pendingStatus(ctx, line);
-  const tick = status === null && line.receipt !== undefined ? receiptTone(ctx, line.receipt) : null;
-  return h(Box, {
-    key: "stamp",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 1
-  }, h(Text, {
-    color: ctx.look.lo
-  }, clockText(ts)), status === null ? null : h(Text, {
-    color: status.color
-  }, status.text), tick === null ? null : h(Text, {
-    color: tick.color
-  }, tick.glyph));
+const isAgentLine = (line) => messageOf(line)?.kind === "agent";
+function labelOf(ctx, o) {
+  const { line } = o;
+  if (o.room.kind === "devices")
+    return `${isAgentLine(line) ? "Claude" : paneWords().you} · ${line.isMine ? ctx.model.bridge.name : line.authorName}`;
+  return isAgentLine(line) ? agentOf(line) : firstName(line.authorName);
 }
-function Quote(ctx, line) {
-  const { Box, Text } = ctx.ui;
-  const quote = line.replyTo;
-  if (quote === undefined)
-    return null;
-  return h(Box, {
-    key: "quote",
-    flexDirection: "column",
-    backgroundColor: ctx.look.inset,
-    paddingX: 1
-  }, h(Text, {
-    color: ctx.look.mid,
-    bold: true
-  }, quote.name), h(Text, {
-    color: ctx.look.lo,
-    wrap: "truncate-end"
-  }, quote.text));
-}
+const saidOf = (line) => ({ text: messageOf(line)?.text ?? "", quote: line.replyTo, isPending: line.receipt === "pending" });
 function RoomChip(ctx, line) {
-  const { Box, Button, Text } = ctx.ui;
+  const { Box, Button } = ctx.ui;
   const link = line.roomLink;
   if (link === undefined)
     return null;
-  const run = ctx.look.role.run;
   return h(Box, {
-    key: "room-chip",
+    key: `room-chip-${line.id}`,
     flexDirection: "row",
     alignItems: "center",
     gap: 1,
-    borderStyle: "round",
-    borderColor: run.line,
-    backgroundColor: run.tint,
-    paddingX: 1
-  }, GlyphPic(ctx, { glyph: "branch", paint: "run", key: `chip-glyph-${line.id}` }), h(Box, {
-    flexGrow: 1,
-    flexShrink: 1
-  }, h(Text, {
-    color: ctx.look.hi,
-    wrap: "truncate-end"
-  }, link.repo)), h(Button, {
+    paddingLeft: line.isMine ? 0 : 4,
+    justifyContent: line.isMine ? "flex-end" : "flex-start"
+  }, GlyphPic(ctx, { glyph: "branch", paint: "mid", key: `chip-glyph-${line.id}` }), h(Button, {
     key: `goto-${line.id}`,
-    label: chatWords().goToRoom,
+    label: `${chatWords().goToRoom} · ${link.repo.split("/")[1] ?? link.repo}`,
     plain: true,
+    dimColor: true,
     onPress: () => ctx.on.select(link.roomId)
   }));
 }
-function whoLine(ctx, line) {
-  const who = messageOf(line)?.kind === "agent" ? "Claude" : paneWords().you;
-  return `${who} · ${line.isMine ? ctx.model.bridge.name : line.authorName}`;
-}
-function bubbleBody(ctx, o) {
+function Lone(ctx, line) {
   const { Box, Text } = ctx.ui;
-  const { line } = o;
-  const tone = line.isMine ? { tint: ctx.look.track, line: ctx.look.track } : { tint: ctx.look.card, line: ctx.look.card };
-  const isPending = line.receipt === "pending";
-  return h(Box, {
-    flexDirection: "column",
-    borderStyle: isPending ? "dashed" : "round",
-    borderColor: tone.line,
-    backgroundColor: tone.tint,
-    paddingX: 1,
-    gap: 0
-  }, o.isFirst && o.room.kind === "devices" ? h(Text, {
-    key: "author",
-    color: ctx.look.lo,
-    bold: true,
-    wrap: "truncate-end"
-  }, whoLine(ctx, line)) : null, Quote(ctx, line), h(Text, {
-    key: "text",
-    color: ctx.look.hi,
-    wrap: "wrap"
-  }, o.text), RoomChip(ctx, line), o.isLast || isPending ? Stamp(ctx, line, o.ts) : null);
-}
-function Face(ctx, o) {
-  const { line } = o;
-  if (o.room.kind !== "project")
-    return null;
-  if (o.isLast)
-    return Pic(ctx, facePart({ initials: initialsOf(line.authorName), paint: avatarRole(line.seed), size: FACE$1 }), `face-${line.id}`);
-  const { Box } = ctx.ui;
-  return h(Box, {
-    key: `face-${line.id}`,
-    width: FACE_CELLS,
-    flexShrink: 0
-  });
-}
-function Side(ctx, o) {
-  const { Box } = ctx.ui;
-  const { line } = o;
-  const gutter = gutterOf(ctx);
-  if (line.isMine)
-    return h(Box, {
-      key: `msg-${line.id}`,
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      paddingLeft: gutter
-    }, o.body);
-  const face = Face(ctx, o);
+  const m = messageOf(line);
+  const text = m === null ? chatWords().unreadable : shownSystem(m.text);
   return h(Box, {
     key: `msg-${line.id}`,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 1,
-    paddingRight: gutter
-  }, face, o.body);
+    justifyContent: "center"
+  }, h(Text, {
+    ...ctx.look.loText,
+    italic: true,
+    wrap: "wrap"
+  }, text));
 }
-function Bubble(ctx, o) {
-  const { Box, Text } = ctx.ui;
-  const m = messageOf(o.line);
-  if (m === null)
-    return h(Box, {
-      key: `msg-${o.line.id}`,
-      paddingLeft: FACE_CELLS + 1
-    }, h(Text, {
-      color: ctx.look.lo,
-      italic: true
-    }, chatWords().unreadable));
-  if (m.kind === "system" || isText(ctx)) {
-    return h(Box, {
-      key: `msg-${o.line.id}`,
-      justifyContent: "center"
-    }, h(Text, {
-      color: ctx.look.lo,
-      italic: true,
-      wrap: "wrap"
-    }, shownSystem(m.text)));
-  }
-  return Side(ctx, { ...o, body: bubbleBody(ctx, { ...o, text: m.text, ts: m.ts }) });
+function Run(ctx, o) {
+  const { Box } = ctx.ui;
+  const first = o.lines[0];
+  const m = messageOf(first);
+  if (m === null || m.kind === "system")
+    return Lone(ctx, first);
+  const last = o.lines.at(-1);
+  const lastTs = messageOf(last)?.ts ?? m.ts;
+  const pic = runPic({
+    width: ctx.px,
+    said: o.lines.map(saidOf),
+    hasHead: o.hasHead,
+    pending: pendingOf(ctx, o.lines),
+    who: { label: labelOf(ctx, { line: first, room: o.room }), name: first.authorName, isAgent: isAgentLine(first), isMine: first.isMine },
+    time: clockText(first.isMine ? lastTs : m.ts),
+    tick: last.receipt
+  });
+  const drawing = SvgOf(ctx, themed(pic, ctx.look.pin), `msg-${first.id}`);
+  const chips = o.lines.map((line) => RoomChip(ctx, line)).filter((c) => c !== null);
+  if (chips.length === 0 && drawing !== null)
+    return drawing;
+  return h(Box, {
+    key: `run-${first.id}`,
+    flexDirection: "column",
+    gap: 1
+  }, drawing, chips);
 }
 
 const CARD_PAD = 2;
@@ -6868,7 +6963,7 @@ function Card(ctx, o) {
     gap: 1,
     borderStyle: "round",
     borderColor: o.line ?? ctx.look.line,
-    backgroundColor: ctx.look.card,
+    borderDimColor: o.line === undefined,
     paddingX: isText(ctx) ? 1 : CARD_PAD,
     paddingY: isText(ctx) ? 0 : CARD_PAD - 1
   }, o.children.filter((c) => c !== null));
@@ -6981,7 +7076,6 @@ function ErrorCard(ctx) {
     gap: 1,
     borderStyle: isText(ctx) ? "single" : "round",
     borderColor: danger.line,
-    backgroundColor: danger.tint,
     paddingX: 1
   }, h(Text, {
     color: danger.fg,
@@ -7042,8 +7136,7 @@ function Cell(ctx, o) {
     flexDirection: "row",
     alignItems: "center",
     paddingX: 1,
-    minWidth: 0,
-    backgroundColor: isOn ? ctx.look.role.run.tint : undefined
+    minWidth: 0
   }, h(Box, {
     minWidth: o.nameCells,
     flexShrink: 0
@@ -7082,7 +7175,7 @@ function AskRow(ctx, o) {
     plain: true,
     onPress: () => ctx.on.askAgent(o.room.id, ASK_TYPE)
   }), h(Text, {
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "truncate-end"
   }, o.spec.desc)), h(Box, {
     flexShrink: 0
@@ -7106,7 +7199,7 @@ function Sheet(ctx, room) {
     gap: 1,
     borderStyle: "round",
     borderColor: ctx.look.lineStrong,
-    backgroundColor: ctx.look.card,
+    borderDimColor: true,
     paddingX: 1,
     paddingY: 1
   }, h(Box, {
@@ -7126,7 +7219,7 @@ function Sheet(ctx, room) {
   }, title)), h(Box, {
     flexShrink: 0
   }, h(Text, {
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "truncate-end"
   }, chatWords().ready(typed.length)))), h(Box, {
     flexDirection: "column"
@@ -7144,8 +7237,7 @@ function ModeChip(ctx) {
     alignItems: "center",
     gap: 1,
     borderStyle: "round",
-    borderColor: run.line,
-    backgroundColor: run.tint,
+    borderDimColor: true,
     paddingX: 1,
     flexShrink: 0
   }, h(Text, {
@@ -7171,7 +7263,7 @@ function Composer(ctx, room) {
   if (!("Input" in ctx.ui))
     return h(Text, {
       key: "read-only",
-      color: ctx.look.lo,
+      ...ctx.look.loText,
       wrap: "wrap"
     }, chatWords().readOnly);
   const { Input, Button } = ctx.ui;
@@ -7195,7 +7287,7 @@ function Composer(ctx, room) {
   }, h(Input, {
     key: `composer-${room.id}-${ctx.model.composerKey}`,
     placeholder: placeholderOf(room, mode),
-    submitLabel: "↵",
+    submitLabel: mode === null ? chatWords().send : chatWords().ask,
     autoFocus: true,
     onInput: (value) => ctx.on.type(room.id, value),
     onSubmit: (value) => ctx.on.send(room.id, value)
@@ -7205,6 +7297,68 @@ function Composer(ctx, room) {
     label: mode === null ? chatWords().send : chatWords().ask,
     onPress: () => ctx.on.sendTyped(room.id)
   })), HintRow(ctx));
+}
+
+const HEAD_H = 46;
+const BACK = { size: 18, stroke: 1.75, room: 26 };
+const FACE = 26;
+const FACE_GAP = 10;
+const HERE_R = 4;
+const NAME = { size: 15, weight: 600, top: 4, height: 22 };
+const SUB = { size: 12, top: 26, height: 16 };
+function chatHeadPic(o) {
+  const faceX = o.hasBack ? BACK.room : 0;
+  const textX = faceX + FACE + FACE_GAP;
+  const room = o.width - textX;
+  const faceY = (HEAD_H - FACE) / 2;
+  const face = o.face.kind === "person" ? faceOf({ name: o.face.name, isAgent: false, x: faceX, y: faceY, size: FACE }) : markOf$1({ name: o.face.mark, x: faceX, y: faceY, box: FACE, paint: "mid" });
+  const dot = o.face.kind === "person" && o.face.isHere === true ? `<circle cx="${faceX + FACE - HERE_R}" cy="${faceY + FACE - HERE_R}" r="${HERE_R}" class="f-ok here"/>` : "";
+  const title = fitText(o.title, room, (t) => textWidth(t, NAME.size, NAME.weight));
+  const sub = fitText(o.sub, room, (t) => textWidth(t, SUB.size));
+  const body = [
+    o.hasBack ? place(glyphPiece("back", { size: BACK.size, paint: "mid", stroke: BACK.stroke }).body, 0, (HEAD_H - BACK.size) / 2) : "",
+    face,
+    dot,
+    textEl({ x: textX, y: baseline(NAME.top, NAME.height, NAME.size), text: title, paint: "hi", size: NAME.size, weight: NAME.weight }),
+    sub === "" ? "" : textEl({ x: textX, y: baseline(SUB.top, SUB.height, SUB.size), text: sub, paint: o.isSubLive ? "ok" : "lo", size: SUB.size })
+  ].join("");
+  const alt = [o.title, o.sub].filter(Boolean).join(" · ");
+  return themed(toPic({ body, width: Math.floor(o.width), height: HEAD_H, alt }), o.pin);
+}
+
+const ROLES = ["read", "edit", "run", "ok", "warn", "danger", "plan"];
+function desktopLook(isLight, pin) {
+  const p = palette(isLight);
+  return {
+    isText: false,
+    isLight,
+    pin,
+    loText: { dimColor: true },
+    signal: { fg: p.roles.edit.fg },
+    role: p.roles
+  };
+}
+function terminalLook(isLight) {
+  const role = Object.fromEntries(ROLES.map((r) => [r, { fg: ROLE_KEY[r], line: ROLE_KEY[r] }]));
+  return {
+    isText: true,
+    isLight,
+    lo: "inactive",
+    loText: { color: "inactive" },
+    line: "subtle",
+    lineStrong: "inactive",
+    signal: { fg: "planMode", line: "planMode" },
+    role
+  };
+}
+const lookOf = (opts) => opts.isText ? terminalLook(opts.isLight) : desktopLook(opts.isLight, opts.pin);
+const AVATAR_ROLES = ["read", "run", "ok", "plan", "edit", "warn"];
+const HASH_PRIME = 31;
+function avatarRole(seed) {
+  let h = 0;
+  for (const ch of seed)
+    h = h * HASH_PRIME + (ch.codePointAt(0) ?? 0) >>> 0;
+  return AVATAR_ROLES[h % AVATAR_ROLES.length] ?? "read";
 }
 
 const SHEET_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "w", "y", "z"];
@@ -7247,7 +7401,7 @@ function Extras(ctx, line) {
   return [
     ...line.replyTo === undefined ? [] : [h(Text, {
       key: "quote",
-      color: ctx.look.lo,
+      ...ctx.look.loText,
       wrap: "truncate-end"
     }, `  ↳ ${line.replyTo.name}: ${line.replyTo.text}`)],
     ...link === undefined ? [] : [h(Box, {
@@ -7284,7 +7438,7 @@ function HumanLine(ctx, o) {
   }, h(Text, {
     wrap: "wrap"
   }, m === null ? chatWords().unreadable : shownText(m))), h(Text, {
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, m === null ? "" : clockText(m.ts)), tick === null ? null : h(Text, {
     color: tick.color
   }, tick.glyph));
@@ -7329,7 +7483,7 @@ function TxDetail(ctx, tx) {
   if (a === null)
     return [...question, h(Text, {
       key: "waiting",
-      color: ctx.look.lo
+      ...ctx.look.loText
     }, chatWords().waitingLine)];
   return [
     ...question,
@@ -7430,7 +7584,7 @@ function Prompt(ctx, room) {
     onInput: (v) => ctx.on.type(room.id, v),
     onSubmit: (v) => ctx.on.send(room.id, v)
   }) : h(Text, {
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, placeholderOf(room, mode));
   return h(Box, {
     key: "prompt",
@@ -7470,7 +7624,7 @@ function Keys(ctx, room) {
     plain: true,
     onPress: () => ctx.on.askAgent(room.id, s.type)
   }), h(Text, {
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, s.desc))), h(Box, {
     flexDirection: "row",
     gap: 2,
@@ -7510,9 +7664,14 @@ function TermChat(ctx, room) {
     flexDirection: "column",
     gap: 0
   }, Top$1(ctx, room), room.kind === "devices" ? BridgeHead(ctx, room) : null, ShareCard(ctx, room), ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null, items.length === 0 ? h(Text, {
+    key: "none-title",
+    bold: true,
+    wrap: "wrap"
+  }, emptyWords(room).title) : null, items.length === 0 ? h(Text, {
     key: "none",
-    color: ctx.look.lo
-  }, chatWords().noMessages) : null, itemsEls(ctx, items), ctx.model.drafts.filter((d) => d.roomId === room.id).map((d) => DraftBlock(ctx, d)), ctx.model.error === null ? null : h(Text, {
+    ...ctx.look.loText,
+    wrap: "wrap"
+  }, emptyWords(room).body) : null, itemsEls(ctx, items), ctx.model.drafts.filter((d) => d.roomId === room.id).map((d) => DraftBlock(ctx, d)), ctx.model.error === null ? null : h(Text, {
     key: "error",
     color: ctx.look.role.danger.fg,
     wrap: "wrap"
@@ -7530,61 +7689,49 @@ function TermChat(ctx, room) {
   })), rule, Prompt(ctx, room), Keys(ctx, room));
 }
 
-const FACE = 20;
-function BackRow(ctx, room) {
-  if (isText(ctx) || ctx.isWide || room.kind === "project")
-    return null;
+const DETAILS_PX = 96;
+function headPic(ctx, room) {
   const status = statusOf$1(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) });
-  const pic = roomRowPic({ width: ctx.px, glyph: "back", name: room.title, preview: "", time: status?.text ?? "", unread: 0, isWarn: false, isLight: ctx.look.isLight });
-  const drawing = SvgOf(ctx, pic, `back-pic-${room.id}`);
-  return drawing === null ? null : PressRow(ctx.ui, { box: "back-row", key: "back", drawing, onPress: () => ctx.on.back() });
+  const hasInfo = room.kind === "project";
+  const name = room.kind === "project" ? room.repo ?? room.title : room.title;
+  const mark = room.kind === "project" ? "branch" : room.kind === "devices" ? "laptop" : "clock";
+  const isPerson = room.kind === "dm" && !room.isWaiting;
+  return chatHeadPic({
+    width: ctx.px - (hasInfo ? DETAILS_PX : 0),
+    title: name,
+    sub: status?.text ?? "",
+    isSubLive: status?.isHere === true,
+    hasBack: !ctx.isWide,
+    face: { kind: isPerson ? "person" : "mark", name: room.peerName ?? room.title, mark, isHere: status?.isHere === true },
+    pin: ctx.look.pin
+  });
 }
 function ChatHead(ctx, room) {
-  const back = BackRow(ctx, room);
-  if (back !== null)
-    return back;
-  const { Box, Button, Text } = ctx.ui;
-  const hasInfo = room.kind === "project";
-  const status = statusOf$1(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) });
+  const { Box, Button } = ctx.ui;
+  const drawing = SvgOf(ctx, headPic(ctx, room), `head-pic-${room.id}`);
+  const head = drawing === null || ctx.isWide ? drawing : PressRow(ctx.ui, { box: "back-row", key: "back", drawing, onPress: () => ctx.on.back() });
+  if (room.kind !== "project")
+    return h(Box, {
+      key: "chat-head",
+      flexDirection: "row"
+    }, head);
+  const label = ctx.model.isInfoOpen ? chatWords().close : chatWords().details;
   return h(Box, {
     key: "chat-head",
     flexDirection: "row",
-    alignItems: "center",
-    gap: 1
-  }, ctx.isWide ? null : h(Button, {
-    key: "back",
-    label: "‹",
-    plain: true,
-    onPress: () => ctx.on.back()
-  }), room.kind === "devices" ? null : Pic(ctx, roomFace(room, { size: FACE, now: ctx.model.now }), `chat-face-${room.id}`), h(Box, {
-    flexDirection: "column",
-    flexGrow: 1,
-    flexShrink: 1
-  }, h(Text, {
-    bold: true,
-    color: ctx.look.hi,
-    wrap: "truncate-end"
-  }, room.title), status === null ? null : h(Text, {
-    color: status.isHere ? ctx.look.role.ok.fg : ctx.look.lo,
-    wrap: "truncate-end"
-  }, status.text)), hasInfo ? h(Button, {
+    alignItems: "center"
+  }, head, h(Box, {
+    flexGrow: 1
+  }), h(Button, {
     key: `info-${room.id}`,
-    label: ctx.model.isInfoOpen ? chatWords().close : chatWords().details,
+    label,
     plain: true,
     dimColor: true,
     onPress: () => ctx.on.toggleInfo(room.id)
-  }) : null);
+  }));
 }
 function Divider(ctx, o) {
-  const { Box, Text } = ctx.ui;
-  return h(Box, {
-    key: o.key,
-    flexDirection: "row",
-    justifyContent: "center"
-  }, h(Text, {
-    color: o.color ?? ctx.look.lo,
-    bold: true
-  }, o.text));
+  return SvgOf(ctx, dividerPic({ width: ctx.px, text: o.text, isNew: o.isNew }), o.key) ?? Meta(ctx, o.text, o.key);
 }
 function Notice(ctx, room) {
   const { Box, Button, Text } = ctx.ui;
@@ -7622,42 +7769,63 @@ function isSameRun(a, b) {
     return false;
   return a.line.authorUid === b.line.authorUid && y.ts - x.ts <= GROUP_MS && dayKey(x.ts) === dayKey(y.ts);
 }
-function itemEl(ctx, o) {
-  const item = o.items[o.i];
-  if (item?.kind !== "line")
-    return TxLine(ctx, item);
-  if (messageOf(item.line)?.kind === "agent" && o.room.kind !== "devices")
-    return AgentNote(ctx, item.line);
-  const isFirst = o.isRuleHere || !isSameRun(o.items[o.i - 1], item);
-  const isLast = o.isRuleNext || !isSameRun(item, o.items[o.i + 1]);
-  return Bubble(ctx, { line: item.line, isFirst, isLast, room: o.room });
-}
-function slotEls(ctx, o) {
-  const item = o.items[o.i];
+function dividersAt(ctx, items, i) {
+  const item = items[i];
   const ts = tsOfLine(firstLineOf(item));
-  const prev = o.i > 0 ? firstLineOf(o.items[o.i - 1]) : undefined;
+  const prev = i > 0 ? firstLineOf(items[i - 1]) : undefined;
   const out = [];
   if (prev === undefined || dayKey(tsOfLine(prev)) !== dayKey(ts))
-    out.push(Divider(ctx, { key: `day-${idsOf(item)[0] ?? o.i}`, text: dayRule(ts, ctx.model.now) }));
+    out.push(Divider(ctx, { key: `day-${idsOf(item)[0] ?? i}`, text: dayRule(ts, ctx.model.now), isNew: false }));
   const divider = ctx.model.divider;
-  if (o.isRuleHere && divider !== null)
-    out.push(Divider(ctx, { key: "new-rule", text: chatWords().newMessages(divider.count), color: ctx.look.signal.fg }));
-  return [...out, itemEl(ctx, o)];
+  if (divider !== null && idsOf(item).includes(divider.id))
+    out.push(Divider(ctx, { key: "new-rule", text: chatWords().newMessages(divider.count), isNew: true }));
+  return out;
+}
+function threadOf(ctx, o) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (run.length > 0)
+      out.push(Run(ctx, { lines: run, room: o.room, hasHead: true }));
+    run = [];
+  };
+  o.items.forEach((item, i) => {
+    const dividers = dividersAt(ctx, o.items, i);
+    if (dividers.length > 0 || item.kind === "tx" || !isSameRun(o.items[i - 1], item))
+      flush();
+    out.push(...dividers);
+    if (item.kind === "tx")
+      out.push(TxLine(ctx, item));
+    else
+      run.push(item.line);
+  });
+  flush();
+  return out;
+}
+function emptyWords(room) {
+  const w = chatWords();
+  const isRepoAlone = room.kind === "project" && isGitUrl(room.url) && room.peerName === undefined;
+  return isRepoAlone ? w.repoAlone : { title: w.noMessagesTitle, body: w.noMessages };
+}
+function Empty(ctx, room) {
+  const { Box } = ctx.ui;
+  const say = emptyWords(room);
+  return h(Box, {
+    key: "none",
+    flexDirection: "column",
+    gap: 1,
+    paddingTop: 1
+  }, Title(ctx, { key: "none-title", text: say.title }), Sentence(ctx, { key: "none-body", text: say.body, paint: "lo" }));
 }
 function Timeline(ctx, room) {
   const { Box } = ctx.ui;
   const items = itemsOf(ctx.model.lines.slice(-TIMELINE_LINES));
-  const at = (i) => {
-    const d = ctx.model.divider;
-    const it = items[i];
-    return d !== null && it !== undefined && idsOf(it).includes(d.id);
-  };
   const out = [];
   if (ctx.model.lines.length > TIMELINE_LINES)
     out.push(Meta(ctx, chatWords().older, "older"));
   if (items.length === 0)
-    out.push(Meta(ctx, chatWords().noMessages, "none"));
-  items.forEach((_, i) => out.push(...slotEls(ctx, { items, i, room, isRuleHere: at(i), isRuleNext: at(i + 1) })));
+    out.push(Empty(ctx, room));
+  out.push(...threadOf(ctx, { items, room }));
   for (const d of ctx.model.drafts.filter((x) => x.roomId === room.id))
     out.push(DraftCard(ctx, d));
   return h(Box, {
@@ -7670,19 +7838,18 @@ function ConnectBanner(ctx) {
   const { Box, Button, Text } = ctx.ui;
   if (ctx.model.isConnected || ctx.isWide && ctx.model.needsSetup)
     return null;
-  const warn = ctx.look.role.warn;
   return h(Box, {
     key: "connect-banner",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 1,
-    backgroundColor: warn.tint,
-    paddingX: 1
+    gap: 1
+  }, h(Box, {
+    flexShrink: 1
   }, h(Text, {
-    color: warn.fg,
+    color: ctx.look.role.warn.fg,
     wrap: "wrap"
-  }, chatWords().waitingBanner), h(Button, {
+  }, chatWords().waitingBanner)), h(Button, {
     key: "connect-inline",
     variant: "primary",
     label: ctx.model.busy === null ? chatWords().connect : chatWords().connecting,
@@ -7697,15 +7864,18 @@ function ChatView(ctx) {
   if (isText(ctx))
     return TermChat(ctx, room);
   const isInfoHere = ctx.model.isInfoOpen && !ctx.isWide;
+  const tall = ctx.rows === undefined ? {} : { minHeight: ctx.rows };
   return h(Box, {
     key: "chat",
     flexDirection: "column",
     gap: 1,
-    flexGrow: 1
-  }, ChatHead(ctx, room), room.kind === "devices" ? BridgeHead(ctx, room) : null, Rule(ctx, "head-rule"), Notice(ctx, room), ShareCard(ctx, room), ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null, isInfoHere ? RoomInfo(ctx, room) : null, isInfoHere ? Rule(ctx, "info-rule") : null, h(Box, {
+    flexGrow: 1,
+    ...tall
+  }, ChatHead(ctx, room), room.kind === "devices" ? BridgeHead(ctx, room) : null, Notice(ctx, room), ShareCard(ctx, room), ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null, isInfoHere ? RoomInfo(ctx, room) : null, h(Box, {
     key: "timeline-grow",
     flexDirection: "column",
-    flexGrow: 1
+    flexGrow: 1,
+    paddingTop: 1
   }, Timeline(ctx, room)), ctx.isWide ? null : ErrorCard(ctx), ConnectBanner(ctx), Composer(ctx, room));
 }
 
@@ -7783,7 +7953,7 @@ function Row(ctx, o) {
     bold: true,
     color: ctx.look.hi
   }, o.title), h(Text, {
-    color: ctx.look.lo,
+    ...ctx.look.loText,
     wrap: "wrap"
   }, o.sub)), o.button);
 }
@@ -8025,14 +8195,14 @@ function TextRow(ctx, room) {
     color: ctx.look.signal.fg,
     bold: true
   }, `(${room.unread})`) : null, h(Text, {
-    color: ctx.look.lo
+    ...ctx.look.loText
   }, rowTime(room.lastTs, ctx.model.now))), h(Box, {
     paddingLeft: 2
   }, SecondLine(ctx, room)));
 }
 const shortName = (room) => room.kind === "project" ? room.repo?.split("/")[1] ?? room.title : room.title;
 function RoomRow(ctx, room) {
-  const { Box } = ctx.ui;
+  ctx.ui;
   if (isText(ctx))
     return TextRow(ctx, room);
   const line = lineOf$1(room);
@@ -8044,16 +8214,13 @@ function RoomRow(ctx, room) {
     time: rowTime(room.lastTs, ctx.model.now),
     unread: room.unread,
     isWarn: line.isWarn,
-    isLight: ctx.look.isLight
+    isActive: room.id === ctx.model.activeId && ctx.model.view === "chat",
+    pin: ctx.look.pin
   });
-  const isActive = room.id === ctx.model.activeId && ctx.model.view === "chat";
   const drawing = SvgOf(ctx, pic, `row-pic-${room.id}`);
   if (drawing === null)
     return TextRow(ctx, room);
-  return h(Box, {
-    key: `row-${room.id}`,
-    backgroundColor: isActive ? ctx.look.card : undefined
-  }, PressRow(ctx.ui, { box: `press-${room.id}`, key: `open-${room.id}`, drawing, onPress: () => ctx.on.select(room.id) }));
+  return PressRow(ctx.ui, { box: `row-${room.id}`, key: `open-${room.id}`, drawing, onPress: () => ctx.on.select(room.id) });
 }
 function Top(ctx) {
   const { Text } = ctx.ui;
@@ -8062,7 +8229,7 @@ function Top(ctx) {
   if (isText(ctx))
     return Title(ctx, { key: "list-title", text: `Transceiver · ${meta}` });
   const pic = paneHead({ glyph: "bell", title: "Transceiver", meta, tone: unread > 0 ? "live" : "idle", width: ctx.px });
-  return SvgOf(ctx, themed(pic, ctx.look.isLight), "list-head") ?? h(Text, {
+  return SvgOf(ctx, themed(pic, ctx.look.pin), "list-head") ?? h(Text, {
     key: "list-head"
   }, "Transceiver");
 }
@@ -8070,11 +8237,13 @@ function Section(ctx, o) {
   const { Box, Text } = ctx.ui;
   if (o.rooms.length === 0)
     return null;
-  const label = h(Text, {
+  const label = h(Box, {
     key: `${o.key}-label`,
-    color: ctx.look.lo,
+    paddingTop: 1
+  }, h(Text, {
+    ...ctx.look.loText,
     bold: true
-  }, o.title ?? "");
+  }, o.title ?? ""));
   return h(Box, {
     key: o.key,
     flexDirection: "column",
@@ -8143,6 +8312,7 @@ const WIDE_COLUMNS = 104;
 const RAIL_COLUMNS = 36;
 const ASIDE_COLUMNS = 33;
 const PAD = 2;
+const HOME_ROWS = 2;
 const MIN_COLUMNS = 24;
 const SINGLE_MAX_COLUMNS = 72;
 function MainView(ctx) {
@@ -8180,7 +8350,6 @@ function Wide(ctx, pad) {
     flexDirection: "column",
     width: RAIL_COLUMNS,
     flexShrink: 0,
-    backgroundColor: ctx.look.inset,
     paddingX: pad / 2,
     paddingY: pad
   }, RoomsColumn(rail)), h(Box, {
@@ -8212,17 +8381,17 @@ function drawPane(ui, o) {
   const hasRooms = o.model.rooms.length > 0 || o.model.invites.length > 0;
   const columns = Math.max(MIN_COLUMNS, hasRooms ? o.columns : Math.min(o.columns, SINGLE_MAX_COLUMNS));
   const isText = o.surface === "terminal" || !("Svg" in ui);
-  const look = lookOf({ isText, isLight: o.isLight });
+  const look = lookOf({ isText, isLight: o.isLight, pin: o.pin });
   const pad = isText ? 0 : PAD;
   const isWide = columns >= WIDE_COLUMNS;
-  const ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, model: o.model, on: o.on };
   const { Box } = ui;
   const home = o.model.view === "chat" && !isWide ? null : HomeRow(ui, { onHome: o.onHome, pad });
+  const rows = o.rows === undefined || isText ? undefined : Math.max(1, o.rows - (home === null ? 0 : HOME_ROWS));
+  const ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, rows, model: o.model, on: o.on };
   if (isWide)
     return h(Box, {
       flexDirection: "column",
-      width: columns,
-      backgroundColor: look.sheet
+      width: columns
     }, home, Wide(ctx, pad));
   const inner = sized(ctx, columns - pad * 2);
   return h(Box, {
@@ -8230,8 +8399,7 @@ function drawPane(ui, o) {
     gap: 1,
     ...isText ? { width: columns } : { flexGrow: 1, minWidth: 0 },
     paddingX: pad,
-    paddingY: pad / 2,
-    backgroundColor: look.sheet
+    paddingY: pad / 2
   }, home, MainView(inner) ?? RoomsColumn(inner), o.surface === "mobile" ? Meta(inner, paneWords().phoneNote, "mobile-note") : null);
 }
 
@@ -8603,6 +8771,14 @@ async function isLightOf($) {
   });
   return resolveLight({ override, theme });
 }
+async function pinOf($) {
+  const name = (await $.env.get("MODZ_THEME").catch(() => {
+    return;
+  }))?.toLowerCase() ?? "";
+  if (name.includes("light"))
+    return true;
+  return name.includes("dark") ? false : undefined;
+}
 async function readState($, ref) {
   if (ref.plugin === "test-badge" && ref.key === "badge")
     return (await $.state.get({ plugin: "test-badge", key: "badge" })).value;
@@ -8713,7 +8889,7 @@ function onPane(on) {
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS;
     const isHubOn = (await $.state.get({ plugin: "modz", key: "isOn" })).value === true;
     const onHome = isHubOn ? () => goHome($) : undefined;
-    return pinned(e, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers, onHome }));
+    return pinned(e, drawPane(ui, { surface: e.surface, columns, rows: e.props.scroll?.bodyRows, isLight: await isLightOf($), pin: await pinOf($), model, on: paneHandlers, onHome }));
   });
   on("state.set", { plugin: "modz", key: "open" }, async ($, e, next) => {
     const done = await next(e);

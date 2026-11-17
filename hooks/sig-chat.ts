@@ -1,34 +1,6 @@
-// The chat's Svg: a face with its presence dot and the breathing signal glyph. (Words are native Text.)
-import { baseline, num, sans, textEl } from './kit/svg-core'
-import type { Part } from './kit/svg-core'
-import { fitText } from './kit/svg-metrics'
+// The breathing signal glyph, the one drawing that moves while a room is live.
+import { num } from './kit/svg-core'
 import type { Piece } from './sig-ui'
-import { pick } from './kit/lang'
-
-const INITIALS_RATIO = 0.36
-const INITIALS_WEIGHT = 650
-const DOT_RATIO = 0.3
-const RING = 2
-
-// The green dot of a person here lately, ringed by the sheet.
-function hereDot(size: number): string {
-  const dot = Math.round(size * DOT_RATIO)
-  const c = size - dot / 2
-  const r = dot / 2 + RING / 2
-  return `<circle cx="${num(c)}" cy="${num(c)}" r="${num(r)}" class="f-ok s-sheet" stroke-width="${RING}"/>`
-}
-
-// A person's circle with initials; a green dot with a ring of the sheet when they were here lately.
-export function facePart(o: { initials: string; paint: string; size: number; isHere?: boolean }): Part {
-  const r = o.size / 2
-  const fontSize = Math.round(o.size * INITIALS_RATIO)
-  const body = [
-    `<circle cx="${r}" cy="${r}" r="${r}" class="f-track"/>`,
-    textEl({ x: r, y: baseline(0, o.size, fontSize), text: o.initials, paint: 'mid', size: fontSize, weight: INITIALS_WEIGHT, anchor: 'middle' }),
-    o.isHere === true ? hereDot(o.size) : '',
-  ]
-  return { body: body.join(''), width: o.size, height: o.size, alt: o.isHere === true ? `${o.initials}, ${pick({ en: 'here', tr: 'burada' })}` : o.initials }
-}
 
 const SIGNAL_GRID = 14
 const SIGNAL_INNER = 'M4.6 4.6a3.4 3.4 0 0 0 0 4.8M9.4 4.6a3.4 3.4 0 0 1 0 4.8'
@@ -49,5 +21,3 @@ export function signalPiece(o: { size: number; paint: string; isLive: boolean })
   ]
   return { body: body.join(''), width: o.size, height: o.size }
 }
-
-export const fitWidth = (text: string, size: number, max: number): string => fitText(text, max, sans(size))

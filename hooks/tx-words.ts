@@ -11,9 +11,9 @@ import { shownWire } from './words-wire'
 export type Noun = 'agent' | 'machine'
 
 const EN = {
-  nouns: { agent: 'agent', machine: 'machine' } as Record<Noun, string>,
+  nouns: { agent: 'AI', machine: 'computer' } as Record<Noun, string>,
   theirs: (noun: string) => `The other side's ${noun}`,
-  mine: 'Your agent',
+  mine: 'Your AI',
   whose: (o: { name: string; noun: string }) => `${possessive(o.name)} ${o.noun}`,
   answered: (who: string) => `${who} answered`,
   question: 'asked a question',
@@ -28,9 +28,9 @@ const EN = {
 }
 
 const TR: typeof EN = {
-  nouns: { agent: 'agent\'ı', machine: 'makinesi' },
+  nouns: { agent: 'yapay zekâsı', machine: 'bilgisayarı' },
   theirs: noun => `Karşı tarafın ${noun}`,
-  mine: 'Senin agent\'ın',
+  mine: 'Senin yapay zekân',
   whose: o => `${genitive(o.name)} ${o.noun}`,
   answered: who => who,
   question: 'soru sordu',
@@ -46,7 +46,7 @@ const TR: typeof EN = {
 
 const words = () => pick({ en: EN, tr: TR })
 
-// "Leo's agent", "Your agent"; Turkish "Alperen'in agent'ı", "Senin agent'ın".
+// "Leo's AI", "Your AI"; Turkish "Alperen'in yapay zekâsı", "Senin yapay zekân".
 export function agentOf(line: Line | undefined, noun: Noun = 'agent'): string {
   const w = words()
   if (line === undefined) return w.theirs(w.nouns[noun])

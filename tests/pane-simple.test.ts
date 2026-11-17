@@ -115,15 +115,20 @@ for (const surface of SURFACES) {
     const { w, ui } = await open($, on, { surface, syncs: { ...SYNCS(), re: projectEliti() } })
     await ui.press({ key: 'open-re' })
     const before = await drawn(ui)
-    expect(before).toContain('Alperen\'in agent\'ı diff sordu · cevaplandı · 0 token')
-    expect(before).toContain('Alperen\'in agent\'ı .env istedi · erişim yok')
-    expect(before).not.toContain('makine')
+    // The terminal says each exchange in a line; the desktop draws the question and how it was answered.
+    const said = surface === 'terminal'
+      ? ['Alperen\'in yapay zekâsı diff sordu · cevaplandı · 0 token', 'Alperen\'in yapay zekâsı .env istedi · erişim yok']
+      : ['Alperen\'in yapay zekâsı sordu', 'Commit edilmemiş değişiklik', 'Bu makine cevapladı · 0 token', 'Cevaplanmadı: erişim yok']
+    for (const text of said) expect(before).toContain(text)
+    // What the answer said opens on press.
+    const answer = surface === 'terminal' ? 'makine' : '3 dosya +41'
+    expect(before).not.toContain(answer)
     expect(await buttons(ui, `open-tx-${ENV}`)).toBe(0)
     await ui.press({ key: `open-tx-${DIFF}` })
     await w.clock.settle()
-    expect(await drawn(ui)).toContain('makine')
+    expect(await drawn(ui)).toContain(answer)
     await ui.press({ key: `open-tx-${DIFF}` })
-    expect(await drawn(ui)).not.toContain('makine')
+    expect(await drawn(ui)).not.toContain(answer)
   })
 
   test(`${surface}: "Linkim var" opens the link field in place and "Vazgeç" closes it`, async ($: any, on: any) => {

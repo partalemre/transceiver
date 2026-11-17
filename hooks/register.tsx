@@ -113,6 +113,14 @@ async function isLightOf($: EngineInterface): Promise<boolean> {
   return resolveLight({ override, theme })
 }
 
+// A palette the person pinned with MODZ_THEME; otherwise the pane's drawings follow the app they are drawn in, as the
+// hub's do (Claude Code's `theme` setting is the terminal's: unset it reads dark, even in a light app).
+async function pinOf($: EngineInterface): Promise<boolean | undefined> {
+  const name = (await $.env.get('MODZ_THEME').catch(() => undefined))?.toLowerCase() ?? ''
+  if (name.includes('light')) return true
+  return name.includes('dark') ? false : undefined
+}
+
 // Other mods' state is read by literal reference only: the engine reads the names from the source.
 async function readState($: EngineInterface, ref: { plugin: string; key: string }): Promise<unknown> {
   type Read = Promise<{ value?: unknown }>
@@ -225,7 +233,7 @@ function onPane(on: On): void {
     const columns = e.props.bodyColumns || e.viewport?.columns || DEFAULT_COLUMNS
     const isHubOn = (await $.state.get({ plugin: 'modz', key: 'isOn' })).value === true
     const onHome = isHubOn ? () => goHome($) : undefined
-    return pinned(e, drawPane(ui, { surface: e.surface, columns, isLight: await isLightOf($), model, on: paneHandlers, onHome }))
+    return pinned(e, drawPane(ui, { surface: e.surface, columns, rows: e.props.scroll?.bodyRows, isLight: await isLightOf($), pin: await pinOf($), model, on: paneHandlers, onHome }))
   })
   // A press on the MODZ hub's Transceiver row: the pane opens (or an open one comes forward) asking for the keyboard.
   on('state.set', { plugin: 'modz', key: 'open' }, async ($, e, next) => {

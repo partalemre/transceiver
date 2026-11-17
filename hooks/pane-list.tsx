@@ -12,7 +12,8 @@ import { PressRow } from './kit/press'
 import { BridgeCard } from './pane-bridge'
 import { glyphOf, isText, receiptTone, SvgOf, type Ctx } from './pane-kit'
 import { Title } from './pane-type'
-import { roomRowPic, themed } from './sig-rows'
+import { themed } from './sig-ink'
+import { roomRowPic } from './sig-rows'
 import type { RoomView } from './state-types'
 import { rowTime } from './when'
 import { paneWords } from './words-pane'
@@ -72,7 +73,7 @@ function TextRow(ctx: Ctx, room: RoomView): RenderElement {
         <Button key={`open-${room.id}`} label={room.title} plain onPress={() => ctx.on.select(room.id)} />
         <Box flexGrow={1} />
         {room.unread > 0 ? <Text color={ctx.look.signal.fg} bold>{`(${room.unread})`}</Text> : null}
-        <Text color={ctx.look.lo}>{rowTime(room.lastTs, ctx.model.now)}</Text>
+        <Text {...ctx.look.loText}>{rowTime(room.lastTs, ctx.model.now)}</Text>
       </Box>
       <Box paddingLeft={2}>{SecondLine(ctx, room)}</Box>
     </Box>
@@ -89,16 +90,11 @@ export function RoomRow(ctx: Ctx, room: RoomView): RenderElement {
   const line = lineOf(room)
   const pic = roomRowPic({
     width: ctx.px, glyph: glyphOf(room), name: shortName(room), preview: line.text, time: rowTime(room.lastTs, ctx.model.now),
-    unread: room.unread, isWarn: line.isWarn, isLight: ctx.look.isLight,
+    unread: room.unread, isWarn: line.isWarn, isActive: room.id === ctx.model.activeId && ctx.model.view === 'chat', pin: ctx.look.pin,
   })
-  const isActive = room.id === ctx.model.activeId && ctx.model.view === 'chat'
   const drawing = SvgOf(ctx, pic, `row-pic-${room.id}`)
   if (drawing === null) return TextRow(ctx, room)
-  return (
-    <Box key={`row-${room.id}`} backgroundColor={isActive ? ctx.look.card : undefined}>
-      {PressRow(ctx.ui, { box: `press-${room.id}`, key: `open-${room.id}`, drawing, onPress: () => ctx.on.select(room.id) })}
-    </Box>
-  )
+  return PressRow(ctx.ui, { box: `row-${room.id}`, key: `open-${room.id}`, drawing, onPress: () => ctx.on.select(room.id) })
 }
 
 // The pane's head, as every mod pane opens (kit/pane-head.ts): the row pressed on the hub, grown.
@@ -108,13 +104,13 @@ function Top(ctx: Ctx): RenderElement {
   const meta = [unread > 0 ? paneWords().unreadMeta(unread) : '', paneWords().beta].filter(Boolean).join(' · ')
   if (isText(ctx)) return Title(ctx, { key: 'list-title', text: `Transceiver · ${meta}` })
   const pic = paneHead({ glyph: 'bell', title: 'Transceiver', meta, tone: unread > 0 ? 'live' : 'idle', width: ctx.px })
-  return SvgOf(ctx, themed(pic, ctx.look.isLight), 'list-head') ?? <Text key="list-head">Transceiver</Text>
+  return SvgOf(ctx, themed(pic, ctx.look.pin), 'list-head') ?? <Text key="list-head">Transceiver</Text>
 }
 
 function Section(ctx: Ctx, o: { key: string; title: string | null; rooms: RoomView[] }): RenderElement | null {
   const { Box, Text } = ctx.ui
   if (o.rooms.length === 0) return null
-  const label = <Text key={`${o.key}-label`} color={ctx.look.lo} bold>{o.title ?? ''}</Text>
+  const label = <Box key={`${o.key}-label`} paddingTop={1}><Text {...ctx.look.loText} bold>{o.title ?? ''}</Text></Box>
   return (
     <Box key={o.key} flexDirection="column" gap={0}>
       {o.title === null ? null : label}

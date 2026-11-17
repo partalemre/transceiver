@@ -16,10 +16,11 @@ export function Title(ctx: Ctx, o: TypeOpts): RenderElement {
 // A small dim "Beta" beside the pane's title: this mod is still in beta.
 export function BetaTag(ctx: Ctx, key: string): RenderElement {
   const { Text } = ctx.ui
-  return <Text key={key} color={ctx.look.lo}>{paneWords().beta}</Text>
+  return <Text key={key} {...ctx.look.loText}>{paneWords().beta}</Text>
 }
 
 export function Sentence(ctx: Ctx, o: TypeOpts & { paint?: 'mid' | 'lo' }): RenderElement {
   const { Text } = ctx.ui
-  return <Text key={o.key} color={ctx.look[o.paint ?? 'mid']} wrap="wrap">{o.text}</Text>
+  const ink = o.paint === 'lo' ? ctx.look.loText : { color: ctx.look.mid }
+  return <Text key={o.key} {...ink} wrap="wrap">{o.text}</Text>
 }

@@ -28,7 +28,7 @@ function syncs() {
 const svgsOf = async (ui: any) => (await ui.findAll({ type: 'Svg' })).filter((svg: any) => svg.props.isInteractive === true && !String(svg.props.alt).startsWith('Transceiver'))
 const sources = async (ui: any): Promise<string[]> => (await svgsOf(ui)).map((svg: any) => svg.props.source as string)
 // The dot of a person here lately.
-const isRinging = (source: string): boolean => source.includes('class="f-ok s-sheet"')
+const isRinging = (source: string): boolean => source.includes('class="f-ok here"')
 
 async function opened($: any, on: any, columns: number) {
   const world = paneWorld(on, { rooms: ALL, syncs: syncs(), remote: 'git@github.com:partalemre/eliti.git', now: START })

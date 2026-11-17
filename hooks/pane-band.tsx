@@ -36,7 +36,7 @@ function Row(ui: ElementTable, o: BandOpts): RenderElement {
   }
   const { Svg } = ui
   const width = Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (o.columns - DISMISS_COLUMNS) * PX_PER_COLUMN)))
-  const pic = roomRowPic({ width, glyph: line.glyph, name: line.name, preview: line.preview, time: line.time, unread: line.unread, isWarn: false, isLight: o.isLight })
+  const pic = roomRowPic({ width, glyph: line.glyph, name: line.name, preview: line.preview, time: line.time, unread: line.unread, isWarn: false })
   return PressRow(ui, { box: 'tx-band-row', key: 'tx-band-open', drawing: <Svg {...pic} />, onPress: o.onOpen }) ?? <Text>{line.name}</Text>
 }
 

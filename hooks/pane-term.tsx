@@ -10,7 +10,7 @@ import { TIMELINE_LINES } from './limits'
 import { fullIdOf } from './pane-agent'
 import { RoomInfo } from './pane-aside'
 import { GhCard, ShareCard } from './pane-cards'
-import { firstLineOf, idsOf, isSameRun } from './pane-chat'
+import { emptyWords, firstLineOf, idsOf, isSameRun } from './pane-chat'
 import { canAskAgents, placeholderOf } from './pane-compose'
 import { isHere, receiptTone, type Ctx } from './pane-kit'
 import { noticeOf, statusOf } from './pane-words'
@@ -64,7 +64,7 @@ function Extras(ctx: Ctx, line: Line): RenderElement[] {
   const { Box, Button, Text } = ctx.ui
   const link = line.roomLink
   return [
-    ...(line.replyTo === undefined ? [] : [<Text key="quote" color={ctx.look.lo} wrap="truncate-end">{`  ↳ ${line.replyTo.name}: ${line.replyTo.text}`}</Text>]),
+    ...(line.replyTo === undefined ? [] : [<Text key="quote" {...ctx.look.loText} wrap="truncate-end">{`  ↳ ${line.replyTo.name}: ${line.replyTo.text}`}</Text>]),
     ...(link === undefined ? [] : [<Box key="room-link" flexDirection="row" gap={1}><Text color={ctx.look.role.run.fg}>{`  ⌥ ${link.repo}`}</Text><Button key={`goto-${line.id}`} label={chatWords().goToRoom} plain onPress={() => ctx.on.select(link.roomId)} /></Box>]),
   ]
 }
@@ -81,7 +81,7 @@ function HumanLine(ctx: Ctx, o: { line: Line; isFirst: boolean }): RenderElement
     <Box key="row" flexDirection="row" gap={1}>
       <Text color={color} bold>{o.isFirst ? name : ' '.repeat(name.length)}</Text>
       <Box flexGrow={1}><Text wrap="wrap">{m === null ? chatWords().unreadable : shownText(m)}</Text></Box>
-      <Text color={ctx.look.lo}>{m === null ? '' : clockText(m.ts)}</Text>
+      <Text {...ctx.look.loText}>{m === null ? '' : clockText(m.ts)}</Text>
       {tick === null ? null : <Text color={tick.color}>{tick.glyph}</Text>}
     </Box>
   )
@@ -109,7 +109,7 @@ function TxDetail(ctx: Ctx, tx: Tx): RenderElement[] {
   const rail = a?.line.isMine === true ? ctx.look.signal.line : ctx.look.role.run.line
   const arg = askedArg(tx)
   const question = arg === undefined ? [] : [<Text key="question"><Text color={rail}>│ </Text>{arg}</Text>]
-  if (a === null) return [...question, <Text key="waiting" color={ctx.look.lo}>{chatWords().waitingLine}</Text>]
+  if (a === null) return [...question, <Text key="waiting" {...ctx.look.loText}>{chatWords().waitingLine}</Text>]
   return [
     ...question,
     <Text key="who"><Text color={rail}>└ </Text>{a.line.isMine ? chatWords().thisMachineLower : answererOf(a)}<Text color={a.tokens === 0 ? ctx.look.signal.fg : ctx.look.lo}>{` · ${tokensText(a.tokens)}`}</Text></Text>,
@@ -172,7 +172,7 @@ function Prompt(ctx: Ctx, room: RoomView): RenderElement {
   const Field = 'Input' in ctx.ui ? ctx.ui.Input : null
   const input = Field !== null
     ? <Field key={`composer-${room.id}-${ctx.model.composerKey}`} placeholder={placeholderOf(room, mode)} submitLabel={mode === null ? chatWords().sendLower : chatWords().askLower} onInput={v => ctx.on.type(room.id, v)} onSubmit={v => ctx.on.send(room.id, v)} />
-    : <Text color={ctx.look.lo}>{placeholderOf(room, mode)}</Text>
+    : <Text {...ctx.look.loText}>{placeholderOf(room, mode)}</Text>
   return (
     <Box key="prompt" flexDirection="row" gap={1} alignItems="center">
       <Text color={ctx.look.signal.fg}>›</Text>
@@ -193,7 +193,7 @@ function Keys(ctx: Ctx, room: RoomView): RenderElement {
       {sheet.map((s, i) => (
         <Box key={`sheet-row-${s.type}`} flexDirection="row" gap={1}>
           <Button key={`sheet-${s.type}`} hotkey={SHEET_KEYS[i]} label={`${s.type}${isModeType(s.type) ? ' …' : ''}`} plain onPress={() => ctx.on.askAgent(room.id, s.type)} />
-          <Text color={ctx.look.lo}>{s.desc}</Text>
+          <Text {...ctx.look.loText}>{s.desc}</Text>
         </Box>
       ))}
       <Box flexDirection="row" gap={2} flexWrap="wrap">
@@ -216,7 +216,8 @@ export function TermChat(ctx: Ctx, room: RoomView): RenderElement {
       {room.kind === 'devices' ? BridgeHead(ctx, room) : null}
       {ShareCard(ctx, room)}
       {ctx.model.ghAsk?.roomId === room.id ? GhCard(ctx) : null}
-      {items.length === 0 ? <Text key="none" color={ctx.look.lo}>{chatWords().noMessages}</Text> : null}
+      {items.length === 0 ? <Text key="none-title" bold wrap="wrap">{emptyWords(room).title}</Text> : null}
+      {items.length === 0 ? <Text key="none" {...ctx.look.loText} wrap="wrap">{emptyWords(room).body}</Text> : null}
       {itemsEls(ctx, items)}
       {ctx.model.drafts.filter(d => d.roomId === room.id).map(d => DraftBlock(ctx, d))}
       {ctx.model.error === null ? null : <Text key="error" color={ctx.look.role.danger.fg} wrap="wrap">{`✕ ${ctx.model.error}`}</Text>}

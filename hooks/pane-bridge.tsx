@@ -17,7 +17,7 @@ export function BridgeCard(ctx: Ctx): RenderElement | null {
   const { Box, Button } = ctx.ui
   const w = paneWords()
   return (
-    <Box key="bridge-card" flexDirection="column" gap={1} borderStyle="round" borderColor={ctx.look.line} backgroundColor={ctx.look.card} paddingX={isText(ctx) ? 1 : 2} paddingY={isText(ctx) ? 0 : 1}>
+    <Box key="bridge-card" flexDirection="column" gap={1} borderStyle="round" borderColor={ctx.look.line} borderDimColor paddingX={isText(ctx) ? 1 : 2} paddingY={isText(ctx) ? 0 : 1}>
       {Title(ctx, { key: 'bridge-title', text: w.bridgeTitle })}
       {Sentence(ctx, { key: 'bridge-body', text: w.bridgeBody })}
       <Box flexDirection="row"><Button key="bridge-connect" label={ctx.model.busy ?? w.bridgeConnect} variant="primary" onPress={() => ctx.on.connectDevices()} /></Box>
@@ -34,7 +34,7 @@ export function BridgeHead(ctx: Ctx, room: RoomView): RenderElement {
   const seen = isHere(room, ctx.model.now) ? w.bridgeOnline : room.peerSeenTs > 0 ? agoText(room.peerSeenTs, ctx.model.now) : ''
   const alt = isAlone ? w.bridgeAloneAlt(name) : w.bridgeAlt({ here: name, there: peer })
   const pic = bridgePic({
-    width: ctx.px, alt, lastId: room.lastId ?? '', lastIsMine: room.lastIsMine, isLight: ctx.look.isLight,
+    width: ctx.px, alt, lastId: room.lastId ?? '', lastIsMine: room.lastIsMine, pin: ctx.look.pin,
     here: { name, note: w.bridgeThisOne, isWaiting: false },
     there: { name: peer ?? w.bridgeOther, note: isAlone ? w.bridgeWaiting : seen, isWaiting: isAlone },
   })

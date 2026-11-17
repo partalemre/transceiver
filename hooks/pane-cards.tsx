@@ -27,7 +27,7 @@ function Buttons(ctx: Ctx, buttons: readonly Btn[]): RenderElement {
 function Card(ctx: Ctx, o: { key: string; line?: string; children: Array<RenderElement | null> }): RenderElement {
   const { Box } = ctx.ui
   return (
-    <Box key={o.key} flexDirection="column" gap={1} borderStyle="round" borderColor={o.line ?? ctx.look.line} backgroundColor={ctx.look.card}
+    <Box key={o.key} flexDirection="column" gap={1} borderStyle="round" borderColor={o.line ?? ctx.look.line} borderDimColor={o.line === undefined}
       paddingX={isText(ctx) ? 1 : CARD_PAD} paddingY={isText(ctx) ? 0 : CARD_PAD - 1}>
       {o.children.filter((c): c is RenderElement => c !== null)}
     </Box>
@@ -128,7 +128,7 @@ export function ErrorCard(ctx: Ctx): RenderElement | null {
   if (error === null) return null
   const danger = ctx.look.role.danger
   return (
-    <Box key="error" flexDirection="row" alignItems="center" gap={1} borderStyle={isText(ctx) ? 'single' : 'round'} borderColor={danger.line} backgroundColor={danger.tint} paddingX={1}>
+    <Box key="error" flexDirection="row" alignItems="center" gap={1} borderStyle={isText(ctx) ? 'single' : 'round'} borderColor={danger.line} paddingX={1}>
       <Text color={danger.fg} wrap="wrap">{error}</Text>
       <Box flexGrow={1} />
       <Button key="error-ok" label={paneWords().close} variant="secondary" onPress={() => ctx.on.dismissError()} />
