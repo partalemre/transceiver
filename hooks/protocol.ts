@@ -40,6 +40,8 @@ export type Message = {
 export type Unreadable = { id: string; isUnreadable: true; reason: string }
 export type Head = {
   v: 1; head: string; headTs: number; seenUpTo: string; readUpTo: string; readTs: number; gh?: string; label?: string
+  // A git room's head also says when its owner last worked on the repo, and on which branch.
+  at?: number; branch?: string
 }
 // `room` ties the mailboxes of one room together: every member's mailbox for it carries the same id.
 export type RoomMeta = { v: 1; kind: (typeof ROOM_KINDS)[number]; repo?: string; room: string; createdAt: number }
@@ -173,9 +175,12 @@ export function parseHead(raw: unknown): Head | null {
   if (!isCount(raw.headTs) || !isCount(raw.readTs)) return null
   if (raw.gh !== undefined && !(typeof raw.gh === 'string' && GH_LOGIN.test(raw.gh))) return null
   if (raw.label !== undefined && !isText(raw.label, SHORT_TEXT)) return null
+  if (raw.at !== undefined && !isCount(raw.at)) return null
+  if (raw.branch !== undefined && !isText(raw.branch, SHORT_TEXT)) return null
   return stripUndefined<Head>({
     v: 1, head, headTs: raw.headTs, seenUpTo, readUpTo, readTs: raw.readTs,
     gh: raw.gh as string | undefined, label: raw.label as string | undefined,
+    at: raw.at as number | undefined, branch: raw.branch as string | undefined,
   })
 }
 

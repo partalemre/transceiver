@@ -1,4 +1,5 @@
 import { sameName } from './gate'
+import { isGitUrl } from './gitbox'
 import { sessionRepo } from './github'
 import type { AgentHost } from './host'
 import { REPO_CACHE_MS } from './limits'
@@ -21,5 +22,7 @@ export const forgetRepo = () => { memo = null }
 // Agent traffic only ever reaches an active project room of the session's own repo: never a DM, never another repo.
 export function projectRoomFor(rooms: readonly RoomRecord[], repo: string | null): RoomRecord | null {
   if (repo === null) return null
-  return rooms.find(r => r.status === 'active' && r.kind === 'project' && sameName(r.repo, repo)) ?? null
+  const here = rooms.filter(r => r.status === 'active' && r.kind === 'project' && sameName(r.repo, repo))
+  // The repo's own room first: an older artifact room of the same repo stays readable but no longer takes the traffic.
+  return here.find(r => isGitUrl(r.url)) ?? here[0] ?? null
 }

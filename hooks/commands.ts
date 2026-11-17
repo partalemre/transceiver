@@ -1,3 +1,4 @@
+import { openRepoRoom } from './gitroom'
 import { linkHere } from './bridge'
 import { connectDevices } from './devices'
 import type { Host } from './host'
@@ -36,6 +37,7 @@ const EN = {
   add: 'add',
   project: 'project',
   roomFailed: (why: string) => `The room could not be opened: ${why}`,
+  repoRoomReady: (repo: string) => `The team room of ${repo} is open. Anyone who can push to the repo and has Transceiver sees it by itself: nothing to share, no link.`,
   roomReady: (url: string) => `Room ready, your mailbox: ${url}\nOn claude.ai, add your friend by email from this page's Share menu (the default role is enough), then send them the link (/${COMMAND} join <link>). When they send you their own mailbox link, type /${COMMAND} join <their link>.`,
   leaveUsage: `Usage: /${COMMAND} leave <room name | link>`,
   manyRooms: 'More than one room matches. Try the room\'s link.',
@@ -60,6 +62,7 @@ const TR: typeof EN = {
   add: 'ekle',
   project: 'proje',
   roomFailed: why => `Oda açılamadı: ${why}`,
+  repoRoomReady: repo => `${repo} takım odası açık. Depoya yazabilen ve Transceiver'ı kurmuş herkes odayı kendiliğinden görür: paylaşım yok, link yok.`,
   roomReady: url => `Oda hazır, kendi kutun: ${url}\nclaude.ai'de bu sayfanın Paylaş menüsünden arkadaşını e-postasıyla ekle (varsayılan rol yeter); sonra linki ona gönder (/${COMMAND} katıl <link>). O da kendi kutusunun linkini sana gönderince /${COMMAND} katıl <onun linki> yaz.`,
   leaveUsage: `Kullanım: /${COMMAND} çık <oda adı | link>`,
   manyRooms: 'Birden fazla oda eşleşti; odanın linkiyle dene.',
@@ -87,6 +90,12 @@ export function parseCommand(args: string): Cmd {
 // The command the person typed is the consent for the room's first writes (publish and meta).
 async function addRoom(deps: CommandDeps, opts: { kind: RoomKind; repo?: string; typed: string }): Promise<string> {
   const { host } = deps
+  if (opts.kind === 'project' && opts.repo !== undefined) {
+    const made = await openRepoRoom(opts.repo).catch((err: unknown) => err as Error)
+    if (made instanceof Error) return made.message
+    await deps.openPane()
+    return words().repoRoomReady(opts.repo)
+  }
   const consent = `The user ran "/${COMMAND} ${opts.typed}"`
   const room = await createRoom({ host, kind: opts.kind, repo: opts.repo, consent }).catch((err: unknown) => err as Error)
   if (room instanceof Error) return failText(room, words().roomFailed(room.message))

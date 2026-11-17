@@ -8,6 +8,9 @@ import { isUid } from './protocol'
 
 const cache: Record<string, string> = {}
 
+// A name its owner wrote themselves (a git room's head): it needs no profile lookup.
+export const setName = (author: string, name: string): void => { cache[author] = name }
+
 export const namesNow = (): Record<string, string> => ({ ...cache })
 
 const clean = (x: unknown): string | null =>

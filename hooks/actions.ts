@@ -1,5 +1,6 @@
 // What each press and submit in the pane does. Every handler runs against the bound port, catches its own
 // failure (a short line in the interface's language, never tool text or a message body) and redraws.
+import { openRepoRoom } from './gitroom'
 import type { RenderSurface } from 'claude-code'
 
 import { linkHere } from './bridge'
@@ -92,6 +93,13 @@ async function addRoom(p: PanePort, opts: { kind: RoomKind; repo?: string; label
   if (sessionNow().busy !== null) return
   patchSession({ busy: stepWords().busyOpen, error: null, created: null })
   await refreshPane()
+  // A project's room lives in its repo: nothing to publish, no link to hand over, straight into the chat.
+  if (opts.kind === 'project' && opts.repo !== undefined) {
+    const made = await openRepoRoom(opts.repo).catch((err: unknown) => err as Error)
+    if (made instanceof Error) return patchSession({ busy: null, error: made.message })
+    patchSession({ busy: null })
+    return select(p, made.id)
+  }
   const consent = `The user pressed "${opts.label}" on the Transceiver pane`
   const room = await createRoom({ host: p.host, kind: opts.kind, repo: opts.repo, consent }).catch((err: unknown) => err as Error)
   if (room instanceof Error) return patchSession({ busy: null, error: failText(room, stepWords().roomFailed) })

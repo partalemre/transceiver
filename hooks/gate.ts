@@ -15,11 +15,18 @@ export type GateInput = {
   // How many other people have an outbox in the room. The owner can write any member's outbox, so with three or
   // more a query could pass for another member's: agent traffic runs only between two.
   otherMembers: number
+  // A git room (gitbox.ts): a line there was pushed to the repo, which only a collaborator can do, so GitHub has
+  // already answered what the login match and the collaborator check ask.
+  isRepoRoom?: boolean
 }
 
 // GitHub owner, repo and login names are case-insensitive.
 export const sameName = (a: string | null | undefined, b: string | null | undefined): boolean =>
   typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase()
+
+// The room is this repo's, and so is the session.
+const isHere = (input: GateInput): boolean =>
+  input.room.kind === 'project' && sameName(input.room.repo, input.query.repo) && sameName(input.sessionRepo, input.query.repo)
 
 function confirmedLogin(input: GateInput): string | null {
   const { room, query } = input
@@ -41,6 +48,7 @@ export const lastCheck = (repo: string, login: string): { isOk: boolean; at: num
 export function makeGate(check: CollabCheck): (input: GateInput) => Promise<boolean> {
   const cache = new Map<string, { isOk: boolean; at: number }>()
   return async input => {
+    if (input.isRepoRoom === true) return isHere(input)
     const login = confirmedLogin(input)
     if (login === null) return false
     const repo = input.query.repo

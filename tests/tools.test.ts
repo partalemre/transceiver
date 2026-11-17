@@ -1,3 +1,4 @@
+import { ASK_WAIT_MS } from '../hooks/limits'
 import { expect, test } from 'claude-code/testing'
 import { waitingText } from '../hooks/connection'
 import { forgetRepo, projectRoomFor } from '../hooks/here'
@@ -148,7 +149,7 @@ test('ask with no answer returns pending, within the hook budget', async () => {
   const start = host.clock.now
   const out = await runTool(ctx(host), { name: 'ask', input: { type: 'log' } })
   expect('result' in out && out.result.startsWith('pending:')).toBe(true)
-  expect(host.clock.now - start <= 20_000).toBe(true)
+  expect(host.clock.now - start <= ASK_WAIT_MS).toBe(true)
   const tight = await runTool(ctx(host, 2_000), { name: 'ask', input: { type: 'log' } })
   expect('result' in tight && tight.result.startsWith('pending:')).toBe(true)
   stopRoom('rt5')
