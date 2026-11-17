@@ -35,7 +35,15 @@ function rightOf(o: RoomRowOpts): { body: string; width: number } {
 }
 
 // Unread words are live state: the mark takes the accent, as a hub row's glyph does while its mod has news.
-const markPaint = (o: RoomRowOpts): string => (o.isWarn ? 'warn' : o.unread > 0 ? 'edit' : 'mid')
+function markPaint(o: RoomRowOpts): string {
+  if (o.isWarn) return 'warn'
+  return o.unread > 0 ? 'edit' : 'mid'
+}
+
+function previewPaint(o: RoomRowOpts): string {
+  if (o.isWarn) return 'warn'
+  return o.unread > 0 ? 'mid' : 'lo'
+}
 
 const MONO = 18
 
@@ -61,7 +69,7 @@ export function roomRowPic(o: RoomRowOpts): SvgPic {
     o.isActive === true ? veilRect({ x: -WASH.inset, y: 1, w: o.width + WASH.inset * 2, h: ROOM_ROW_H - 2, r: WASH.radius, fill: VEIL.fill }) : '',
     mark,
     textEl({ x: NAME_X, y, text: name, paint: 'hi', ...NAME }),
-    preview === '' ? '' : textEl({ x: NAME_X + nameWidth + GAP, y, text: preview, paint: o.isWarn ? 'warn' : o.unread > 0 ? 'mid' : 'lo', ...NOTE }),
+    preview === '' ? '' : textEl({ x: NAME_X + nameWidth + GAP, y, text: preview, paint: previewPaint(o), ...NOTE }),
     right.body,
   ].join('')
   const alt = [o.name, o.preview, o.time, o.unread > 0 ? String(o.unread) : ''].filter(Boolean).join(' · ')

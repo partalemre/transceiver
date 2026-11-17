@@ -59,7 +59,7 @@ for (const surface of SURFACES) {
     expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
   })
 
-  test(`${surface}: "Agent'a sor" opens the sheet; a row without a value sends its typed query at once`, async ($: any, on: any) => {
+  test(`${surface}: "Yapay zekâya sor" opens the sheet; a row without a value sends its typed query at once`, async ($: any, on: any) => {
     const { w, ui } = await openProject($, on, surface)
     expect(await ui.findAll({ type: 'Button', key: 'sheet-status' })).toHaveLength(0)
     await ui.press({ key: 'ask-more-re' })

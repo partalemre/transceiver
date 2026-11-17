@@ -4,7 +4,7 @@
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
 import type { PaneHandlers } from './actions'
-import { HomeButton } from './kit/home'
+import { HomeButton } from './home'
 import { RoomInfo } from './pane-aside'
 import { ChatView } from './pane-chat'
 import { AddView, SettingsView } from './pane-forms'
@@ -96,7 +96,8 @@ export function drawPane(ui: ElementTable, o: DrawOpts): RenderElement {
   const { Box } = ui
   // Inside a room the way back is its own: one back control at a time.
   const home = o.model.view === 'chat' && !isWide ? null : HomeRow(ui, { onHome: o.onHome, pad })
-  const rows = o.rows === undefined || isText ? undefined : Math.max(1, o.rows - (home === null ? 0 : HOME_ROWS))
+  // Less the pane's own padding above and below, so the field ends inside the pane, not under its fold.
+  const rows = o.rows === undefined || isText ? undefined : Math.max(1, o.rows - pad - (home === null ? 0 : HOME_ROWS))
   const ctx: Ctx = { ui, surface: o.surface, look, columns, px: pxOf(columns), isWide, rows, model: o.model, on: o.on }
   if (isWide) return <Box flexDirection="column" width={columns}>{home}{Wide(ctx, pad)}</Box>
   // No ground of its own: the pane is drawn straight on the app's panel, as the MODZ hub is.

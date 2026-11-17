@@ -4,7 +4,7 @@
 import type { RenderElement } from 'claude-code'
 
 import { waitingText } from './connection'
-import { GlyphPic, SvgOf, type Ctx } from './pane-kit'
+import { SvgOf, type Ctx } from './pane-kit'
 import { runPic, type Said } from './sig-talk'
 import { themed } from './sig-ink'
 import type { Line, RoomView } from './state-types'
@@ -16,7 +16,10 @@ import { chatWords } from './words-chat'
 import { paneWords } from './words-pane'
 import { shownSystem } from './words-wire'
 
-export type RunOpts = { lines: Line[]; room: RoomView; hasHead: boolean }
+// Under their bubbles: the drawing's text column in cells, less the button's own padding.
+const CHIP_INDENT = 3
+
+export type RunOpts = { lines: Line[]; room: RoomView }
 
 // A line still going out says so, as a warning while the session may not write yet.
 function pendingOf(ctx: Ctx, lines: Line[]): { text: string; isWarn: boolean } | undefined {
@@ -35,14 +38,14 @@ function labelOf(ctx: Ctx, o: { line: Line; room: RoomView }): string {
 
 const saidOf = (line: Line): Said => ({ text: messageOf(line)?.text ?? '', quote: line.replyTo, isPending: line.receipt === 'pending' })
 
-// ⌥ eliti · Go to room: a shared project room this DM names, one quiet press under the line.
+// "Go to room · eliti": a shared project room this DM names, one quiet press under the line. The words alone, so
+// the button's own hover box is all of it.
 function RoomChip(ctx: Ctx, line: Line): RenderElement | null {
   const { Box, Button } = ctx.ui
   const link = line.roomLink
   if (link === undefined) return null
   return (
-    <Box key={`room-chip-${line.id}`} flexDirection="row" alignItems="center" gap={1} paddingLeft={line.isMine ? 0 : 4} justifyContent={line.isMine ? 'flex-end' : 'flex-start'}>
-      {GlyphPic(ctx, { glyph: 'branch', paint: 'mid', key: `chip-glyph-${line.id}` })}
+    <Box key={`room-chip-${line.id}`} flexDirection="row" alignItems="center" paddingLeft={line.isMine ? 0 : CHIP_INDENT} justifyContent={line.isMine ? 'flex-end' : 'flex-start'}>
       <Button key={`goto-${line.id}`} label={`${chatWords().goToRoom} · ${link.repo.split('/')[1] ?? link.repo}`} plain dimColor onPress={() => ctx.on.select(link.roomId)} />
     </Box>
   )
@@ -62,8 +65,10 @@ export function Run(ctx: Ctx, o: RunOpts): RenderElement {
   if (m === null || m.kind === 'system') return Lone(ctx, first)
   const last = o.lines.at(-1) as Line
   const lastTs = messageOf(last)?.ts ?? m.ts
+  // My own lines need no name, unless my AI wrote them or the room is between my own computers.
+  const hasHead = !first.isMine || isAgentLine(first) || o.room.kind === 'devices'
   const pic = runPic({
-    width: ctx.px, said: o.lines.map(saidOf), hasHead: o.hasHead, pending: pendingOf(ctx, o.lines),
+    width: ctx.px, said: o.lines.map(saidOf), hasHead, pending: pendingOf(ctx, o.lines),
     who: { label: labelOf(ctx, { line: first, room: o.room }), name: first.authorName, isAgent: isAgentLine(first), isMine: first.isMine },
     time: clockText(first.isMine ? lastTs : m.ts), tick: last.receipt,
   })

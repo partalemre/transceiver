@@ -7,7 +7,7 @@ import { mountPane, paneWorld, startSession } from './pane-world'
 const SURFACES = ['terminal', 'desktop'] as const
 const NARROW = 58
 const WIDE = 140
-const HOME_LABEL = '← MODZ'
+const HOME_LABEL = '← modz'
 const ALL = [ROOMS.alperen, ROOMS.eliti, ROOMS.zeynep]
 const SYNCS = () => ({ ra: dmAlperen(), re: projectEliti(), rz: dmZeynep() })
 

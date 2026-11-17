@@ -14,6 +14,7 @@ import { ErrorCard, GhCard, ShareCard } from './pane-cards'
 import { Composer } from './pane-compose'
 import { PressRow } from './kit/press'
 import { isHere, isText, Meta, SvgOf, type Ctx } from './pane-kit'
+import { StateText } from './pane-state'
 import { Sentence, Title } from './pane-type'
 import { chatHeadPic } from './sig-head'
 import { dividerPic } from './sig-talk'
@@ -24,14 +25,19 @@ import { itemsOf, messageOf, type Item } from './traffic'
 import { dayKey, dayRule } from './when'
 import { chatWords } from './words-chat'
 
+// A room that is not a person yet: a project's branch, the computers, a friend still awaited.
+const MARK_OF: Record<RoomView['kind'], string> = { project: 'branch', devices: 'laptop', dm: 'clock' }
 // Room the native "Details" press takes beside the head.
 const DETAILS_PX = 96
+// Room the native "Why?" and "Connect" presses take beside their line.
+const WHY_PX = 80
+const CONNECT_PX = 110
 
 function headPic(ctx: Ctx, room: RoomView) {
   const status = statusOf(room, { now: ctx.model.now, isHere: isHere(room, ctx.model.now) })
   const hasInfo = room.kind === 'project'
   const name = room.kind === 'project' ? room.repo ?? room.title : room.title
-  const mark = room.kind === 'project' ? 'branch' : room.kind === 'devices' ? 'laptop' : 'clock'
+  const mark = MARK_OF[room.kind]
   const isPerson = room.kind === 'dm' && !room.isWaiting
   return chatHeadPic({
     width: ctx.px - (hasInfo ? DETAILS_PX : 0), title: name, sub: status?.text ?? '', isSubLive: status?.isHere === true,
@@ -56,7 +62,7 @@ function ChatHead(ctx: Ctx, room: RoomView): RenderElement {
 }
 
 function Divider(ctx: Ctx, o: { key: string; text: string; isNew: boolean }): RenderElement {
-  return SvgOf(ctx, dividerPic({ width: ctx.px, text: o.text, isNew: o.isNew }), o.key) ?? Meta(ctx, o.text, o.key)
+  return SvgOf(ctx, dividerPic({ width: ctx.px, text: o.text, isNew: o.isNew, pin: ctx.look.pin }), o.key) ?? Meta(ctx, o.text, o.key)
 }
 
 // What is wrong, in one line, and the press that explains it when there is one.
@@ -64,11 +70,10 @@ export function Notice(ctx: Ctx, room: RoomView): RenderElement | null {
   const { Box, Button, Text } = ctx.ui
   const notice = noticeOf(room)
   if (notice === null) return null
-  const tone = ctx.look.role[notice.paint]
   const why = notice.hasWhy && !ctx.model.isInfoOpen ? <Button key={`why-${room.id}`} label={chatWords().why} plain onPress={() => ctx.on.toggleInfo(room.id)} /> : null
   return (
     <Box key="notice" flexDirection="row" alignItems="center" gap={1}>
-      <Box flexGrow={1} flexShrink={1}><Text color={tone.fg} wrap="wrap">{notice.text}</Text></Box>
+      <Box flexGrow={1} flexShrink={1}>{StateText(ctx, { key: 'notice-text', text: notice.text, role: notice.paint, room: why === null ? 0 : WHY_PX })}</Box>
       {why}
     </Box>
   )
@@ -105,7 +110,7 @@ function threadOf(ctx: Ctx, o: { items: Item[]; room: RoomView }): RenderElement
   const out: RenderElement[] = []
   let run: Line[] = []
   const flush = () => {
-    if (run.length > 0) out.push(Run(ctx, { lines: run, room: o.room, hasHead: true }))
+    if (run.length > 0) out.push(Run(ctx, { lines: run, room: o.room }))
     run = []
   }
   o.items.forEach((item, i) => {
@@ -154,7 +159,7 @@ function ConnectBanner(ctx: Ctx): RenderElement | null {
   if (ctx.model.isConnected || (ctx.isWide && ctx.model.needsSetup)) return null
   return (
     <Box key="connect-banner" flexDirection="row" alignItems="center" justifyContent="space-between" gap={1}>
-      <Box flexShrink={1}><Text color={ctx.look.role.warn.fg} wrap="wrap">{chatWords().waitingBanner}</Text></Box>
+      <Box flexShrink={1}>{StateText(ctx, { key: 'banner-text', text: chatWords().waitingBanner, role: 'warn', room: CONNECT_PX })}</Box>
       <Button key="connect-inline" variant="primary" label={ctx.model.busy === null ? chatWords().connect : chatWords().connecting} onPress={() => ctx.on.connect()} />
     </Box>
   )

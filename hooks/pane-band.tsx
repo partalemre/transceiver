@@ -24,7 +24,7 @@ export function bandOf(o: { rooms: readonly RoomView[]; isShown: boolean; now: n
 }
 
 export type BandOpts = {
-  surface: RenderSurface; columns: number; isLight: boolean; line: BandLine; theirs: RenderElement | null
+  surface: RenderSurface; columns: number; line: BandLine; theirs: RenderElement | null
   onOpen: () => void; onDismiss: () => void
 }
 

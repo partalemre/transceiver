@@ -76,7 +76,7 @@ function Row(ctx: Ctx, o: { key: string; mark: RenderElement; title: string; sub
 function ToggleRow(ctx: Ctx, t: Toggle): RenderElement {
   const { Button, Text } = ctx.ui
   const isOn = ctx.model.settings[t.key]
-  const mark = <Text color={isOn ? ctx.look.signal.fg : ctx.look.lo}>{isOn ? '●' : '○'}</Text>
+  const mark = <Text {...(isOn ? { color: ctx.look.signal.fg } : ctx.look.loText)}>{isOn ? '●' : '○'}</Text>
   const button = <Button key={`set-${t.key}`} variant="secondary" label={isOn ? paneWords().turnOff : paneWords().turnOn} onPress={() => ctx.on.toggleSetting(t.key)} />
   return Row(ctx, { key: `toggle-${t.key}`, mark, title: t.title, sub: isOn ? t.on : t.off, button })
 }

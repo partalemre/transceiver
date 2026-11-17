@@ -103,7 +103,7 @@ const SHOTS: Shot[] = [
   { label: 'repo-alone', rooms: [REPO_ROOM, ...ALL], syncs: { ...syncs(), rg: { ...dmZeynep(), entries: [], peers: {} } }, isBypass: true, presses: ['open-rg'], sees: 'kendiliğinden gelir', texts: ['Şimdilik burada yalnızca sen varsın'] },
   { label: 'project-open', isBypass: true, presses: ['open-re', OPEN_DIFF], sees: 'makine' },
   { label: 'project-info', isBypass: true, presses: ['open-re', 'info-re'], sees: 'Bu oturumun reposu' },
-  { label: 'project-closed', isBypass: true, remote: ELSEWHERE, presses: ['open-re'], sees: 'Agent\'lar kapalı' },
+  { label: 'project-closed', isBypass: true, remote: ELSEWHERE, presses: ['open-re'], sees: 'Yapay zekâlar kapalı' },
   { label: 'project-draft', isBypass: true, presses: ['open-re'], extra: DRAFT, sees: 'onayını bekliyor' },
   { label: 'project-sheet', isBypass: true, presses: ['open-re', 'ask-more-re'], sees: 'sheet-grep' },
   { label: 'project-mode', isBypass: true, presses: ['open-re', 'ask-more-re', 'sheet-grep'], sees: 'Aranacak metin' },

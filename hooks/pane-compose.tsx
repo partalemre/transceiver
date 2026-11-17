@@ -6,6 +6,7 @@ import type { RenderElement } from 'claude-code'
 
 import { ASK_DAILY_LIMIT } from './limits'
 import { GlyphPic, Rule, within, type Ctx } from './pane-kit'
+import { StateText } from './pane-state'
 import { isModeType, specOf, supportedSpecs, type QuerySpec } from './query-menu'
 import type { RoomView } from './state-types'
 import { chatWords } from './words-chat'
@@ -45,7 +46,7 @@ function Cell(ctx: Ctx, o: { room: RoomView; spec: QuerySpec; nameCells: number 
       <Box minWidth={o.nameCells} flexShrink={0}>
         <Button key={`sheet-${o.spec.type}`} label={nameOf(o.spec)} plain onPress={() => ctx.on.askAgent(o.room.id, o.spec.type)} />
       </Box>
-      <Box flexGrow={1} flexShrink={1} minWidth={0}><Text color={isOn ? ctx.look.mid : ctx.look.lo} wrap="truncate-end">{o.spec.desc}</Text></Box>
+      <Box flexGrow={1} flexShrink={1} minWidth={0}><Text {...(isOn ? { color: ctx.look.mid } : ctx.look.loText)} wrap="truncate-end">{o.spec.desc}</Text></Box>
     </Box>
   )
 }
@@ -103,7 +104,7 @@ function ModeChip(ctx: Ctx): RenderElement | null {
 function HintRow(ctx: Ctx): RenderElement | null {
   const { Text } = ctx.ui
   const hint = ctx.model.hint
-  return hint === null ? null : <Text key="hint" color={ctx.look.role.warn.fg} wrap="wrap">{hint}</Text>
+  return hint === null ? null : StateText(ctx, { key: 'hint', text: hint, role: 'warn' })
 }
 
 export function Composer(ctx: Ctx, room: RoomView): RenderElement {

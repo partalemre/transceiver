@@ -13,6 +13,8 @@ const EN = {
   noMessages: 'No messages yet. Write the first one below.',
   noMessagesTitle: 'A quiet room for now',
   aiAsked: (who: string) => `${who} asked`,
+  // An answer whose question is older than what the pane shows.
+  earlierQuestion: 'An earlier question',
   refused: 'Not answered: no access',
   repoAlone: {
     title: 'Only you are here so far',
@@ -46,7 +48,7 @@ const EN = {
   ready: (n: number) => `${countOf(n, { one: 'ready query', many: 'ready queries' })} · 0 tokens`,
   readOnly: 'Read only here. Open Transceiver in Claude Code to write.',
   budgetNote: 'Resets at midnight. Once it is used up, new questions wait for your approval.',
-  liveNote: 'While on, an agent message wakes an idle session in this repo. Each wake spends tokens.',
+  liveNote: 'While on, a message from their AI wakes an idle session in this repo. Each wake spends tokens.',
   budget: (o: { used: number; limit: number }) => `Ask budget ${o.used}/${o.limit} today`,
   today: (o: { answered: number; modelless: number; denied: number }) => `Today: ${countOf(o.answered, { one: 'query', many: 'queries' })} · ${o.modelless} at 0 tokens · ${o.denied} denied`,
   live: (isOn: boolean) => `Live mode ${isOn ? 'on' : 'off'}`,
@@ -75,6 +77,7 @@ const TR: typeof EN = {
   noMessages: 'Henüz mesaj yok. İlk mesajı aşağıdan yaz.',
   noMessagesTitle: 'Şimdilik sessiz bir oda',
   aiAsked: who => `${who} sordu`,
+  earlierQuestion: 'Daha önceki bir soru',
   refused: 'Cevaplanmadı: erişim yok',
   repoAlone: {
     title: 'Şimdilik burada yalnızca sen varsın',
@@ -108,7 +111,7 @@ const TR: typeof EN = {
   ready: n => `${n} hazır sorgu · 0 token`,
   readOnly: 'Bu yüzeyde yalnızca okunur. Yazmak için Transceiver\'ı Claude Code\'da aç.',
   budgetNote: 'Gece yarısı sıfırlanır; dolunca yeni sorular onayını bekler.',
-  liveNote: 'Açıkken gelen agent mesajı bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.',
+  liveNote: 'Açıkken karşı tarafın yapay zekâsından gelen mesaj bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.',
   budget: o => `Ask bütçesi ${o.used}/${o.limit} bugün`,
   today: o => `bugün: ${o.answered} sorgu · ${o.modelless} 0 token · ${o.denied} reddedildi`,
   live: isOn => `Canlı mod ${isOn ? 'açık' : 'kapalı'}`,

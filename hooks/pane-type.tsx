@@ -1,6 +1,5 @@
-// The pane's reading type, on every surface: a title and a sentence as native Text, so the host draws them in the
-// theme Claude is set to. (Svg takes its palette from the OS's colour scheme, which can differ from Claude's and
-// leave the words unreadable.)
+// The pane's reading type, on every surface: a title and a sentence as native Text, in the app's own ink (quiet words
+// dim), so they read on whatever ground the panel has.
 import type { RenderElement } from 'claude-code'
 
 import type { Ctx } from './pane-kit'

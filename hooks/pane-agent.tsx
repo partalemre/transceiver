@@ -6,6 +6,7 @@ import type { RenderElement } from 'claude-code'
 import { compactOf, FIRST_ROWS, type Compact } from './answers'
 import { ANSWER_PREVIEW_LINES } from './limits'
 import { SvgOf, type Ctx } from './pane-kit'
+import { StateText } from './pane-state'
 import { specOf } from './query-menu'
 import { txPic, type TxOutcome } from './sig-tx'
 import type { Draft } from './state-types'
@@ -65,6 +66,7 @@ function Detail(ctx: Ctx, tx: Tx): RenderElement {
 
 // The question as asked: a free question's own words, else what the query reads (and what it was given).
 function questionOf(tx: Tx): string {
+  if (tx.query === undefined) return chatWords().earlierQuestion
   const arg = askedArg(tx)
   const type = queryType(tx)
   if (type === 'ask') return arg ?? specOf('ask')?.desc ?? ''
@@ -107,10 +109,9 @@ export function TxLine(ctx: Ctx, tx: Tx): RenderElement {
 // An ask past the day's limit: who asks what, then Send answers it once, outside the limit, or Cancel.
 export function DraftCard(ctx: Ctx, draft: Draft): RenderElement {
   const { Box, Button, Text } = ctx.ui
-  const warn = ctx.look.role.warn
   return (
     <Box key={`draft-${draft.qid}`} flexDirection="column" gap={1} paddingX={1} paddingY={1}>
-      <Text color={warn.fg} wrap="wrap">{chatWords().asking(firstName(draft.asker))}</Text>
+      {StateText(ctx, { key: `draft-head-${draft.qid}`, text: chatWords().asking(firstName(draft.asker)), role: 'warn' })}
       <Text color={ctx.look.hi} wrap="wrap">{draft.question}</Text>
       {ctx.model.canSettleDrafts
         ? (

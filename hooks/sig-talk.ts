@@ -5,7 +5,7 @@
 import { baseline, num, sans, textEl, toPic } from './kit/svg-core'
 import type { SvgPic } from './kit/svg-core'
 import { fitText, textWidth } from './kit/svg-metrics'
-import { faceOf, veilRect, VEIL } from './sig-ink'
+import { faceOf, themed, veilRect, VEIL } from './sig-ink'
 import { checksPiece } from './sig-ui'
 import { wrapLines } from './sig-wrap'
 
@@ -28,7 +28,7 @@ export type RunOpts = {
   tick?: Tick
   // What a line still going out says ("sending…", or why it waits), and whether that is a warning.
   pending?: { text: string; isWarn: boolean }
-  // Draw the header: the first run after a divider or another sender does.
+  // Draw who wrote: always for theirs; for mine only when the side alone does not say it (an AI's, a computer's).
   hasHead: boolean
 }
 
@@ -69,8 +69,21 @@ function bubbleSvg(b: Bubble, o: { x: number; y: number; isMine: boolean }): str
   return [surface, b.quote === undefined ? '' : quoteSvg(b.quote, { x: o.x, y: o.y, w: b.w }), ...words].join('')
 }
 
+// Mine, when it says something the side does not: who wrote ("Your AI", or the computer in the person's own room),
+// at the right edge, the crab or monogram beside it.
+function mineHeadSvg(o: RunOpts): string {
+  const room = o.width - TALK.textX
+  const label = fitText(o.who.label, room, sans(TALK.nameSize, NAME_WEIGHT))
+  const y = baseline(0, TALK.headH, TALK.nameSize)
+  return [
+    textEl({ x: o.width - TALK.textX, y, text: label, paint: 'hi', size: TALK.nameSize, weight: NAME_WEIGHT, anchor: 'end' }),
+    faceOf({ name: o.who.name, isAgent: o.who.isAgent, x: o.width - TALK.face, y: (TALK.headH - TALK.face) / 2, size: TALK.face }),
+  ].join('')
+}
+
 // Theirs: who wrote, then the time in the quiet ink.
 function headSvg(o: RunOpts): string {
+  if (o.who.isMine) return mineHeadSvg(o)
   const room = o.width - TALK.textX - textWidth(o.time, TALK.metaSize) - TIME_GAP
   const label = fitText(o.who.label, room, sans(TALK.nameSize, NAME_WEIGHT))
   const y = baseline(0, TALK.headH, TALK.nameSize)
@@ -104,8 +117,8 @@ export function runPic(o: RunOpts): SvgPic {
   const max = bubbleWidthOf(o)
   const bubbles = o.said.map(s => bubbleOf(s, max))
   const isTheirs = !o.who.isMine
-  let y = isTheirs && o.hasHead ? TALK.headH + TALK.gap : 0
-  const parts: string[] = isTheirs && o.hasHead ? [headSvg(o)] : []
+  let y = o.hasHead ? TALK.headH + TALK.gap : 0
+  const parts: string[] = o.hasHead ? [headSvg(o)] : []
   for (const b of bubbles) {
     parts.push(bubbleSvg(b, { x: isTheirs ? TALK.textX : o.width - b.w, y, isMine: !isTheirs }))
     y += b.h + TALK.gap
@@ -123,18 +136,20 @@ function altOf(o: RunOpts): string {
 const DIVIDER_H = 28
 const DIVIDER_SIZE = 11.5
 const DIVIDER_GAP = 10
+// The unread rule in the accent, half strength: it marks a place, it is not a warning.
+const NEW_RULE = 0.5
 
 // The day, or where the unread lines begin (in the accent): a short word between two lines of thin ink.
-export function dividerPic(o: { width: number; text: string; isNew: boolean }): SvgPic {
+export function dividerPic(o: { width: number; text: string; isNew: boolean; pin?: boolean }): SvgPic {
   const w = Math.floor(o.width)
   const tw = textWidth(o.text, DIVIDER_SIZE, NAME_WEIGHT)
   const y = DIVIDER_H / 2
   const left = (w - tw) / 2 - DIVIDER_GAP
-  const rule = (x1: number, x2: number) => `<path d="M${num(x1)} ${num(y + 0.5)}H${num(x2)}" class="${o.isNew ? 's-edit' : 's-hi'}" stroke-opacity="${o.isNew ? 0.5 : VEIL.rule}"/>`
+  const rule = (x1: number, x2: number) => `<path d="M${num(x1)} ${num(y + 0.5)}H${num(x2)}" class="${o.isNew ? 's-edit' : 's-hi'}" stroke-opacity="${o.isNew ? NEW_RULE : VEIL.rule}"/>`
   const body = [
     rule(0, left),
     textEl({ x: w / 2, y: baseline(0, DIVIDER_H, DIVIDER_SIZE), text: o.text, paint: o.isNew ? 'edit' : 'lo', size: DIVIDER_SIZE, weight: NAME_WEIGHT, anchor: 'middle' }),
     rule(w - left, w),
   ].join('')
-  return toPic({ body, width: w, height: DIVIDER_H, alt: o.text })
+  return themed(toPic({ body, width: w, height: DIVIDER_H, alt: o.text }), o.pin)
 }

@@ -59,7 +59,7 @@ test('the gate shows its four conditions: open, closed by the first that fails, 
   const elsewhere = gateOf({ sessionRepo: 'a/b', isOk: true })
   expect(elsewhere && gateDetail(elsewhere)).toBe('bu oturum başka bir repoda')
   const unconfirmed = buildModel({ ...input({ rooms: [{ ...ROOMS.eliti, peers: [] }] }), sessionRepo: ELITI, checkOf: yes }).rooms[0]
-  expect(unconfirmed && [unconfirmed.gate, noticeOf(unconfirmed)]).toEqual(['closed', { text: 'Agent\'lar kapalı: GitHub eşleşmesi yok.', paint: 'danger', hasWhy: true }])
+  expect(unconfirmed && [unconfirmed.gate, noticeOf(unconfirmed)]).toEqual(['closed', { text: 'Yapay zekâlar kapalı: GitHub eşleşmesi yok.', paint: 'danger', hasWhy: true }])
   // An open gate, or one GitHub has not been asked about yet, says nothing.
   expect(open && noticeOf(open)).toBe(null)
   expect(noticeOf(gateOf({ sessionRepo: ELITI }) as never)).toBe(null)
@@ -70,7 +70,7 @@ test('a project room counts the asks spent today and what this machine answered 
   expect(room?.project).toMatchObject({ askUsed: 3, askLimit: 10, today: { answered: 2, modelless: 1, denied: 1 } })
   expect(room && noticeOf(room)).toBe(null)
   const spent = buildModel({ ...input(), askUsed: { re: 10 }, sessionRepo: ELITI, checkOf: yes }).rooms.find(r => r.id === 're')
-  expect(spent && noticeOf(spent)?.text).toBe('Agent\'ının bugünkü 10 cevap hakkı doldu; yeni sorular onayını bekler.')
+  expect(spent && noticeOf(spent)?.text).toBe('Yapay zekânın bugünkü 10 cevap hakkı doldu; yeni sorular onayını bekler.')
 })
 
 test('messages waiting for "Bağlan" are listed, oldest first, only while not connected', () => {

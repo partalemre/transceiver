@@ -271,7 +271,7 @@ function onBand(on: On): void {
     const open = () => void openPane($).then(() => paneHandlers.select(line.roomId)).catch(() => undefined)
     const dismiss = () => { dismissBand(line.lastId); void refreshPane().catch(() => undefined) }
     return pinned(e, bandTree($.ui.resolve(e), {
-      surface: e.surface, columns: e.props.bodyColumns, isLight: await isLightOf($), line, theirs: theirs as never, onOpen: open, onDismiss: dismiss,
+      surface: e.surface, columns: e.props.bodyColumns, line, theirs: theirs as never, onOpen: open, onDismiss: dismiss,
     }))
   }).catch(($, e, next) => next(e))
 }
