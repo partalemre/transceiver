@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { dayOf } from '../hooks/compact'
 import type { CallResult } from '../hooks/host'
-import { COMPACT_AFTER_MS, RETENTION_RETRY_MS, ROLLOVER_DOCS } from '../hooks/limits'
+import { COMPACT_AFTER_MS, DAY_MS, RETENTION_RETRY_MS, ROLLOVER_DOCS } from '../hooks/limits'
 import type { Message } from '../hooks/protocol'
 import { emptyHead } from '../hooks/protocol'
 import { MOVED, wireRetention } from '../hooks/retention'
@@ -204,5 +204,20 @@ test('what was written before sealing is sealed in place once, and still reads',
   const texts = [...await relay.days(ME, 0), ...(await relay.since(ME, 0)).flatMap(m => ('text' in m ? [m.text] : []))]
   expect(texts.filter(t => t === SECRET_TEXT || (typeof t === 'object' && t.text === SECRET_TEXT)).length).toBe(4)
   expect((await relay.heads()).find(h => h.uid === ME)?.head.gh).toBe('old-login')
+  await w.stop()
+})
+
+test('history waits while a member has no key yet, then seals once the wait runs out', async () => {
+  const peer = fakeDb(PEER)
+  peer.docs.set(`outbox/${PEER}`, { data: emptyHead(), version: 1 })
+  const w = await world({ id: 'RET8', old: 2, boxes: new Map([[PEER_BOX, peer]]) })
+  await w.host.advance(5_000)
+  expect(JSON.stringify([...w.db.docs]).includes(SECRET_TEXT)).toBe(true)
+  const held = await w.host.storeGet('tx.sealedHistory.RET8') as { since: number }
+  expect(typeof held.since).toBe('number')
+  await w.host.storeSet('tx.sealedHistory.RET8', { ...held, since: w.host.clock.now - 3 * DAY_MS - 1 })
+  await w.host.advance(5_000)
+  expect(JSON.stringify([...w.db.docs]).includes(SECRET_TEXT)).toBe(false)
+  expect(await w.host.storeGet('tx.sealedHistory.RET8')).toBe(true)
   await w.stop()
 })

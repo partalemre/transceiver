@@ -8094,6 +8094,7 @@ async function compactRoom(opts) {
 }
 
 const doneKey = (id) => `tx.sealedHistory.${id}`;
+const WAIT_FOR_KEYS_MS = 3 * DAY_MS$1;
 const retryAt$1 = new Map;
 const after = (ts) => ({ where: [["ts", ">", ts]], order_by: { field: "ts", direction: "asc" }, limit: COMPACT_PAGE });
 function sealedOf(doc, to) {
@@ -8153,7 +8154,8 @@ async function run(host, o) {
 }
 const progressOf = (raw) => {
   const x = raw;
-  return { msgs: typeof x?.msgs === "number" ? x.msgs : 0, days: typeof x?.days === "number" ? x.days : 0 };
+  const since = typeof x?.since === "number" ? { since: x.since } : {};
+  return { msgs: typeof x?.msgs === "number" ? x.msgs : 0, days: typeof x?.days === "number" ? x.days : 0, ...since };
 };
 async function sealHistory(host, ev) {
   const key = doneKey(ev.room.id);
@@ -8161,9 +8163,13 @@ async function sealHistory(host, ev) {
   const now = await host.now();
   if (stored === true || (retryAt$1.get(key) ?? 0) > now)
     return;
+  const at = { since: now, ...progressOf(stored) };
+  const isKeyed = Object.values(ev.state.peers).every((h) => (h.keys ?? []).length > 0);
+  if (!isKeyed && now - at.since < WAIT_FOR_KEYS_MS)
+    return host.storeSet(key, at);
   try {
-    const next = await run(host, { room: ev.room, uid: ev.state.selfUid, at: progressOf(stored) });
-    await host.storeSet(key, next ?? true);
+    const next = await run(host, { room: ev.room, uid: ev.state.selfUid, at });
+    await host.storeSet(key, next === null ? true : { ...next, since: at.since });
   } catch (err) {
     retryAt$1.set(key, now + RETENTION_RETRY_MS);
     host.log(`transceiver: ${ev.room.title}: sealing history ${err instanceof Error ? err.name : "error"}`);

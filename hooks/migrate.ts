@@ -5,18 +5,21 @@
 import { isGitUrl } from './gitbox'
 import { hasClearPersonal, openHead } from './heads'
 import type { AgentHost } from './host'
-import { BATCH_MAX_WRITES, COMPACT_PAGE, HEADS_PAGE, RETENTION_RETRY_MS } from './limits'
+import { BATCH_MAX_WRITES, COMPACT_PAGE, DAY_MS, HEADS_PAGE, RETENTION_RETRY_MS } from './limits'
 import { isStoredDoc, isUnreadable, parseMessage, paths, sealMessage, type StoredDoc } from './protocol'
 import { callerOf, relayOf, storedHead, type Relay } from './relay'
 import type { TickEvent } from './room-loop'
 import type { RoomRecord } from './rooms'
 import { audienceOf } from './seal'
 
-type Progress = { msgs: number; days: number }
+type Progress = { msgs: number; days: number; since?: number }
 type Ctx = { relay: Relay; uid: string; to: string[] }
 type Write = Record<string, unknown>
 
 const doneKey = (id: string) => `tx.sealedHistory.${id}`
+// History is sealed to the members whose keys are out. A member who has not updated yet would lose it, so it waits
+// for every other member seen to publish a key (seal() always adds this computer), but no longer than this: one who never updates must not keep it in clear.
+const WAIT_FOR_KEYS_MS = 3 * DAY_MS
 const retryAt = new Map<string, number>()
 const after = (ts: number) => ({ where: [['ts', '>', ts]], order_by: { field: 'ts', direction: 'asc' }, limit: COMPACT_PAGE })
 
@@ -80,7 +83,8 @@ async function run(host: AgentHost, o: { room: RoomRecord; uid: string; at: Prog
 
 const progressOf = (raw: unknown): Progress => {
   const x = raw as Partial<Progress> | null
-  return { msgs: typeof x?.msgs === 'number' ? x.msgs : 0, days: typeof x?.days === 'number' ? x.days : 0 }
+  const since = typeof x?.since === 'number' ? { since: x.since } : {}
+  return { msgs: typeof x?.msgs === 'number' ? x.msgs : 0, days: typeof x?.days === 'number' ? x.days : 0, ...since }
 }
 
 // One page a tick until the room is done; then never again for it.
@@ -89,9 +93,12 @@ export async function sealHistory(host: AgentHost, ev: TickEvent): Promise<void>
   const stored = await host.storeGet(key)
   const now = await host.now()
   if (stored === true || (retryAt.get(key) ?? 0) > now) return
+  const at = { since: now, ...progressOf(stored) }
+  const isKeyed = Object.values(ev.state.peers).every(h => (h.keys ?? []).length > 0)
+  if (!isKeyed && now - at.since < WAIT_FOR_KEYS_MS) return host.storeSet(key, at)
   try {
-    const next = await run(host, { room: ev.room, uid: ev.state.selfUid, at: progressOf(stored) })
-    await host.storeSet(key, next ?? true)
+    const next = await run(host, { room: ev.room, uid: ev.state.selfUid, at })
+    await host.storeSet(key, next === null ? true : { ...next, since: at.since })
   } catch (err) {
     retryAt.set(key, now + RETENTION_RETRY_MS)
     host.log(`transceiver: ${ev.room.title}: sealing history ${err instanceof Error ? err.name : 'error'}`)
