@@ -10,7 +10,7 @@ import { saveRooms, type RoomRecord } from '../hooks/rooms'
 import { collectAnswer, runTool, TOOL_SPECS } from '../hooks/tools'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, type FakeAgent } from './fake-agent'
-import { callerFor, fakeDb, type FakeDb } from './fake-db'
+import { callerFor, fakeDb, type FakeDb, opened } from './fake-db'
 import { setLang } from '../hooks/kit/lang'
 
 // These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
@@ -68,12 +68,12 @@ function peerAnswering(opts: { db: FakeDb; peer: FakeDb; body: string | null }) 
   let isDone = false
   return async (input: Record<string, unknown>): Promise<CallResult> => {
     const out = await callerFor(input.url === PEER_BOX ? peer : db)(input)
-    const q = [...db.docs].find(([k, d]) => k.startsWith(`outbox/${ME}/msgs/`) && d.data.kind === 'query')
+    const q = [...db.docs].map(([k, d]) => [k, opened(d.data)] as const).find(([k, d]) => k.startsWith(`outbox/${ME}/msgs/`) && d.kind === 'query')
     if (q !== undefined && body !== null && !isDone) {
       isDone = true
-      const ts = Number(q[1].data.ts) + 500
+      const ts = Number(q[1].ts) + 500
       const id = newId(ts)
-      const message = { v: 1, id, ts, kind: 'answer', text: body, replyTo: q[1].data.id, answer: { qid: q[1].data.id, ok: true, body, tokens: 0 } }
+      const message = { v: 1, id, ts, kind: 'answer', text: body, replyTo: q[1].id, answer: { qid: q[1].id, ok: true, body, tokens: 0 } }
       peer.docs.set(`outbox/${PEER}/msgs/${id}`, { data: message, version: 1 })
       peer.docs.set(`outbox/${PEER}`, { data: { v: 1, head: id, headTs: ts, seenUpTo: '', readUpTo: '', readTs: 0 }, version: 1 })
     }
@@ -99,7 +99,7 @@ test('send queues an agent message in the project room and the loop writes it', 
   const { db, host } = await world({ id: 'rt1' })
   expect(await runTool(ctx(host), { name: 'send', input: { text: 'testler geçti' } })).toEqual({ result: 'gönderildi' })
   await host.advance(0)
-  const sent = [...db.docs].filter(([k]) => k.startsWith(`outbox/${ME}/msgs/`)).map(([, d]) => d.data)
+  const sent = [...db.docs].filter(([k]) => k.startsWith(`outbox/${ME}/msgs/`)).map(([, d]) => opened(d.data))
   expect(sent.map(m => [m.kind, m.text])).toEqual([['agent', 'testler geçti']])
   stopRoom('rt1')
 })
@@ -130,7 +130,7 @@ test('ask sends a typed query and returns the fenced answer once the peer writes
   const out = await runTool(ctx(host), { name: 'ask', input: { type: 'status' } })
   expect('result' in out && out.result.includes('main · 2 değişen dosya')).toBe(true)
   expect('result' in out && out.result.includes('<<<UNTRUSTED DATA')).toBe(true)
-  const q = [...db.docs].find(([k, d]) => k.startsWith(`outbox/${ME}/msgs/`) && d.data.kind === 'query')?.[1].data
+  const q = [...db.docs].map(([, d]) => opened(d.data)).find(d => d.kind === 'query')
   expect(q?.query).toEqual({ type: 'status', repo: 'partalemre/eliti' })
   stopRoom('rt4')
 })

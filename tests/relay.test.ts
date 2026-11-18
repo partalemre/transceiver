@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { emptyHead, type Message } from '../hooks/protocol'
 import { RelayError, relayOf } from '../hooks/relay'
-import { callerFor, fakeDb, writesOf } from './fake-db'
+import { callerFor, fakeDb, writesOf, opened } from './fake-db'
 
 const URL = 'https://claude.ai/artifact/room1'
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
@@ -53,7 +53,7 @@ test('send, markRead and a gh write never drop each other\'s fields, also when t
   await a.send({ uid: ME, message: msg(ID2, 20), known: start })
   await a.markRead({ uid: ME, seenUpTo: PEER_MSG, known: start })
   await b.writeHead({ uid: ME, patch: { label: 'Emre P.' }, known: gh })
-  expect(storedHead(db)?.data).toEqual({
+  expect(opened(storedHead(db)?.data)).toEqual({
     v: 1, head: ID2, headTs: 20, seenUpTo: PEER_MSG, readUpTo: PEER_MSG, readTs: 77, gh: 'partalemre', label: 'Emre P.',
   })
 })

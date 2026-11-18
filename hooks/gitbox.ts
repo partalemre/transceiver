@@ -130,7 +130,8 @@ function parseRefs(stdout: string, namespace: string): Record<string, string> {
 async function pushOnce(io: GitIo, box: Box, self: string): Promise<void> {
   do {
     box.hasMore = false
-    const out = await git(io, box, ['push', '-q', box.remote, `${OWN_REF}:${REMOTE_NS}${self}`]).catch(() => null)
+    // Forced: only this computer writes this ref, and its history is cut once when the room is sealed (squash).
+    const out = await git(io, box, ['push', '-q', box.remote, `+${OWN_REF}:${REMOTE_NS}${self}`]).catch(() => null)
     if (out?.exitCode !== 0) {
       box.pushFails += 1
       return
@@ -261,4 +262,19 @@ export async function commit(io: GitIo, box: Box, opts: { ops: Op[]; self: strin
   box.hasOwn = true
   box.isAhead = true
   pushSoon(io, box, opts.self)
+}
+
+// The own mailbox cut down to one new commit holding what it holds now, pushed over the old history: what was
+// written in clear before sealing is then in no commit the repo serves. Copies already fetched, here and on the
+// others' computers, are not reached: a prune here could race another session's write.
+export async function squash(io: GitIo, box: Box, self: string): Promise<void> {
+  const tip = await tipOf(io, box)
+  if (tip === null) return
+  const tree = await git(io, box, ['rev-parse', `${tip}^{tree}`])
+  const ident = ['-c', 'user.name=transceiver', '-c', 'user.email=transceiver@localhost']
+  const made = tree.exitCode === 0 ? await git(io, box, [...ident, 'commit-tree', tree.stdout.trim(), '-m', 'tx']) : null
+  const sha = made?.exitCode === 0 ? made.stdout.trim() : ''
+  if (sha === '' || (await git(io, box, ['update-ref', OWN_REF, sha, tip])).exitCode !== 0) throw new Error('transceiver: the history could not be cut')
+  box.isAhead = true
+  pushSoon(io, box, self)
 }

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Vendors tweetnacl 1.0.3 (public domain, audited by Cure53) as hooks/nacl/nacl-fast.js, an ES module the hooks
+# engine can load. The tarball is checked against npm's published integrity before anything is written.
+# Two edits to upstream, nothing else: the UMD wrapper becomes `export default`, and the random source is
+# `crypto.getRandomValues` alone (the engine has no `self` and no Node).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION=1.0.3
+INTEGRITY='sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw=='
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+curl -fsSL "https://registry.npmjs.org/tweetnacl/-/tweetnacl-$VERSION.tgz" -o "$TMP/nacl.tgz"
+GOT="sha512-$(openssl dgst -sha512 -binary "$TMP/nacl.tgz" | base64)"
+[ "$GOT" = "$INTEGRITY" ] || { echo "vendor-nacl: integrity mismatch: $GOT" >&2; exit 1; }
+tar xzf "$TMP/nacl.tgz" -C "$TMP"
+SRC="$TMP/package/nacl-fast.js"
+LINES="$(wc -l <"$SRC" | tr -d ' ')"
+PRNG_AT="$(grep -n '^(function() {$' "$SRC" | tail -1 | cut -d: -f1)"
+mkdir -p "$ROOT/hooks/nacl"
+{
+  echo "// tweetnacl $VERSION nacl-fast.js, vendored by bin/vendor-nacl (do not edit by hand)."
+  echo '// Upstream: https://github.com/dchest/tweetnacl-js (public domain). The UMD wrapper and the PRNG setup are'
+  echo '// replaced so the hooks engine (no self, no Node) loads it; the cryptography is untouched.'
+  echo 'const nacl = {};'
+  sed -n "1,$((PRNG_AT - 1))p" "$SRC"
+  echo 'nacl.setPRNG(function(x, n) {'
+  echo '  var QUOTA = 65536, i, v = new Uint8Array(n);'
+  echo '  for (i = 0; i < n; i += QUOTA) crypto.getRandomValues(v.subarray(i, i + Math.min(n - i, QUOTA)));'
+  echo '  for (i = 0; i < n; i++) x[i] = v[i];'
+  echo '  cleanup(v);'
+  echo '});'
+  echo '})(nacl);'
+  echo 'export default nacl;'
+} >"$ROOT/hooks/nacl/nacl-fast.js"
+# Upstream lines kept verbatim: everything before the PRNG block, out of $LINES.
+grep -q 'require' "$ROOT/hooks/nacl/nacl-fast.js" && { echo "vendor-nacl: require left in output" >&2; exit 1; }
+echo "vendored tweetnacl $VERSION -> hooks/nacl/nacl-fast.js (upstream lines 1-$((PRNG_AT - 1)) of $LINES kept)"

@@ -2,6 +2,7 @@ import { compactRoom, dayOf } from './compact'
 import { parseArtifactUrls } from './dbtext'
 import type { AgentHost } from './host'
 import { RETENTION_RETRY_MS, ROLLOVER_DOCS } from './limits'
+import { sealHistory } from './migrate'
 import { parseMessage, isUnreadable, type Message, type Unreadable } from './protocol'
 import { callerOf, relayOf } from './relay'
 import { forgetRoom, onTick, pokeRoom, type TickEvent } from './room-loop'
@@ -118,6 +119,8 @@ export async function onRetentionTick(host: AgentHost, ev: TickEvent): Promise<v
   // Only a room of this person's own store (the record is read fresh: it may have been left meanwhile).
   const room = (await loadRooms(host)).find(r => r.id === ev.room.id && r.status === 'active')
   if (room === undefined) return
+  // What was written before sealing is sealed first, before compaction moves it.
+  await sealHistory(host, { ...ev, room })
   await compactDaily(host, { room, ev })
   await rollover(host, { room, ev })
 }

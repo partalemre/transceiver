@@ -16,7 +16,7 @@ import {
   sameStore, share, textsIn, wireMod,
 } from './e2e-world'
 import type { FakeAgent } from './fake-agent'
-import { callerAs } from './fake-db'
+import { callerAs, opened } from './fake-db'
 import { scheduler } from './fake-host'
 import { setLang } from '../hooks/kit/lang'
 
@@ -41,7 +41,7 @@ const human = (text: string): Message => ({ v: 1, id: newId(sched.clock.now), ts
 const urlIn = (text: string | null) => /https:\/\/claude\.ai\/artifact\/\S+/.exec(text ?? '')?.[0] ?? ''
 const dbOf = (url: string) => net.rooms.get(url)?.db
 const outboxDocs = (url: string, uid: string) =>
-  [...(dbOf(url)?.docs ?? new Map())].filter(([k]) => k.startsWith(`outbox/${uid}/msgs/`)).map(([, d]) => d.data)
+  [...(dbOf(url)?.docs ?? new Map())].filter(([k]) => k.startsWith(`outbox/${uid}/msgs/`)).map(([, d]) => opened(d.data))
 
 async function say(host: FakeAgent, url: string, text: string): Promise<void> {
   expect(enqueueMessage({ host, room: await roomOf(host, url), message: human(text) })).toBe(true)
@@ -84,8 +84,8 @@ test('Alperen: the invite shows within a minute of Emre sharing; Kabul et opens 
   expect((await roomOf(w.alperen, w.dm))).toMatchObject({ status: 'active', url: w.dmA, boxes: [w.dm] })
   await sched.advance(2_000)
   // A DM has no agent gate, so neither head carries a GitHub login.
-  expect(dbOf(w.dmA)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBeUndefined()
-  expect(dbOf(w.dm)?.docs.get(`outbox/${EMRE}`)?.data.gh).toBeUndefined()
+  expect(opened(dbOf(w.dmA)?.docs.get(`outbox/${ALPEREN}`)?.data).gh).toBeUndefined()
+  expect(opened(dbOf(w.dm)?.docs.get(`outbox/${EMRE}`)?.data).gh).toBeUndefined()
 })
 
 test('Emre: Alperen shares his mailbox back and it joins Emre\'s DM within a minute', async () => {
@@ -160,8 +160,8 @@ test('project room: Emre opens eliti, Alperen accepts, both heads carry their Gi
   await discover(w.emre)
   await sched.advance(6_000)
   expect((await roomOf(w.emre, w.project)).boxes).toEqual([w.projectA])
-  expect(dbOf(w.project)?.docs.get(`outbox/${EMRE}`)?.data.gh).toBe('partalemre')
-  expect(dbOf(w.projectA)?.docs.get(`outbox/${ALPEREN}`)?.data.gh).toBe('AlperenX')
+  expect(opened(dbOf(w.project)?.docs.get(`outbox/${EMRE}`)?.data).gh).toBe('partalemre')
+  expect(opened(dbOf(w.projectA)?.docs.get(`outbox/${ALPEREN}`)?.data).gh).toBe('AlperenX')
 })
 
 test('gate closed until the GitHub question is answered: a query gets exactly erişim yok', async () => {
@@ -268,7 +268,8 @@ test('Emre leaves the DM: his mod stops polling it, Alperen\'s goes on', async (
 })
 
 test('no path, model, session or repo name reaches a DM; no path or model reaches any room', async () => {
-  const dump = (url: string) => JSON.stringify([...(dbOf(url)?.docs ?? new Map())])
+  // Read as a member would: what is sealed is random bytes, which may spell anything.
+  const dump = (url: string) => JSON.stringify([...(dbOf(url)?.docs ?? new Map())].map(([k, d]) => [k, opened(d.data)]))
   for (const url of [w.dm, w.project, w.dmA, w.projectA]) {
     expect(dump(url)).not.toContain('/w/')
     expect(dump(url)).not.toContain('/home/')

@@ -20,7 +20,7 @@ const OLD = Date.UTC(2026, 9, 1, 10)
 const DAY = '2026-10-01'
 
 const human = (ts: number, text = 'x'): Message => ({ v: 1, id: newId(ts), ts, kind: 'human', text })
-const item = (id: string, ts: number) => ({ message: { v: 1 as const, id, ts, kind: 'human' as const, text: id }, version: 1 })
+const item = (id: string, ts: number) => ({ doc: { v: 1, id, ts, kind: 'human', text: id }, version: 1 })
 
 function seed(db: FakeDb, uid: string, msgs: Message[]): void {
   for (const m of msgs) db.docs.set(`outbox/${uid}/msgs/${m.id}`, { data: m, version: 1 })

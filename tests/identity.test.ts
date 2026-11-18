@@ -1,11 +1,12 @@
 import { expect, test } from 'claude-code/testing'
-import { forgetLogin, shareLogin } from '../hooks/identity'
+import { forgetLogin, shareKey, shareLogin } from '../hooks/identity'
+import { ownKey } from '../hooks/seal'
 import type { TickEvent } from '../hooks/room-loop'
 import { saveRooms, saveSettings, type RoomRecord } from '../hooks/rooms'
 import { initialSync } from '../hooks/sync'
 import type { Run } from '../hooks/run'
 import { fakeAgent } from './fake-agent'
-import { callerFor, fakeDb } from './fake-db'
+import { callerFor, fakeDb, opened } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const room: RoomRecord = {
@@ -32,7 +33,7 @@ test('the gh login goes on my head once, merged over my cursors', async () => {
   const head = { v: 1, head: '', headTs: 0, seenUpTo: '01K7A0000000000000000000S1', readUpTo: '', readTs: 0 }
   db.docs.set(`outbox/${ME}`, { data: head, version: 3 })
   expect(await shareLogin(host, ev())).toBe(true)
-  expect(db.docs.get(`outbox/${ME}`)?.data).toEqual({ ...head, gh: 'emrep' })
+  expect(opened(db.docs.get(`outbox/${ME}`)?.data)).toEqual({ ...head, gh: 'emrep' })
   const state = { ...initialSync(ME), ownHead: { ...head, v: 1 as const, gh: 'emrep' }, ownVersion: 4 }
   expect(await shareLogin(host, ev({ state }))).toBe(false)
   expect(runs()).toBe(1)
@@ -55,7 +56,7 @@ test('the login set in the settings wins over gh, and a bad gh answer publishes 
   expect(await shareLogin(host, ev())).toBe(false)
   await saveSettings(host, { isReceiptsOn: true, isToastOn: true, isStatusOn: true, isSoundOn: true, gh: 'AlperenX' })
   expect(await shareLogin(host, ev())).toBe(true)
-  expect(db.docs.get(`outbox/${ME}`)?.data.gh).toBe('AlperenX')
+  expect(opened(db.docs.get(`outbox/${ME}`)?.data).gh).toBe('AlperenX')
   expect(runs()).toBe(1)
 })
 
@@ -65,4 +66,19 @@ test('a room that is not in this person\'s own store, or was left meanwhile, get
   await saveRooms(host, [{ ...room, status: 'left' }])
   expect(await shareLogin(host, ev())).toBe(false)
   expect(db.docs.size).toBe(0)
+})
+
+test('this computer\'s key goes on my head once, beside the keys my other computers put there', async () => {
+  const { db, host } = await setup()
+  const other = 'B'.repeat(43) + '='
+  const head = { v: 1, head: '', headTs: 0, seenUpTo: '', readUpTo: '', readTs: 0, keys: [other] }
+  db.docs.set(`outbox/${ME}`, { data: head, version: 2 })
+  expect(await shareKey(host, ev())).toBe(true)
+  const keys = db.docs.get(`outbox/${ME}`)?.data.keys
+  expect(keys).toEqual([other, ownKey()])
+  const state = { ...initialSync(ME), ownHead: { ...head, v: 1 as const, keys: keys as string[] }, ownVersion: 3 }
+  expect(await shareKey(host, ev({ state }))).toBe(false)
+  host.isOn = false
+  expect(await shareKey(host, ev())).toBe(false)
+  host.isOn = true
 })

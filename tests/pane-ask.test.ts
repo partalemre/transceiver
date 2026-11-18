@@ -4,6 +4,8 @@
 import { expect, test } from 'claude-code/testing'
 
 import { paths } from '../hooks/protocol'
+import { loadKeyring } from '../hooks/seal'
+import { opened } from './fake-db'
 import { dmAlperen, dmZeynep, grepTraffic, projectEliti, ROOMS } from './pane-fixtures'
 import { mountPane, paneWorld, startSession, type World } from './pane-world'
 import { setLang } from '../hooks/kit/lang'
@@ -22,10 +24,12 @@ const SYNCS = () => {
 type Sent = { kind: string; text: string; query?: Record<string, unknown> }
 
 // What the person's outbox in the project room holds after the loop sent it, newest last.
-function sentIn(w: World): Sent[] {
+// Read with the key the plugin made and stored (seal.ts), as this person's other session would.
+async function sentIn(w: World): Promise<Sent[]> {
+  await loadKeyring({ storeGet: async key => w.store[key], storeSet: async () => undefined })
   const db = w.dbOf(ROOMS.eliti.url)
   const prefix = `${paths.msgs('u_AAAAAAAAAAAAAAAAAAAAAA')}/`
-  return [...db.docs.entries()].filter(([k]) => k.startsWith(prefix)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([, d]) => d.data as Sent)
+  return [...db.docs.entries()].filter(([k]) => k.startsWith(prefix)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([, d]) => opened(d.data) as Sent)
 }
 
 const drawn = async (ui: any) => JSON.stringify(await ui.drawn())
@@ -65,7 +69,7 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'ask-more-re' })
     await ui.press({ key: 'sheet-status' })
     await w.clock.advance(1_000)
-    expect(sentIn(w).at(-1)).toMatchObject({ kind: 'query', text: 'status', query: { type: 'status', repo: 'partalemre/eliti' } })
+    expect((await sentIn(w)).at(-1)).toMatchObject({ kind: 'query', text: 'status', query: { type: 'status', repo: 'partalemre/eliti' } })
   })
 
   test(`${surface}: the sheet lists every query; a row that takes a value sets the field's mode, Enter sends it`, async ($: any, on: any) => {
@@ -77,7 +81,7 @@ for (const surface of SURFACES) {
     expect(await drawn(ui)).toContain('Aranacak metin')
     await typeIn({ ui, w }, 'refreshToken')
     await w.clock.advance(1_000)
-    expect(sentIn(w).at(-1)).toMatchObject({ kind: 'query', query: { type: 'grep', text: 'refreshToken' } })
+    expect((await sentIn(w)).at(-1)).toMatchObject({ kind: 'query', query: { type: 'grep', text: 'refreshToken' } })
     expect(await drawn(ui)).not.toContain('Aranacak metin')
   })
 
@@ -91,7 +95,7 @@ for (const surface of SURFACES) {
     await typeIn({ ui, w }, '/ask Neden iki kez yazılıyor?')
     await w.clock.advance(1_000)
     // Both were written in the same test-clock millisecond, so their ids do not order them.
-    const queries = sentIn(w).filter(m => m.kind === 'query').map(m => m.query)
+    const queries = (await sentIn(w)).filter(m => m.kind === 'query').map(m => m.query)
     expect(queries).toHaveLength(2)
     expect(queries).toContainEqual({ type: 'file', repo: 'partalemre/eliti', path: 'src/app.ts' })
     expect(queries).toContainEqual({ type: 'ask', repo: 'partalemre/eliti', question: 'Neden iki kez yazılıyor?' })
@@ -107,7 +111,7 @@ for (const surface of SURFACES) {
     await typeIn({ ui, w }, 'Selam', 'change')
     await typeIn({ ui, w }, 'Selam')
     await w.clock.advance(1_000)
-    expect(sentIn(w).at(-1)).toMatchObject({ kind: 'human', text: 'Selam' })
+    expect((await sentIn(w)).at(-1)).toMatchObject({ kind: 'human', text: 'Selam' })
   })
 
   test(`${surface}: a search is one line; Göster opens its count and first hits, Tamamı the rest`, async ($: any, on: any) => {

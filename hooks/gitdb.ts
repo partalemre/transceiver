@@ -1,7 +1,7 @@
 // The relay's ArtifactData calls, answered from a git room (gitbox.ts) in the tool's own wording, so the relay,
 // the sync loop and everything above them run on a repo exactly as they do on an artifact.
 import type { CallResult } from './host'
-import { commit, inCollection, isSafePath, oneDoc, parseGitUrl, refOf, refresh, rows, tipOf, withBox, type Box, type GitIo, type Op, type Row } from './gitbox'
+import { commit, inCollection, isSafePath, oneDoc, parseGitUrl, refOf, refresh, rows, squash, tipOf, withBox, type Box, type GitIo, type Op, type Row } from './gitbox'
 
 type Write = { op?: string; collection: string; doc_id: string; data?: Record<string, unknown>; if_version?: number }
 type Query = { where?: [string, string, number][]; order_by?: { field: string; direction?: string }; limit?: number }
@@ -94,6 +94,8 @@ async function answer(ctx: Ctx, opts: { uid: string; input: Record<string, unkno
   const action = String(input.action)
   // Only its owner writes a mailbox, as on an artifact.
   if (WRITES.has(action)) return opts.uid === ctx.self ? write(ctx, writesIn(input)) : missing()
+  // Not an artifact call: a git room's own history cut down once its lines are sealed (migrate.ts).
+  if (action === 'squash') return opts.uid === ctx.self ? squash(ctx.io, ctx.box, ctx.self).then(() => ({ text: 'squashed' })) : missing()
   const collection = String(input.collection ?? '')
   await refresh(ctx.io, ctx.box, ctx.self)
   const ref = refOf(opts.uid, ctx.self)

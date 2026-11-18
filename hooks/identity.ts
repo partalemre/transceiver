@@ -5,7 +5,9 @@ import type { AgentHost } from './host'
 import { LOGIN_RETRY_MS } from './limits'
 import { callerOf, relayOf } from './relay'
 import { adoptOwnHead, onTick, type TickEvent } from './room-loop'
+import { MAX_HEAD_KEYS } from './protocol'
 import { loadRooms, loadSettings } from './rooms'
+import { ownKey } from './seal'
 
 type Known = { login: string | null; at: number }
 let memo: Known | null = null
@@ -53,7 +55,21 @@ export async function shareDeviceName(host: AgentHost, ev: TickEvent): Promise<b
   return true
 }
 
+// This computer's public key on its own head, in every room, so the others seal to it (seal.ts). Added to the keys
+// the person's other computers put there; the newest few are kept.
+export async function shareKey(host: AgentHost, ev: TickEvent): Promise<boolean> {
+  const key = ownKey()
+  const { state } = ev
+  if (ev.isDenied || !host.isConnected() || (state.ownHead.keys ?? []).includes(key)) return false
+  const keys = (current: string[] | undefined) => [...(current ?? []).filter(k => k !== key), key].slice(-MAX_HEAD_KEYS)
+  const known = state.ownVersion > 0 ? { head: state.ownHead, version: state.ownVersion } : undefined
+  const own = await relayOf(callerOf(host), ev.room.url).writeHead({ uid: state.selfUid, patch: current => ({ keys: keys(current.keys) }), known })
+  adoptOwnHead(ev.room.id, own)
+  return true
+}
+
 export function wireIdentity(host: AgentHost): () => void {
-  // A failed write is tried again on a later tick; it never stops the room.
-  return onTick(ev => Promise.all([shareLogin(host, ev), shareDeviceName(host, ev)]).then(() => undefined, () => undefined))
+  // A failed write is tried again on a later tick; it never stops the room. The key goes first: the others cannot
+  // write to this computer until it is out.
+  return onTick(ev => shareKey(host, ev).then(() => Promise.all([shareLogin(host, ev), shareDeviceName(host, ev)])).then(() => undefined, () => undefined))
 }
