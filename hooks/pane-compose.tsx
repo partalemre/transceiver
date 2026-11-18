@@ -31,9 +31,15 @@ export function placeholderOf(room: RoomView, mode: string | null): string {
 // A project room's agents talk only once someone else has joined it; before that a query would go nowhere.
 export const canAskAgents = (room: RoomView): boolean => room.kind === 'project' && room.peerName !== undefined
 
+// A quiet press with the star the sheet's free `ask` wears, not a grey pill.
 function AskButton(ctx: Ctx, room: RoomView): RenderElement {
-  const { Button } = ctx.ui
-  return <Button key={`ask-more-${room.id}`} label={ctx.model.isSheetOpen ? chatWords().close : chatWords().askAgent(room.peerName)} variant="secondary" onPress={() => ctx.on.toggleSheet(room.id)} />
+  const { Box, Button } = ctx.ui
+  return (
+    <Box key="ask-more" flexDirection="row" alignItems="center" flexShrink={0}>
+      {GlyphPic(ctx, { glyph: 'star', paint: 'edit', key: 'ask-more-star' })}
+      <Button key={`ask-more-${room.id}`} label={ctx.model.isSheetOpen ? chatWords().close : chatWords().askAgent(room.peerName)} plain onPress={() => ctx.on.toggleSheet(room.id)} />
+    </Box>
+  )
 }
 
 // One query a row: its name to press, then what it returns.

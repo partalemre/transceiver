@@ -5,7 +5,7 @@ import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 import type { BandLine } from '../types'
 import type { PaneHandlers } from './actions'
 import { waitingText } from './connection'
-import { paneMotion } from './kit/moving'
+import { paneMotion, type MoveOpts } from './kit/moving'
 import type { Part, SvgPic } from './kit/svg-core'
 import { PRESENCE_MS } from './limits'
 import { sigPic } from './sig'
@@ -42,10 +42,10 @@ export const within = (ctx: Ctx, columns: number): Ctx => ({ ...ctx, columns, px
 export const motion = paneMotion()
 
 // `key` names the drawing's one place in the whole pane (a room's, a message's), so it moves with what it draws.
-export function SvgOf(ctx: Ctx, pic: SvgPic, key: string): RenderElement | null {
+export function SvgOf(ctx: Ctx, pic: SvgPic, key: string, opts?: MoveOpts): RenderElement | null {
   if (!('Svg' in ctx.ui)) return null
   const { Svg } = ctx.ui
-  return <Svg key={key} {...motion.pic(key, pic)} />
+  return <Svg key={key} {...motion.pic(key, pic, opts)} />
 }
 
 // A Part drawn as its own Svg, or its alt as text where the surface has no Svg.

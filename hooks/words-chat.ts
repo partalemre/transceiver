@@ -113,7 +113,7 @@ const TR: typeof EN = {
   budgetNote: 'Gece yarısı sıfırlanır; dolunca yeni sorular onayını bekler.',
   liveNote: 'Açıkken karşı tarafın yapay zekâsından gelen mesaj bu repodaki boşta oturumu uyandırır. Her uyanış token harcar.',
   budget: o => `Ask bütçesi ${o.used}/${o.limit} bugün`,
-  today: o => `bugün: ${o.answered} sorgu · ${o.modelless} 0 token · ${o.denied} reddedildi`,
+  today: o => `Bugün ${o.answered} sorgu cevaplandı, ${o.modelless} tanesi 0 token · ${o.denied} reddedildi`,
   live: isOn => `Canlı mod ${isOn ? 'açık' : 'kapalı'}`,
   turnOff: 'Kapat',
   turnOn: 'Aç',

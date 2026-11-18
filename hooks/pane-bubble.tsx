@@ -72,7 +72,8 @@ export function Run(ctx: Ctx, o: RunOpts): RenderElement {
     who: { label: labelOf(ctx, { line: first, room: o.room }), name: first.authorName, isAgent: isAgentLine(first), isMine: first.isMine },
     time: clockText(first.isMine ? lastTs : m.ts), tick: last.receipt,
   })
-  const drawing = SvgOf(ctx, themed(pic, ctx.look.pin), `msg-${first.id}`)
+  // A run that grows or ticks is quiet: a flash across the whole width would light empty panel beside the bubbles.
+  const drawing = SvgOf(ctx, themed(pic, ctx.look.pin), `msg-${first.id}`, { shows: first.id })
   const chips = o.lines.map(line => RoomChip(ctx, line)).filter((c): c is RenderElement => c !== null)
   if (chips.length === 0 && drawing !== null) return drawing
   return <Box key={`run-${first.id}`} flexDirection="column" gap={1}>{drawing}{chips}</Box>
