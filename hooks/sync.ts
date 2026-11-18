@@ -1,8 +1,9 @@
 import { DAYS_PULL_AFTER_MS, KEEP_ENTRIES, POLL_BACKOFF, POLL_CLOSED_MS, POLL_MAX_MS, POLL_OPEN_MS, SINCE_PAGE } from './limits'
 import { authorKey } from './authors'
-import { emptyHead, isUnreadable } from './protocol'
+import { emptyHead, isSealedAway, isUnreadable } from './protocol'
 import type { Head, Message } from './protocol'
 import { RelayError } from './relay'
+import { setAudience } from './seal'
 import type { HeadEntry, HeadState, Relay } from './relay'
 import { mergeEntries, type Entry } from './timeline'
 
@@ -19,6 +20,9 @@ export type RoomSync = {
   // poll could not read (not shared with this person yet, or gone).
   boxOf: Record<string, string>
   unread: string[]
+  // The keys this mailbox's writes are sealed to: the computers of everyone whose head the last poll saw (seal.ts).
+  // A member gone from the room (their ref deleted, their mailbox no longer read) drops out of it.
+  audience?: string[]
 }
 
 // `relay` is this person's own mailbox, the only one written; `boxes` are the other members', read only. `now`
@@ -78,7 +82,7 @@ function nextCursor(opts: { cursor: number; head: Head; got: Entry[] }): number 
 }
 
 type Pull = { relay: Relay; state: RoomSync; now?: number }
-type Pulled = { state: RoomSync; fresh: Entry[] }
+type Pulled = { state: RoomSync; fresh: Entry[]; seen: string[] }
 type Author = { uid: string; key: string }
 
 // A cursor near the compaction age may have missed messages their author has since moved into day docs (T15):
@@ -100,7 +104,8 @@ async function pullOne(opts: Pull & { author: Author }, entry: HeadEntry): Promi
   const older = await compacted({ ...opts, cursor })
   const recent = (await opts.relay.since(author.uid, cursor)).map(message => ({ author: key, message }))
   const cursors = { ...s.cursors, [key]: nextCursor({ cursor, head, got: recent }) }
-  const got = mergeEntries([], [...older, ...recent])
+  // A line sealed before this computer's key was published is not this computer's to read: it is left out.
+  const got = mergeEntries([], [...older, ...recent].filter(e => !isSealedAway(e.message)))
   return { state: { ...s, cursors, entries: mergeEntries(s.entries, got, KEEP_ENTRIES) }, got }
 }
 
@@ -114,14 +119,16 @@ function isAuthorOf(state: RoomSync, key: string, url: string): boolean {
 async function pullBox(opts: Pull & { isOwn: boolean }): Promise<Pulled> {
   let s = opts.state
   const fresh: Entry[] = []
+  const seen: string[] = []
   for (const entry of await opts.relay.heads()) {
     const author = { uid: entry.uid, key: authorKey({ uid: entry.uid, url: opts.relay.url, isOwn: opts.isOwn }) }
     if (!isAuthorOf(s, author.key, opts.relay.url)) continue
     const out = await pullOne({ ...opts, state: s, author }, entry)
     s = out.state
+    seen.push(...(entry.head.keys ?? []))
     if (author.key !== s.selfUid) fresh.push(...out.got)
   }
-  return { state: s, fresh }
+  return { state: s, fresh, seen }
 }
 
 // The own mailbox first: a failure there fails the tick. Another member's mailbox that cannot be read is noted and
@@ -131,18 +138,22 @@ async function pull(opts: Pull & { boxes: Relay[] }): Promise<Pulled> {
   const own = await pullBox({ ...opts, isOwn: true, state: { ...state, boxOf: { ...state.boxOf, [state.selfUid]: opts.relay.url } } })
   let s = own.state
   const fresh = [...own.fresh]
+  const seen = [...own.seen]
   const unread: string[] = []
   for (const relay of opts.boxes) {
     try {
       const out = await pullBox({ ...opts, relay, isOwn: false, state: s })
       s = out.state
       fresh.push(...out.fresh)
+      seen.push(...out.seen)
     } catch (err) {
       if (!(err instanceof RelayError)) throw err
       unread.push(relay.url)
     }
   }
-  return { state: { ...s, unread }, fresh }
+  // A mailbox that could not be read this time keeps its owner's keys from before: one bad poll drops nobody.
+  const kept = Object.entries(s.peers).filter(([key]) => unread.includes(s.boxOf[key] ?? '')).flatMap(([, head]) => head.keys ?? [])
+  return { state: { ...s, unread, audience: [...new Set([...seen, ...kept])] }, fresh, seen }
 }
 
 // Seen moves with every message pulled; read follows it only while the person has this room open. Both catch up
@@ -169,11 +180,17 @@ async function ackOutcome(opts: TickOpts, fresh: Entry[]): Promise<Outcome> {
 }
 
 // A write the session has not approved yet (spike R1) must not stop reading: pull still runs, sends wait.
+// Before the first poll that saw the heads, everyone known stands in.
+export const audienceKeys = (s: RoomSync): string[] =>
+  s.audience ?? [...new Set([s.ownHead, ...Object.values(s.peers)].flatMap(h => h.keys ?? []))]
+
 export async function tick(opts: TickOpts): Promise<TickResult> {
   const canWrite = opts.canWrite !== false
+  setAudience(opts.relay.url, audienceKeys(opts.state))
   const sent = canWrite ? await flush(opts.relay, opts.state) : settled(opts.state)
   try {
     const pulled = await pull({ relay: opts.relay, boxes: opts.boxes ?? [], state: sent.state, now: opts.now })
+    setAudience(opts.relay.url, audienceKeys(pulled.state))
     const acked = sent.isDenied || !canWrite ? settled(pulled.state) : await ackOutcome({ ...opts, state: pulled.state }, pulled.fresh)
     const failures = sent.hasFailed || acked.hasFailed ? opts.state.failures + 1 : 0
     return { state: { ...acked.state, failures }, fresh: pulled.fresh, isDenied: sent.isDenied || acked.isDenied }

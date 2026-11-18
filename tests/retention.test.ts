@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { dayOf } from '../hooks/compact'
 import type { CallResult } from '../hooks/host'
-import { COMPACT_AFTER_MS, RETENTION_RETRY_MS, ROLLOVER_DOCS } from '../hooks/limits'
+import { COMPACT_AFTER_MS, DAY_MS, RETENTION_RETRY_MS, ROLLOVER_DOCS } from '../hooks/limits'
 import type { Message } from '../hooks/protocol'
 import { emptyHead } from '../hooks/protocol'
 import { MOVED, wireRetention } from '../hooks/retention'
@@ -9,7 +9,8 @@ import { enqueueMessage, setViewing, startLoop, stopRoom, syncOf } from '../hook
 import { loadRooms, saveRooms, type RoomRecord } from '../hooks/rooms'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, type FakeAgent } from './fake-agent'
-import { callerFor, fakeDb, type FakeDb } from './fake-db'
+import { callerFor, fakeDb, type FakeDb, opened } from './fake-db'
+import { relayOf } from '../hooks/relay'
 import { setLang } from '../hooks/kit/lang'
 
 // These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
@@ -119,7 +120,7 @@ test('a full mailbox of mine moves to a new one: notice in the old one, peers ke
   expect(next?.peers).toEqual(w.room.peers)
   expect(next?.isLive).toBe(true)
   expect([next?.room, next?.boxes]).toEqual([w.room.room, w.room.boxes])
-  const notices = [...w.db.docs.values()].filter(d => d.data.kind === 'system').map(d => d.data.text)
+  const notices = [...w.db.docs.values()].map(d => opened(d.data)).filter(d => d.kind === 'system').map(d => d.text)
   expect(notices).toEqual([`${MOVED}${next?.url}`])
   expect(w.dbs.get(next?.url ?? '')?.docs.has('meta/room')).toBe(true)
   expect(w.host.toasts).toContain('Transceiver: kutun doldu; yeni kutunu Paylaş ile odadakilere tekrar aç.')
@@ -178,13 +179,45 @@ test('a notice whose reply was lost is settled on the retry: one new room, one n
   const w = await world({ id: 'RET6' })
   await w.host.advance(2_000)
   w.db.extraUsed = ROLLOVER_DOCS
-  w.db.beforeWrite = input => { if (JSON.stringify(input.writes ?? '').includes('"system"')) { w.db.isReplyLost = true; w.db.beforeWrite = undefined } }
+  const isNotice = (input: Record<string, unknown>) => ((input.writes ?? []) as Array<{ data?: Record<string, unknown> }>).some(x => opened(x.data).kind === 'system')
+  w.db.beforeWrite = input => { if (isNotice(input)) { w.db.isReplyLost = true; w.db.beforeWrite = undefined } }
   enqueueMessage({ host: w.host, room: w.room, message: say(w.host, 'a') })
   await w.host.advance(5_000)
   expect((await loadRooms(w.host)).find(r => r.id === 'RET6')?.status).toBe('active')
   await w.host.advance(RETENTION_RETRY_MS + 5_000)
   expect(w.net.publishes).toBe(1)
-  expect([...w.db.docs.values()].filter(d => d.data.kind === 'system').length).toBe(1)
+  expect([...w.db.docs.values()].map(d => opened(d.data)).filter(d => d.kind === 'system').length).toBe(1)
   expect((await loadRooms(w.host)).find(r => r.id === 'RET6')?.status).toBe('left')
+  await w.stop()
+})
+
+test('what was written before sealing is sealed in place once, and still reads', async () => {
+  const w = await world({ id: 'RET7', old: 3 })
+  const dayMsg = { v: 1, id: newId(5), ts: 5, kind: 'human', text: SECRET_TEXT }
+  w.db.docs.set(`outbox/${ME}/days/1970-01-01`, { data: { v: 1, ts: 5, msgs: [dayMsg] }, version: 1 })
+  w.db.docs.set(`outbox/${ME}`, { data: { ...emptyHead(), gh: 'old-login', label: 'Old Name' }, version: 1 })
+  await w.host.advance(5_000)
+  const bytes = JSON.stringify([...w.db.docs])
+  for (const word of [SECRET_TEXT, 'old-login', 'Old Name']) expect(bytes.includes(word)).toBe(false)
+  expect(await w.host.storeGet('tx.sealedHistory.RET7')).toBe(true)
+  const relay = relayOf(callerFor(w.db), w.room.url)
+  const texts = [...await relay.days(ME, 0), ...(await relay.since(ME, 0)).flatMap(m => ('text' in m ? [m.text] : []))]
+  expect(texts.filter(t => t === SECRET_TEXT || (typeof t === 'object' && t.text === SECRET_TEXT)).length).toBe(4)
+  expect((await relay.heads()).find(h => h.uid === ME)?.head.gh).toBe('old-login')
+  await w.stop()
+})
+
+test('history waits while a member has no key yet, then seals once the wait runs out', async () => {
+  const peer = fakeDb(PEER)
+  peer.docs.set(`outbox/${PEER}`, { data: emptyHead(), version: 1 })
+  const w = await world({ id: 'RET8', old: 2, boxes: new Map([[PEER_BOX, peer]]) })
+  await w.host.advance(5_000)
+  expect(JSON.stringify([...w.db.docs]).includes(SECRET_TEXT)).toBe(true)
+  const held = await w.host.storeGet('tx.sealedHistory.RET8') as { since: number }
+  expect(typeof held.since).toBe('number')
+  await w.host.storeSet('tx.sealedHistory.RET8', { ...held, since: w.host.clock.now - 3 * DAY_MS - 1 })
+  await w.host.advance(5_000)
+  expect(JSON.stringify([...w.db.docs]).includes(SECRET_TEXT)).toBe(false)
+  expect(await w.host.storeGet('tx.sealedHistory.RET8')).toBe(true)
   await w.stop()
 })

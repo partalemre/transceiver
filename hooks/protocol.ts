@@ -1,3 +1,4 @@
+import { isKey, open, seal } from './seal'
 import { GREP_MAX_CHARS, GREP_MIN_CHARS, MAX_ANSWER_PARTS, MAX_PATH_BYTES, MAX_TEXT_BYTES, PROTOCOL_VERSION } from './limits'
 
 export const DENIED = 'erişim yok'
@@ -42,6 +43,8 @@ export type Head = {
   v: 1; head: string; headTs: number; seenUpTo: string; readUpTo: string; readTs: number; gh?: string; label?: string
   // A git room's head also says when its owner last worked on the repo, and on which branch.
   at?: number; branch?: string
+  // The public keys of the owner's computers, which the room's writes are sealed to (seal.ts).
+  keys?: string[]
 }
 // `room` ties the mailboxes of one room together: every member's mailbox for it carries the same id.
 export type RoomMeta = { v: 1; kind: (typeof ROOM_KINDS)[number]; repo?: string; room: string; createdAt: number }
@@ -59,6 +62,8 @@ const ID = /^[0-9A-HJKMNP-TV-Z]{26}$/
 const REPO = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/
 const GH_LOGIN = /^[A-Za-z0-9-]{1,39}$/
 const SHORT_TEXT = 200
+// One per computer of the head's owner; the newest are kept (identity.ts).
+export const MAX_HEAD_KEYS = 8
 const ONE_BYTE = 0x80
 const TWO_BYTES = 0x800
 const THREE_BYTES = 0x10000
@@ -177,10 +182,11 @@ export function parseHead(raw: unknown): Head | null {
   if (raw.label !== undefined && !isText(raw.label, SHORT_TEXT)) return null
   if (raw.at !== undefined && !isCount(raw.at)) return null
   if (raw.branch !== undefined && !isText(raw.branch, SHORT_TEXT)) return null
+  if (raw.keys !== undefined && !(Array.isArray(raw.keys) && raw.keys.length <= MAX_HEAD_KEYS && raw.keys.every(isKey))) return null
   return stripUndefined<Head>({
     v: 1, head, headTs: raw.headTs, seenUpTo, readUpTo, readTs: raw.readTs,
     gh: raw.gh as string | undefined, label: raw.label as string | undefined,
-    at: raw.at as number | undefined, branch: raw.branch as string | undefined,
+    at: raw.at as number | undefined, branch: raw.branch as string | undefined, keys: raw.keys as string[] | undefined,
   })
 }
 
@@ -191,14 +197,38 @@ export function parseMeta(raw: unknown): RoomMeta | null {
   return stripUndefined<RoomMeta>({ v: 1, kind: raw.kind, repo: raw.repo as string | undefined, room: raw.room, createdAt: raw.createdAt })
 }
 
-// A compacted day (T15): `ts` is its newest message's, so readers can ask for the days after a cursor. Messages
-// that do not parse are dropped; the author is the outbox the doc sits in, never a field.
+// A message as a room stores it: its id and time in clear (both transports sort and filter on `ts`), the rest
+// sealed to the room's members (seal.ts). Version 2, so a client from before sealing reads it as unreadable.
+export const SEALED_VERSION = 2
+export type StoredDoc = { id: string; ts: number } & Record<string, unknown>
+
+export const sealMessage = (message: Message, to: readonly string[]): StoredDoc =>
+  ({ v: SEALED_VERSION, id: message.id, ts: message.ts, sealed: seal(message, to) })
+
+// What the outside says must be what was sealed, so a sealed message cannot be moved to another id or time. One
+// written before sealing (version 1) still reads: it is the room's history, and its author seals it (migrate.ts).
+export function openStored(id: string, raw: unknown): Message | Unreadable {
+  if (!isObj(raw) || raw.v !== SEALED_VERSION) return parseMessage(id, raw)
+  if (raw.id !== id || !isId(id) || !isCount(raw.ts)) return unreadable(id, 'id mismatch')
+  if (claimsAuthor(raw)) return unreadable(id, 'claims an author')
+  const inner = open(raw.sealed)
+  if (inner === null) return unreadable(id, 'sealed for others')
+  const message = parseMessage(id, inner)
+  return isUnreadable(message) || message.ts === raw.ts ? message : unreadable(id, 'ts mismatch')
+}
+
+export const isSealedAway = (x: Message | Unreadable): boolean => isUnreadable(x) && x.reason === 'sealed for others'
+export const isStoredDoc = (x: unknown): x is StoredDoc => isObj(x) && isId(x.id) && isCount(x.ts)
+
+// A compacted day (T15): `ts` is its newest message's, so readers can ask for the days after a cursor. Each message
+// keeps the seal it was sent with, so moving it changes who can read it in no way. Messages that do not open are
+// dropped; the author is the outbox the doc sits in, never a field.
 export type Day = { v: 1; ts: number; msgs: Message[] }
 
 export function parseDay(raw: unknown): Day | null {
   if (!isObj(raw) || raw.v !== PROTOCOL_VERSION || !isCount(raw.ts) || !Array.isArray(raw.msgs) || claimsAuthor(raw)) return null
   const msgs = raw.msgs.flatMap(m => {
-    const parsed = parseMessage(isObj(m) && typeof m.id === 'string' ? m.id : '', m)
+    const parsed = openStored(isObj(m) && typeof m.id === 'string' ? m.id : '', m)
     return isUnreadable(parsed) ? [] : [parsed]
   })
   return { v: 1, ts: raw.ts, msgs }

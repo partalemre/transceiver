@@ -6,7 +6,7 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/partalemre/MODZ/main/docs/img/team.jpg" width="820" alt="Two Claude Code windows in the same project room: teammates chatting, and one agent's diff question answered by the other machine at zero tokens"></p>
 
-You chat with friends without leaving Claude Code, and on a GitHub repo you share, your agent can ask a teammate's side about the project: `status`, `diff`, `tests`, `log`, a file. The answer is computed on their machine without a model, so it costs no tokens. There is no server of its own: a team room lives in the private repo you already share, and a DM or the bridge between your own computers in a private claude.ai artifact you own.
+You chat with friends without leaving Claude Code, and on a GitHub repo you share, your agent can ask a teammate's side about the project: `status`, `diff`, `tests`, `log`, a file. The answer is computed on their machine without a model, so it costs no tokens. There is no server of its own: a team room lives in the private repo you already share, and a DM or the bridge between your own computers in a private claude.ai artifact you own. Everything you write there is end-to-end encrypted: only the room's members can read it, not GitHub, not claude.ai, and not someone who gets a copy of the repo ([details](#end-to-end-encryption)).
 
 > **Beta.** Transceiver works end to end (DMs, project rooms, read receipts and agent questions are tested live between two sessions), and it is still being tried across more accounts and setups. If something breaks, [open an issue](https://github.com/partalemre/transceiver/issues).
 
@@ -35,10 +35,11 @@ How it works: the room lives in the repo itself. Each member writes one hidden r
 
 - **Speed.** A line shows as written at once and reaches a teammate in about five seconds (each look is one call to GitHub).
 - **Who is here.** Your name (from `git config user.name`), your branch and when you last worked go on your own ref while you work, so teammates see who is on the repo. MODZ's session strip shows it above the prompt.
-- **Private repos only.** A public repo's refs can be fetched by anyone, so Transceiver refuses to open a room there.
-- **What stays in the repo.** Lines are kept in the ref's history, where every collaborator can fetch them, also after a 7-day compaction. So every line, typed or agent-written, is scanned for secrets before it is sent, and one that looks like a key is refused.
+- **Private repos only.** Lines are encrypted, so a repo that is or later becomes public shows nobody what was said. Transceiver still opens rooms only in private repos, because who is in a room, and when and how much they write, stays visible to whoever can read the repo.
+- **What stays in the repo.** Only encrypted lines, also in the ref's history and after the 7-day compaction. Every line, typed or agent-written, is still scanned for secrets before it is sent, and one that looks like a key is refused: a member can read it.
 - **Trust.** A collaborator who can push can write any ref, including a line under someone else's id. Agent questions therefore only ever return what a collaborator could already read in the repo's working copy on your side, behind the same file and secret rules as below.
 - **Leaving.** `/transceiver leave <repo>` stops it. To remove your lines from the repo: `git push origin :refs/transceiver/<id>` (the id is in the store key `tx.git.uid`).
+- **Removing someone.** Take away their access to the repo, and delete their ref: `git push origin :refs/transceiver/<their id>`. From the next poll on, nothing is encrypted to them. What they could read before, they keep.
 
 DMs with a friend and the bridge between your own computers still use private claude.ai artifacts, described next.
 
@@ -108,10 +109,23 @@ They work only in a project room, and only for the repo the session is open in. 
 
 Every type but `ask` is answered without a model and costs zero tokens.
 
+## End-to-end encryption
+
+Every message, agent question and answer, DM and bridge line is encrypted on your computer before it is written, and only the room's members can decrypt it. That holds in a public repo, in the repo's git history, and in a claude.ai artifact.
+
+- **How.** Each of your computers makes its own key pair the first time it runs and keeps the secret half in Claude Code's store on that computer. The public half goes on your head in each room. Each message gets a fresh key, and that key is locked once for every member computer's public key. This is the [age](https://age-encryption.org) idea, built on NaCl (X25519, XSalsa20-Poly1305) from [tweetnacl](https://github.com/dchest/tweetnacl-js) 1.0.3, an audited library that `bin/vendor-nacl` checks against npm's published hash and vendors with only its loading wrapper adapted. Nothing to set up, no server, no SSH key.
+- **What is encrypted.** Message text, questions, answers, compacted day bundles, and on your head your GitHub login, your name, your branch and when you last worked.
+- **What stays visible** to whoever can read the repo or artifact: that a room exists and its kind, the repo name, each member's random id, when each line was written and how big it is, read cursors, and the public keys.
+- **A new member** (or a new computer of yours) reads what is written after its key is published, within a poll of joining. Lines written before stay encrypted to the members of that time.
+- **A removed member** is one whose head is gone from the room: in a repo, their ref deleted (see [Removing someone](#team-room-on-a-shared-repo)). Nothing new is encrypted to them. In a DM, unsharing your mailbox from them stops them fetching it at all. What they decrypted before, they keep: no encryption can take back what someone already read.
+- **Mixed versions.** A member on a version from before encryption sees new lines as "unreadable message" until they update, and lines they write are still in clear.
+- **Old history.** The first time an updated session runs in a room, it encrypts in place everything you wrote there before, and in a repo replaces your ref's history with one new commit, so the clear text is in no commit the repo serves. Each person can do this only for their own lines. Copies already fetched stay where they are, and GitHub may keep serving an old commit to someone who knows its hash until it cleans up. Treat what was written in clear before as already seen.
+- **Trust.** The keys come from each member's own head, which only they can write in a DM. In a repo, a collaborator who can push can rewrite any ref, keys included, as under [Trust](#team-room-on-a-shared-repo): such a person is already a member who reads everything.
+
 ## Privacy and safety
 
-- **Where things are.** In a team room, what you write is in your own ref of the repo, which whoever can read the repo can fetch (see [Team room on a shared repo](#team-room-on-a-shared-repo)). In a DM or the bridge, what you write is only in your own mailbox, which only the people you shared it with can read. Only its owner can write to a mailbox, and the server enforces that. The mod ties each mailbox to one author, so lines written there under someone else's id are ignored. Your settings, room list and daily counts stay on your machine.
-- **What is never written.** No session name, folder path, model name or repo list reaches any room. The only identity written is your GitHub login, and only into project rooms you accepted; a team room in a repo also carries your git name, your branch there and when you last worked. A repo name appears only in that repo's room.
+- **Where things are.** In a team room, what you write is in your own ref of the repo, which whoever can read the repo can fetch, encrypted (see [End-to-end encryption](#end-to-end-encryption)). In a DM or the bridge, what you write is only in your own mailbox, which only the people you shared it with can fetch, and is encrypted too. Only its owner can write to a mailbox, and the server enforces that. The mod ties each mailbox to one author, so lines written there under someone else's id are ignored. Your settings, room list and daily counts stay on your machine.
+- **What is never written.** No session name, folder path, model name or repo list reaches any room. The only identity written is your GitHub login, encrypted, and only into project rooms you accepted; a team room in a repo also carries your git name, your branch there and when you last worked, encrypted the same way. A repo name appears only in that repo's room.
 - **The gate.** In a team room in a repo, an agent question is answered when the room and the session are both that repo: a line there was pushed, which only a collaborator can do. In an artifact project room, it is answered only when all four hold. You confirmed the person on the GitHub card. They are a collaborator on the repo, which is checked with GitHub and cached for 10 minutes. The session is open in that repo. The room is that repo's project room. If a check cannot be made, the gate counts as closed. Every refusal reads the same: "no access".
 - **Files.** Paths must stay inside the repo root, with links resolved. `.env*`, `*.pem`, `*.key`, `id_*`, `.git/`, `.ssh/` and everything `.gitignore` covers are refused.
 - **Secret scan.** Every outgoing answer and agent message is scanned with secret-guard's patterns. On a hit nothing is sent, and the other side sees "no access".
@@ -126,7 +140,7 @@ Messaging, polling and model-free questions use no model tokens: the mod calls C
 
 ## Limits
 
-- **Format.** No group chat, end-to-end encryption or attachments. Chat happens only in Claude Code; the mailbox page in a browser shows no chat.
+- **Format.** No group chat or attachments. Chat happens only in Claude Code; the mailbox page in a browser shows no chat.
 - **Size and rate.** Up to 16 KB per message, and up to 60 questions per minute per room.
 - **Polling.** Every second with the pane open, every 5 seconds with it closed, doubling on errors up to 30 seconds. Invites are checked once a minute.
 - **Compaction.** Messages older than 7 days are compacted once a day into one bundle per person per day.

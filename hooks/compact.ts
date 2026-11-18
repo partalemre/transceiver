@@ -1,5 +1,5 @@
 import { COMPACT_AFTER_MS, COMPACT_BATCH_DELETES, DAY_DOC_MAX_BYTES, MAX_DAY_PARTS } from './limits'
-import { utf8Bytes, type Message } from './protocol'
+import { utf8Bytes, type StoredDoc } from './protocol'
 import type { Relay, Stored } from './relay'
 
 // Retention (T15): each person moves their own week-old messages into one doc per UTC day, which is all the room's
@@ -17,7 +17,7 @@ export const dayDocId = (day: string, part: number) => (part <= 1 ? day : `${day
 export function groupByDay(items: readonly Stored[]): Map<string, Stored[]> {
   const groups = new Map<string, Stored[]>()
   for (const item of items) {
-    const key = dayOf(item.message.ts)
+    const key = dayOf(item.doc.ts)
     groups.set(key, [...(groups.get(key) ?? []), item])
   }
   return groups
@@ -30,25 +30,25 @@ export function deleteBatches<T>(items: readonly T[]): T[][] {
   return out
 }
 
-const order = (a: Message, b: Message) => a.ts - b.ts || (a.id < b.id ? -1 : 1)
+const order = (a: StoredDoc, b: StoredDoc) => a.ts - b.ts || (a.id < b.id ? -1 : 1)
 
 // By id, oldest first: a message already in the day (a retried batch, or one a crash left in both places) is
 // kept once.
-export function mergeDay(known: readonly Message[], adding: readonly Message[]): Message[] {
+export function mergeDay(known: readonly StoredDoc[], adding: readonly StoredDoc[]): StoredDoc[] {
   const byId = new Map(known.map(m => [m.id, m]))
   for (const m of adding) byId.set(m.id, m)
   return [...byId.values()].sort(order)
 }
 
-const docBytes = (msgs: readonly Message[]) => utf8Bytes(JSON.stringify({ v: 1, ts: Number.MAX_SAFE_INTEGER, msgs }))
+const docBytes = (msgs: readonly StoredDoc[]) => utf8Bytes(JSON.stringify({ v: 1, ts: Number.MAX_SAFE_INTEGER, msgs }))
 
 // How many of `batch` fit beside what the day doc already holds.
-export function fitting(known: readonly Message[], batch: readonly Stored[]): number {
+export function fitting(known: readonly StoredDoc[], batch: readonly Stored[]): number {
   const ids = new Set(known.map(m => m.id))
   let size = docBytes(known)
   let n = 0
   for (const item of batch) {
-    const add = ids.has(item.message.id) ? 0 : utf8Bytes(JSON.stringify(item.message)) + 1
+    const add = ids.has(item.doc.id) ? 0 : utf8Bytes(JSON.stringify(item.doc)) + 1
     if (size + add > DAY_DOC_MAX_BYTES) break
     size += add
     n += 1
@@ -68,8 +68,8 @@ async function compactGroup(g: Group): Promise<number> {
     const known = existing?.msgs ?? []
     const batch = queue.slice(0, fitting(known, deleteBatches(queue)[0] ?? []))
     if (batch.length === 0) { part += 1; continue }
-    const msgs = mergeDay(known, batch.map(b => b.message))
-    const deletes = batch.map(b => ({ id: b.message.id, version: b.version }))
+    const msgs = mergeDay(known, batch.map(b => b.doc))
+    const deletes = batch.map(b => ({ id: b.doc.id, version: b.version }))
     await g.relay.compactDay({ uid: g.uid, docId, msgs, dayVersion: existing?.version, deletes })
     moved += batch.length
     queue = queue.slice(batch.length)

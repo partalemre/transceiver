@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { deepStrictEqual } from 'node:assert'
 import { commit, forgetBoxes, gitUrl, peersOf, pushed, REFRESH_MS, tipOf, withBox, type GitIo } from '../hooks/gitbox'
 import { gitDb } from '../hooks/gitdb'
-import type { Message } from '../hooks/protocol'
+import { paths, sealMessage, type Message } from '../hooks/protocol'
 import { relayOf } from '../hooks/relay'
 
 const cases: Array<[string, () => Promise<void>]> = []
@@ -119,6 +119,30 @@ test('two sessions of one person share the mailbox: neither loses a line, a clai
   expect(refused).toBe(true)
   await pushed(REPO)
   expect((await w.as(B).relay(A).since(A, 0)).length).toBe(2)
+})
+
+test('sealed lines and a cut history: a fresh clone of the repo holds no clear text', async () => {
+  const w = world()
+  const a = w.as(A)
+  const box = paths.msgs(A)
+  // A line from before sealing, in clear in the mailbox's history.
+  await withBox(a.io, REPO, b => commit(a.io, b, { ops: [{ path: `${box}/${ID1}`, row: { id: ID1, data: msg(ID1, 10, 'plain-before-sealing'), version: 1 } }], self: A, parent: null }))
+  await a.relay(A).send({ uid: A, message: msg(ID2, 20, 'sealed-after') })
+  // migrate.ts: the old line sealed in place, then the history cut.
+  await a.relay(A).batch([{ op: 'set', collection: box, doc_id: ID1, data: sealMessage(msg(ID1, 10, 'plain-before-sealing'), []), if_version: 1 }])
+  const out = await gitDb(a.io, { url: gitUrl(REPO, A), action: 'squash' })
+  expect(out.isError === true).toBe(false)
+  await pushed(REPO)
+  const clone = join(w.remote, '..', 'clone.git')
+  execFileSync('git', ['clone', '-q', '--no-local', '--mirror', w.remote, clone])
+  execFileSync('git', ['-C', clone, 'fetch', '-q', 'origin', '+refs/transceiver/*:refs/transceiver/*'])
+  const commits = execFileSync('git', ['-C', clone, 'rev-list', `refs/transceiver/${A}`], { encoding: 'utf8' }).trim().split('\n')
+  expect(commits.length).toBe(1)
+  const objects = execFileSync('git', ['-C', clone, 'cat-file', '--batch-all-objects', '--batch'], { encoding: 'utf8' })
+  expect(['plain-before-sealing', 'sealed-after'].some(t => objects.includes(t))).toBe(false)
+  // The member still reads both.
+  const texts = (await w.as(B).relay(A).since(A, 0)).map(m => ('text' in m ? m.text : ''))
+  expect(texts).toEqual(['plain-before-sealing', 'sealed-after'])
 })
 
 let failed = 0

@@ -26,6 +26,7 @@ import { onPaneTick } from './pane-tick'
 import { onTick, startLoop } from './room-loop'
 import { loadRooms } from './rooms'
 import { realPathOf, runnerOf } from './run'
+import { loadKeyring } from './seal'
 import { bindPane, dismissBand, patchSession, refreshPane, setPaneShown, setRepoSource, type UiHost } from './state'
 import { EMPTY_PANE } from './state-types'
 import { runTool, TOOL_SPECS } from './tools'
@@ -191,6 +192,8 @@ function onSession(on: On): void {
     persistConnection(is => { void $.state.set(CONNECTION_STATE, is).catch(() => undefined) })
     await restoreConnection(() => $.state.get(CONNECTION_STATE))
     const agents = agentHostOf($)
+    // This computer's sealing key before any room is read or written (seal.ts).
+    await loadKeyring(agents)
     // The pane listens first, so a failing agent-side listener never keeps it from redrawing.
     bindPane({ host: agents, ui: uiOf($) })
     setRepoSource(() => repoHere(agents))

@@ -11,7 +11,7 @@ import { saveRooms, type RoomRecord } from '../hooks/rooms'
 import type { Run } from '../hooks/run'
 import { newId } from '../hooks/ulid'
 import { fakeAgent, gitIn, type FakeAgent } from './fake-agent'
-import { callerFor, fakeDb, type FakeDb } from './fake-db'
+import { callerFor, fakeDb, type FakeDb, opened } from './fake-db'
 import { setLang } from '../hooks/kit/lang'
 
 // These tests read the Turkish interface (MODZ_LANG=tr); the English one has its own tests.
@@ -56,7 +56,7 @@ async function world(opts: { id: string; headGh?: string; isOn?: boolean; preCla
 }
 
 const answersIn = (db: FakeDb) =>
-  [...db.docs].filter(([k, d]) => k.startsWith(`outbox/${ME}/msgs/`) && d.data.kind === 'answer').map(([, d]) => d.data.answer as { ok: boolean })
+  [...db.docs].filter(([k, d]) => k.startsWith(`outbox/${ME}/msgs/`) && opened(d.data).kind === 'answer').map(([, d]) => opened(d.data).answer as { ok: boolean })
 
 test('a peer query is claimed in my outbox, gated and answered once, with no model', async () => {
   const w = await world({ id: 'RW1' })

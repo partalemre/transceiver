@@ -1,4 +1,7 @@
+import { openHead } from '../hooks/heads'
+import { SEALED_VERSION } from '../hooks/protocol'
 import type { CallResult } from '../hooks/relay'
+import { open } from '../hooks/seal'
 import * as T from './db-texts'
 
 type Doc = { data: Record<string, unknown>; version: number }
@@ -152,3 +155,12 @@ export function callerAs(db: FakeDb, uid: string) {
 }
 
 export const writesOf = (db: FakeDb) => db.calls.filter(c => WRITES.has(String(c.action)))
+
+// A stored doc as this test's computer reads it (seal.ts): a sealed message opened, a day's messages opened, a head
+// with its sealed part.
+export function opened(data: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (data === undefined) return {}
+  if (data.v === SEALED_VERSION) return (open(data.sealed) ?? {}) as Record<string, unknown>
+  if (Array.isArray(data.msgs)) return { ...data, msgs: data.msgs.map(m => opened(m as Record<string, unknown>)) }
+  return 'sealed' in data ? ((openHead(data) ?? {}) as Record<string, unknown>) : data
+}

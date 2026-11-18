@@ -11,6 +11,7 @@ import { paneWords } from './words-pane'
 import { acceptInvite, joinUrlOf, joinRoom } from './join'
 import { askAgent, sendComposed, setTyped, typedOf } from './compose'
 import { isRepo, paths } from './protocol'
+import { storedHead } from './relay'
 import { pokeRoom, syncOf } from './room-loop'
 import { createRoom, failText, loadRooms, loadSettings, saveRooms, saveSettings, type RoomKind, type RoomRecord } from './rooms'
 import { draftSettlerNow, modelNow, patchSession, portNow, refreshPane, sessionNow, type PanePort } from './state'
@@ -77,7 +78,7 @@ async function connect(p: PanePort): Promise<void> {
   await refreshPane()
   const pin = sync.ownVersion > 0 ? { if_version: sync.ownVersion } : {}
   const out = await p.host.tool({
-    tool: 'ArtifactData', action: 'set', url: room.url, collection: paths.heads, doc_id: sync.selfUid, data: sync.ownHead,
+    tool: 'ArtifactData', action: 'set', url: room.url, collection: paths.heads, doc_id: sync.selfUid, data: storedHead(room.url, sync.ownHead),
     ...pin, consent: connectConsent(),
   }).catch(() => null)
   const isOk = out !== null && out.deny === undefined

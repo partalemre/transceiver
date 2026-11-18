@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import { authorKey } from '../hooks/authors'
 import { relayOf } from '../hooks/relay'
 import { enqueue, initialSync, nextDelay, tick } from '../hooks/sync'
-import { callerAs, callerFor, fakeDb, type FakeDb } from './fake-db'
+import { callerAs, callerFor, fakeDb, type FakeDb, opened } from './fake-db'
 
 const ME = 'u_AAAAAAAAAAAAAAAAAAAAAA'
 const PEER = 'u_BBBBBBBBBBBBBBBBBBBBBB'
@@ -103,7 +103,7 @@ test('acks and sends keep a gh name another session wrote to the same head', asy
   await relayOf(callerFor(db), URL).writeHead({ uid: ME, patch: { gh: 'partalemre' } })
   const out = await tick({ relay, state: enqueue(sent.state, human(C, 3)), isViewing: true, isReceiptsOn: true })
   expect(out.state.ownHead.gh).toBe('partalemre')
-  expect(db.docs.get(`outbox/${ME}`)?.data.gh).toBe('partalemre')
+  expect(opened(db.docs.get(`outbox/${ME}`)?.data).gh).toBe('partalemre')
 })
 
 test('a peer message that does not parse still moves the cursor, so it is not fetched forever', async () => {
